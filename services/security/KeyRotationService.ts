@@ -10,15 +10,19 @@ export interface KeyRotationConfig {
   emergencyRotation: boolean;
 }
 
+export type KeyUsage = 'message' | 'attachment' | 'session' | 'token';
+
 export interface KeyMetadata {
   keyId: string;
   version: number;
+  previousVersion?: number;
   createdAt: Date;
   lastUsed: Date;
   rotationDue: Date;
   status: 'active' | 'deprecated' | 'revoked';
   algorithm: string;
   keySize: number;
+  usage: KeyUsage;
 }
 
 export interface RotationEvent {
@@ -39,12 +43,13 @@ class KeyRotationService {
   private keyMetadata: Map<string, KeyMetadata> = new Map();
   private rotationHistory: RotationEvent[] = [];
   private isInitialized = false;
+  private keyUsageMap: Map<string, KeyUsage> = new Map();
 
   private constructor() {
     this.rotationConfig = {
-      rotationIntervalHours: 24 * 30, // كل 30 يوم كما طُلب شهريًا
-      maxKeyAge: 90 * 24, // 90 يوم
-      keyVersions: 5, // الاحتفاظ بـ5 إصدارات للأمان
+      rotationIntervalHours: 24 * 30,
+      maxKeyAge: 90 * 24,
+      keyVersions: 2,
       emergencyRotation: true
     };
     
@@ -104,6 +109,7 @@ class KeyRotationService {
       const updatedMetadata: KeyMetadata = {
         ...metadata,
         version: newVersion,
+        previousVersion: oldVersion,
         createdAt: new Date(),
         lastUsed: new Date(),
         rotationDue: new Date(Date.now() + this.rotationConfig.rotationIntervalHours * 60 * 60 * 1000),
@@ -296,7 +302,7 @@ class KeyRotationService {
     const versionsToKeep = this.rotationConfig.keyVersions;
     
     // حذف الإصدارات القديمة
-    for (let version = 1; version < currentVersion - versionsToKeep; version++) {
+    for (let version = 1; version <= Math.max(0, currentVersion - versionsToKeep); version++) {
       const oldKeyStorageId = `key_${keyId}_v${version}`;
       
       try {
@@ -317,11 +323,18 @@ class KeyRotationService {
       if (stored) {
         const data = JSON.parse(stored);
         for (const [keyId, metadata] of Object.entries(data)) {
+          const meta = metadata as any;
           this.keyMetadata.set(keyId, {
-            ...metadata as any,
-            createdAt: new Date((metadata as any).createdAt),
-            lastUsed: new Date((metadata as any).lastUsed),
-            rotationDue: new Date((metadata as any).rotationDue)
+            keyId: meta.keyId || (keyId as string),
+            version: Number(meta.version) || 1,
+            previousVersion: typeof meta.previousVersion === 'number' ? meta.previousVersion : undefined,
+            createdAt: new Date(meta.createdAt),
+            lastUsed: new Date(meta.lastUsed),
+            rotationDue: new Date(meta.rotationDue),
+            status: meta.status as KeyMetadata['status'],
+            algorithm: String(meta.algorithm || 'AES-256'),
+            keySize: Number(meta.keySize || 256),
+            usage: (meta.usage as KeyUsage) ?? 'message'
           });
         }
       }
@@ -365,22 +378,26 @@ class KeyRotationService {
   }
 
   async registerKey(
-    keyId: string, 
-    algorithm: string = 'AES-256', 
-    keySize: number = 256
+    keyId: string,
+    algorithm: string = 'AES-256',
+    keySize: number = 256,
+    usage: KeyUsage = 'message'
   ): Promise<void> {
     const metadata: KeyMetadata = {
       keyId,
       version: 1,
+      previousVersion: undefined,
       createdAt: new Date(),
       lastUsed: new Date(),
       rotationDue: new Date(Date.now() + this.rotationConfig.rotationIntervalHours * 60 * 60 * 1000),
       status: 'active',
       algorithm,
-      keySize
+      keySize,
+      usage
     };
     
     this.keyMetadata.set(keyId, metadata);
+    this.keyUsageMap.set(keyId, usage);
     await this.saveKeyMetadata();
     
     // جدولة التناوب التلقائي
@@ -1051,6 +1068,35 @@ class KeyRotationService {
         vaultStatus: null
       };
     }
+  }
+
+  getActiveKeyWindow(keyId: string): { current?: number; previous?: number } {
+    const meta = this.keyMetadata.get(keyId);
+    if (!meta) return {};
+    return { current: meta.version, previous: meta.previousVersion };
+  }
+
+  async fetchKey(keyId: string, version?: number): Promise<string | null> {
+    const meta = this.keyMetadata.get(keyId);
+    if (!meta) return null;
+    const ver = version ?? meta.version;
+    const storageId = `key_${keyId}_v${ver}`;
+    try {
+      if (Platform.OS === 'web') {
+        const v = await AsyncStorage.getItem(storageId);
+        return v;
+      }
+      const v = await SecureStore.getItemAsync(storageId);
+      return v;
+    } catch (e) {
+      console.warn('⚠️ Failed to fetch key', storageId, e);
+      return null;
+    }
+  }
+
+  enforceKeyUsage(keyId: string, expected: KeyUsage): boolean {
+    const usage = this.keyUsageMap.get(keyId) ?? this.keyMetadata.get(keyId)?.usage;
+    return usage === expected;
   }
 
   destroy(): void {
