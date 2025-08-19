@@ -191,16 +191,16 @@ class DeviceBindingService {
       const sensorsFingerprint = await this.generateSensorsFingerprint();
 
       // Create comprehensive security hash
-      const fingerprintData = [
+      const stableFingerprintData = [
         deviceId, model, osVersion, appVersion, installationId,
         buildFingerprint, kernelVersion, bootloaderStatus,
         hardwareFingerprint, networkFingerprint, screenFingerprint,
         timezoneFingerprint, localeFingerprint, batteryFingerprint,
         storageFingerprint, memoryFingerprint, cpuFingerprint,
-        sensorsFingerprint, timestamp.toString(), entropy
+        sensorsFingerprint
       ].join('|');
 
-      const securityHash = await this.createAdvancedSecurityHash(fingerprintData);
+      const securityHash = this.createStableDeviceHash(stableFingerprintData);
 
       const fingerprint: DeviceFingerprint = {
         deviceId,
@@ -301,8 +301,7 @@ class DeviceBindingService {
         }
       }
 
-      return this.createAdvancedSecurityHash(hardwareData.join('|'));
-    } catch (error) {
+      return this.createStableDeviceHash(hardwareData.join('|'));    } catch (error) {
       return 'fallback-hardware-fingerprint';
     }
   }
@@ -322,7 +321,7 @@ class DeviceBindingService {
       // Add timezone as network-related info
       networkData.push(Intl.DateTimeFormat().resolvedOptions().timeZone);
       
-      return this.createAdvancedSecurityHash(networkData.join('|'));
+      return this.createStableDeviceHash(networkData.join('|'));
     } catch (error) {
       return 'fallback-network-fingerprint';
     }
@@ -342,7 +341,7 @@ class DeviceBindingService {
         screenData.push(screen.availHeight.toString());
       }
 
-      return this.createAdvancedSecurityHash(screenData.join('|'));
+      return this.createStableDeviceHash(screenData.join('|'));
     } catch (error) {
       return 'fallback-screen-fingerprint';
     }
@@ -357,7 +356,7 @@ class DeviceBindingService {
         new Date().toLocaleString()
       ];
       
-      return this.createAdvancedSecurityHash(timezoneData.join('|'));
+      return this.createStableDeviceHash(timezoneData.join('|'));
     } catch (error) {
       return 'fallback-timezone-fingerprint';
     }
@@ -373,7 +372,7 @@ class DeviceBindingService {
         Intl.NumberFormat().resolvedOptions().locale
       ];
       
-      return this.createAdvancedSecurityHash(localeData.join('|'));
+      return this.createStableDeviceHash(localeData.join('|'));
     } catch (error) {
       return 'fallback-locale-fingerprint';
     }
@@ -419,7 +418,7 @@ class DeviceBindingService {
       storageData.push(typeof localStorage !== 'undefined' ? 'true' : 'false');
       storageData.push(typeof sessionStorage !== 'undefined' ? 'true' : 'false');
       
-      return this.createAdvancedSecurityHash(storageData.join('|'));
+      return this.createStableDeviceHash(storageData.join('|'));
     } catch (error) {
       return 'fallback-storage-fingerprint';
     }
@@ -442,7 +441,7 @@ class DeviceBindingService {
         memoryData.push(memory.usedJSHeapSize?.toString() || 'unknown');
       }
       
-      return this.createAdvancedSecurityHash(memoryData.join('|'));
+      return this.createStableDeviceHash(memoryData.join('|'));
     } catch (error) {
       return 'fallback-memory-fingerprint';
     }
@@ -466,7 +465,7 @@ class DeviceBindingService {
       const duration = performance.now() - start;
       cpuData.push(duration.toString());
       
-      return this.createAdvancedSecurityHash(cpuData.join('|'));
+      return this.createStableDeviceHash(cpuData.join('|'));
     } catch (error) {
       return 'fallback-cpu-fingerprint';
     }
@@ -490,7 +489,7 @@ class DeviceBindingService {
         sensorsData.push('geolocation-available');
       }
       
-      return this.createAdvancedSecurityHash(sensorsData.join('|'));
+      return this.createStableDeviceHash(sensorsData.join('|'));
     } catch (error) {
       return 'fallback-sensors-fingerprint';
     }
@@ -498,34 +497,45 @@ class DeviceBindingService {
 
   // Create advanced security hash with multiple algorithms
   private createAdvancedSecurityHash(data: string): string {
-    // Multi-layer hashing for enhanced security
     let hash1 = 0;
     let hash2 = 0;
     let hash3 = 0;
     let hash4 = 0;
-    
     for (let i = 0; i < data.length; i++) {
       const char = data.charCodeAt(i);
-      
-      // Different hash algorithms
       hash1 = ((hash1 << 5) - hash1) + char;
       hash1 = hash1 & hash1;
-      
       hash2 = ((hash2 << 3) - hash2) + char + i;
       hash2 = hash2 & hash2;
-      
       hash3 = ((hash3 << 7) - hash3) + char * i;
       hash3 = hash3 & hash3;
-      
       hash4 = ((hash4 << 11) - hash4) + char * (i + 1);
       hash4 = hash4 & hash4;
     }
-    
     const combinedHash = Math.abs(hash1 ^ hash2 ^ hash3 ^ hash4).toString(16);
     const timestamp = Date.now().toString(16);
     const entropy = Math.random().toString(36).substr(2, 8);
-    
     return `${combinedHash}-${timestamp}-${entropy}`;
+  }
+
+  private createStableDeviceHash(data: string): string {
+    let hash1 = 0;
+    let hash2 = 0;
+    let hash3 = 0;
+    let hash4 = 0;
+    for (let i = 0; i < data.length; i++) {
+      const char = data.charCodeAt(i);
+      hash1 = ((hash1 << 5) - hash1) + char;
+      hash1 = hash1 & hash1;
+      hash2 = ((hash2 << 3) - hash2) + char + i;
+      hash2 = hash2 & hash2;
+      hash3 = ((hash3 << 7) - hash3) + char * i;
+      hash3 = hash3 & hash3;
+      hash4 = ((hash4 << 11) - hash4) + char * (i + 1);
+      hash4 = hash4 & hash4;
+    }
+    const combinedHash = Math.abs(hash1 ^ hash2 ^ hash3 ^ hash4).toString(16);
+    return combinedHash;
   }
 
   // Create session binding
@@ -747,6 +757,10 @@ class DeviceBindingService {
     // Extract components from fingerprints
     const parts1 = fingerprint1.split('-');
     const parts2 = fingerprint2.split('-');
+
+    if (parts1.length === 1 && parts2.length === 1) {
+      return fingerprint1 === fingerprint2 ? 1.0 : 0.0;
+    }
 
     if (parts1.length !== parts2.length) {
       return 0.0;
