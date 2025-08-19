@@ -1,0 +1,73 @@
+# Semgrep ignore patterns for React Native security analysis
+
+# Dependencies and build artifacts
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+coverage/
+reports/
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+__tests__/
+**/__mocks__/
+
+# Configuration files
+*.config.js
+*.config.ts
+babel.config.js
+metro.config.js
+jest.config.js
+
+# Development and tooling
+.git/
+.github/
+.vscode/
+.idea/
+
+# Mock data (but scan for security patterns)
+# mocks/ - commented out to scan mock data for security issues
+
+# Generated files
+*.d.ts
+*.map
+
+# Documentation
+*.md
+docs/
+
+# Assets
+assets/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+
+# Logs
+*.log
+logs/
+
+# Environment files (these should be scanned for secrets)
+# .env* - commented out to scan environment files
+
+# Platform specific
+.DS_Store
+Thumbs.db
+
+# React Native specific
+android/
+ios/
+web-build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp

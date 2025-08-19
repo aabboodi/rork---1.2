@@ -1,0 +1,31 @@
+{
+  "threshold": 5,
+  "reporters": ["html", "json", "console"],
+  "ignore": [
+    "node_modules/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts", 
+    "**/*.spec.tsx",
+    "coverage/**",
+    "reports/**",
+    "**/mocks/**"
+  ],
+  "gitignore": true,
+  "absolute": true,
+  "output": "./reports/jscpd",
+  "format": ["typescript", "javascript"],
+  "min-lines": 10,
+  "min-tokens": 50,
+  "max-lines": 500,
+  "max-size": "30kb",
+  "formatsExts": {
+    "typescript": ["ts", "tsx"],
+    "javascript": ["js", "jsx"]
+  },
+  "blame": true,
+  "silent": false,
+  "verbose": false,
+  "debug": false,
+  "executionId": "security-analysis"
+}

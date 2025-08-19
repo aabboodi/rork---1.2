@@ -1,0 +1,190 @@
+# Semgrep Configuration for React Native Security Analysis
+rules:
+  - id: react-native-hardcoded-secrets
+    patterns:
+      - pattern: |
+          const $VAR = "$SECRET"
+      - pattern: |
+          let $VAR = "$SECRET"  
+      - pattern: |
+          var $VAR = "$SECRET"
+      - metavariable-regex:
+          metavariable: $SECRET
+          regex: (sk_|pk_|api_key|secret|password|token|auth).{8,}
+    message: "Hardcoded secret detected in React Native code"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: [react-native]
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A02:2021 – Cryptographic Failures"
+
+  - id: react-native-insecure-storage
+    patterns:
+      - pattern: AsyncStorage.setItem($KEY, $VALUE)
+      - pattern: AsyncStorage.getItem($KEY)
+    message: "AsyncStorage is not secure for sensitive data. Use SecureStore instead"
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      technology: [react-native]
+      cwe: "CWE-922: Insecure Storage of Sensitive Information"
+
+  - id: react-native-weak-crypto
+    patterns:
+      - pattern: Math.random()
+      - pattern: new Date().getTime()
+    message: "Weak random number generation. Use crypto.getRandomValues() for security purposes"
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      technology: [react-native]
+      cwe: "CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator"
+
+  - id: react-native-sql-injection
+    patterns:
+      - pattern: |
+          db.executeSql("... " + $VAR + " ...")
+      - pattern: |
+          db.transaction(tx => tx.executeSql("... " + $VAR + " ..."))
+    message: "Potential SQL injection vulnerability"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: [react-native]
+      cwe: "CWE-89: SQL Injection"
+      owasp: "A03:2021 – Injection"
+
+  - id: react-native-webview-security
+    patterns:
+      - pattern: |
+          <WebView source={{uri: $URI}} javaScriptEnabled={true} />
+      - pattern: |
+          <WebView source={{uri: $URI}} allowsInlineMediaPlayback={true} />
+    message: "WebView with potentially unsafe configuration"
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      technology: [react-native]
+
+  - id: react-native-deep-link-validation
+    patterns:
+      - pattern: |
+          Linking.getInitialURL()
+      - pattern: |
+          Linking.addEventListener('url', $HANDLER)
+    message: "Deep link handling should validate URLs to prevent malicious redirects"
+    languages: [typescript, javascript]
+    severity: INFO
+    metadata:
+      category: security
+      technology: [react-native]
+
+  - id: react-native-biometric-bypass
+    patterns:
+      - pattern: |
+          if (Platform.OS === 'web') { return true; }
+      - pattern: |
+          Platform.OS === 'web' ? true : $BIOMETRIC_CHECK
+    message: "Potential biometric authentication bypass for web platform"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: [react-native]
+
+  - id: react-native-console-log
+    patterns:
+      - pattern: console.log(...)
+      - pattern: console.error(...)
+      - pattern: console.warn(...)
+      - pattern: console.info(...)
+    message: "Console statements should be removed in production builds"
+    languages: [typescript, javascript]
+    severity: INFO
+    metadata:
+      category: security
+      technology: [react-native]
+
+  - id: react-native-eval-usage
+    patterns:
+      - pattern: eval($CODE)
+      - pattern: Function($CODE)
+      - pattern: new Function($CODE)
+    message: "Use of eval() or Function constructor is dangerous and should be avoided"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: [react-native]
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+
+  - id: react-native-unsafe-regex
+    patterns:
+      - pattern: |
+          new RegExp($PATTERN)
+      - pattern: |
+          /$PATTERN/
+    message: "Regular expressions should be reviewed for ReDoS vulnerabilities"
+    languages: [typescript, javascript]
+    severity: INFO
+    metadata:
+      category: security
+      technology: [react-native]
+      cwe: "CWE-1333: Inefficient Regular Expression Complexity"
+
+# Custom rules for financial app security
+  - id: financial-data-exposure
+    patterns:
+      - pattern: |
+          console.log($MSG, $BALANCE)
+      - pattern: |
+          console.log($MSG, $TRANSACTION)
+      - metavariable-regex:
+          metavariable: $MSG
+          regex: (balance|transaction|amount|payment|wallet)
+    message: "Financial data should not be logged to console"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: [react-native]
+      subcategory: [financial]
+
+  - id: encryption-key-exposure
+    patterns:
+      - pattern: |
+          const $KEY = "$VALUE"
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: (key|secret|private|encrypt)
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: .{16,}
+    message: "Encryption keys should not be hardcoded"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: [react-native]
+      subcategory: [cryptography]
+
+  - id: weak-jwt-secret
+    patterns:
+      - pattern: |
+          jwt.sign($PAYLOAD, "$SECRET")
+      - metavariable-regex:
+          metavariable: $SECRET
+          regex: ^.{1,15}$
+    message: "JWT secret is too weak (less than 16 characters)"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: [react-native]
+      subcategory: [authentication]

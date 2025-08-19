@@ -1,0 +1,214 @@
+name: Security Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security checks daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup Python for Semgrep
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install Semgrep
+      run: python -m pip install semgrep
+      
+    - name: Setup Java for SonarQube
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+      
+    - name: Run comprehensive security audit
+      run: npm run security-audit
+      
+    - name: Run dependency security checks
+      run: npm run security-check
+      
+    - name: Run ESLint security rules
+      run: npm run lint:security
+      
+    - name: Run Semgrep SAST
+      run: |
+        echo "Running Semgrep static analysis..."
+        semgrep --config=semgrep.yml --json --output=semgrep-results.json . || true
+        if [ -f "semgrep-results.json" ]; then
+          FINDINGS=$(jq '.results | length' semgrep-results.json)
+          echo "Semgrep found $FINDINGS security issues"
+          if [ "$FINDINGS" -gt 0 ]; then
+            echo "❌ Semgrep found security vulnerabilities!"
+            jq '.results[] | "\(.check_id): \(.message) in \(.path):\(.start.line)"' semgrep-results.json
+            exit 1
+          fi
+        fi
+        echo "✅ Semgrep analysis completed"
+      
+    - name: Run Retire.js vulnerability scan
+      run: |
+        echo "Running Retire.js scan..."
+        npm run sast:retire || true
+        if [ -f "retire-results.json" ]; then
+          VULNS=$(jq '.data | length' retire-results.json 2>/dev/null || echo "0")
+          echo "Retire.js found $VULNS vulnerable dependencies"
+          if [ "$VULNS" -gt 0 ]; then
+            echo "❌ Vulnerable dependencies detected!"
+            jq '.data[] | "\(.file): \(.results[].vulnerabilities[].info.summary)"' retire-results.json 2>/dev/null || true
+            exit 1
+          fi
+        fi
+        echo "✅ Retire.js scan completed"
+      
+    - name: Run Snyk security test
+      run: |
+        echo "Running Snyk security test..."
+        npm run sast:snyk || true
+        if [ -f "snyk-results.json" ]; then
+          VULNS=$(jq '.vulnerabilities | length' snyk-results.json 2>/dev/null || echo "0")
+          echo "Snyk found $VULNS vulnerabilities"
+          if [ "$VULNS" -gt 0 ]; then
+            echo "⚠️ Snyk found vulnerabilities (non-blocking)"
+            jq '.vulnerabilities[] | "\(.title): \(.packageName)@\(.version)"' snyk-results.json 2>/dev/null || true
+          fi
+        fi
+        echo "✅ Snyk analysis completed"
+      
+    - name: Run code duplication analysis
+      run: |
+        echo "Running JSCPD analysis..."
+        npm run sast:jscpd || true
+        if [ -f "reports/jscpd/jscpd-report.json" ]; then
+          DUPLICATES=$(jq '.statistics.total.duplicates' reports/jscpd/jscpd-report.json 2>/dev/null || echo "0")
+          echo "JSCPD found $DUPLICATES code duplications"
+          if [ "$DUPLICATES" -gt 10 ]; then
+            echo "⚠️ High code duplication detected ($DUPLICATES instances)"
+          fi
+        fi
+        echo "✅ Code duplication analysis completed"
+      
+    - name: Check for hardcoded secrets
+      run: |
+        echo "Checking for potential secrets..."
+        if grep -r -i "api[_-]\?key\|secret[_-]\?key\|password\|token" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" . --exclude-dir=node_modules --exclude-dir=.git; then
+          echo "❌ Potential hardcoded secrets found!"
+          exit 1
+        else
+          echo "✅ No hardcoded secrets detected"
+        fi
+      
+    - name: Check for authentication bypasses
+      run: |
+        echo "Checking for authentication bypasses..."
+        if [ -f "constants/specialUsers.ts" ] && grep -q "hasOTPBypass\|getUserRole" "constants/specialUsers.ts"; then
+          echo "❌ CRITICAL: Authentication bypass detected!"
+          exit 1
+        else
+          echo "✅ No authentication bypasses detected"
+        fi
+      
+    - name: Check for tunnel usage
+      run: |
+        echo "Checking for tunnel usage in scripts..."
+        if grep -q "--tunnel" package.json; then
+          echo "❌ CRITICAL: Tunnel usage detected in package.json!"
+          exit 1
+        else
+          echo "✅ No tunnel usage detected"
+        fi
+      
+    - name: Verify secure identifiers
+      run: |
+        echo "Checking app identifiers..."
+        if grep -q '"scheme":\s*"myapp"\|"scheme".*rork' app.json; then
+          echo "❌ Insecure app scheme detected!"
+          exit 1
+        fi
+        if grep -q 'rork' app.json; then
+          echo "⚠️ Warning: 'rork' found in app.json - verify identifiers are secure"
+        fi
+        echo "✅ App identifiers check completed"
+      
+    - name: Upload security reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-reports
+        path: |
+          audit-results.json
+          license-check-results.json
+          semgrep-results.json
+          retire-results.json
+          snyk-results.json
+          reports/
+        retention-days: 30
+        
+    - name: Generate security summary
+      if: always()
+      run: |
+        echo "# Security Analysis Summary" > security-summary.md
+        echo "" >> security-summary.md
+        echo "## Static Analysis Results" >> security-summary.md
+        
+        if [ -f "semgrep-results.json" ]; then
+          SEMGREP_ISSUES=$(jq '.results | length' semgrep-results.json 2>/dev/null || echo "0")
+          echo "- **Semgrep**: $SEMGREP_ISSUES security issues found" >> security-summary.md
+        fi
+        
+        if [ -f "retire-results.json" ]; then
+          RETIRE_VULNS=$(jq '.data | length' retire-results.json 2>/dev/null || echo "0")
+          echo "- **Retire.js**: $RETIRE_VULNS vulnerable dependencies" >> security-summary.md
+        fi
+        
+        if [ -f "snyk-results.json" ]; then
+          SNYK_VULNS=$(jq '.vulnerabilities | length' snyk-results.json 2>/dev/null || echo "0")
+          echo "- **Snyk**: $SNYK_VULNS vulnerabilities detected" >> security-summary.md
+        fi
+        
+        if [ -f "reports/jscpd/jscpd-report.json" ]; then
+          DUPLICATES=$(jq '.statistics.total.duplicates' reports/jscpd/jscpd-report.json 2>/dev/null || echo "0")
+          echo "- **Code Duplication**: $DUPLICATES instances found" >> security-summary.md
+        fi
+        
+        echo "" >> security-summary.md
+        echo "## Recommendations" >> security-summary.md
+        echo "- Review and fix all critical and high severity issues" >> security-summary.md
+        echo "- Update vulnerable dependencies" >> security-summary.md
+        echo "- Refactor duplicated code blocks" >> security-summary.md
+        echo "- Implement additional security controls as needed" >> security-summary.md
+        
+        cat security-summary.md
+
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: moderate
+        allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
+        deny-licenses: GPL-2.0, GPL-3.0, AGPL-1.0, AGPL-3.0
