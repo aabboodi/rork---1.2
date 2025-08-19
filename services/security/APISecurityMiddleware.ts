@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 import { WAFService } from './WAFService';
 import { CryptoService } from './CryptoService';
-import { SecurityManager } from './SecurityManager';
+// Removed incorrect named import to avoid undefined getInstance errors
+
 import { CSPMiddleware, type CSPContext } from './CSPMiddleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

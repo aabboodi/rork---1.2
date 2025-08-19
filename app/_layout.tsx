@@ -1,6 +1,7 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { I18nManager, Alert, AppState, Platform } from "react-native";
@@ -680,7 +681,9 @@ Incident ID: ${incident.id}`,
 
   return (
     <AccessibilityProvider>
-      <RootLayoutNav />
+      <ErrorBoundary>
+        <RootLayoutNav />
+      </ErrorBoundary>
     </AccessibilityProvider>
   );
 }
