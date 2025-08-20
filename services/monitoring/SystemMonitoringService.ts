@@ -123,6 +123,14 @@ class SystemMonitoringService {
   static getInstance(): SystemMonitoringService {
     if (!SystemMonitoringService.instance) {
       SystemMonitoringService.instance = new SystemMonitoringService();
+      try {
+        const registry = require('@/services/ServiceRegistry').default;
+        if (registry && !registry.has('SystemMonitoringService')) {
+          registry.register('SystemMonitoringService', () => SystemMonitoringService.instance);
+        }
+      } catch (e) {
+        console.warn('SystemMonitoringService: ServiceRegistry not available at init');
+      }
     }
     return SystemMonitoringService.instance;
   }

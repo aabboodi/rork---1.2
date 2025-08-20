@@ -104,6 +104,14 @@ class SessionManager {
   static getInstance(): SessionManager {
     if (!SessionManager.instance) {
       SessionManager.instance = new SessionManager();
+      try {
+        const registry = require('@/services/ServiceRegistry').default;
+        if (registry && !registry.has('SessionManager')) {
+          registry.register('SessionManager', () => SessionManager.instance);
+        }
+      } catch (e) {
+        console.warn('SessionManager: ServiceRegistry not available at init');
+      }
     }
     return SessionManager.instance;
   }

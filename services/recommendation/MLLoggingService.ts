@@ -242,6 +242,14 @@ class MLLoggingService implements LoggingService {
   static getInstance(): MLLoggingService {
     if (!MLLoggingService.instance) {
       MLLoggingService.instance = new MLLoggingService();
+      try {
+        const registry = require('@/services/ServiceRegistry').default;
+        if (registry && !registry.has('MLLoggingService')) {
+          registry.register('MLLoggingService', () => MLLoggingService.instance);
+        }
+      } catch (e) {
+        console.warn('MLLoggingService: ServiceRegistry not available at init');
+      }
     }
     return MLLoggingService.instance;
   }
