@@ -188,13 +188,25 @@ export default function TabLayout() {
           paddingBottom: 8,
           paddingTop: 8,
           height: 60,
+          elevation: 8,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
         headerStyle: {
           backgroundColor: colors.background,
+          borderBottomColor: colors.border,
+          elevation: 4,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
         headerTitleStyle: {
           color: colors.text,
           fontWeight: '600',
+          fontSize: 18,
         },
         headerRight: () => (
           <SecurityNotificationBell size={20} color={colors.text} />
@@ -203,6 +215,9 @@ export default function TabLayout() {
           fontSize: 12,
           fontWeight: '500',
         },
+        // Enhanced accessibility
+        tabBarAccessibilityLabel: 'شريط التنقل',
+        headerShown: false, // Let individual tabs handle their headers
       }}
     >
       <Tabs.Screen

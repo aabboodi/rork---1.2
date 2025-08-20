@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
 import { Check, CheckCheck, Mic, Camera, FileText, Users, Radio, Wallet, Pin, Shield, Lock, AlertTriangle, ExternalLink, Ban, Timer } from 'lucide-react-native';
 import { Chat } from '@/types';
 import Colors from '@/constants/colors';
 import { formatTimeAgo } from '@/utils/dateUtils';
-import LinkPreview from './LinkPreview';
-import FileAttachment from './FileAttachment';
 import ContentModerationService, { MessageContext } from '@/services/security/ContentModerationService';
 import ForensicsService from '@/services/security/ForensicsService';
 import { MicroInteractions } from '@/utils/microInteractions';
+import { useThemeStore } from '@/store/themeStore';
 
 interface ChatItemProps {
   chat: Chat;
@@ -16,14 +15,57 @@ interface ChatItemProps {
   isSelectionMode?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
+  isLoading?: boolean;
 }
+
+// Skeleton/Placeholder component for loading states
+const ChatItemSkeleton = () => {
+  const pulseAnim = useRef(new Animated.Value(0.3)).current;
+  
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.3,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    
+    return () => pulse.stop();
+  }, []);
+  
+  return (
+    <View style={styles.container}>
+      <Animated.View style={[styles.skeletonAvatar, { opacity: pulseAnim }]} />
+      <View style={styles.contentContainer}>
+        <View style={styles.headerContainer}>
+          <Animated.View style={[styles.skeletonName, { opacity: pulseAnim }]} />
+          <Animated.View style={[styles.skeletonTime, { opacity: pulseAnim }]} />
+        </View>
+        <View style={styles.messageContainer}>
+          <Animated.View style={[styles.skeletonMessage, { opacity: pulseAnim }]} />
+          <Animated.View style={[styles.skeletonBadge, { opacity: pulseAnim }]} />
+        </View>
+      </View>
+    </View>
+  );
+};
 
 export default function ChatItem({ 
   chat, 
   isSelected = false, 
   isSelectionMode = false, 
   onPress, 
-  onLongPress 
+  onLongPress,
+  isLoading = false
 }: ChatItemProps) {
   const [isMessageSafe, setIsMessageSafe] = useState(true);
   const [violationType, setViolationType] = useState<string | null>(null);
@@ -36,6 +78,11 @@ export default function ChatItem({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const [isPressed, setIsPressed] = useState(false);
+  
+  // Show skeleton while loading
+  if (isLoading) {
+    return <ChatItemSkeleton />;
+  }
 
   useEffect(() => {
     checkMessageSafety();
@@ -438,6 +485,19 @@ export default function ChatItem({
         onPressOut={handlePressOut}
         onLongPress={handleLongPress}
         activeOpacity={1}
+        // Enhanced Accessibility
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={`محادثة مع ${getDisplayName()}. ${chat.unreadCount > 0 ? `${chat.unreadCount} رسائل غير مقروءة. ` : ''}آخر رسالة: ${getMessagePreview()}. ${formatTimeAgo(chat.lastMessage.timestamp)}`}
+        accessibilityHint={isSelectionMode ? "اضغط للتحديد أو إلغاء التحديد" : "اضغط لفتح المحادثة، اضغط مطولاً للخيارات"}
+        accessibilityState={{
+          selected: isSelected,
+          disabled: !isMessageSafe && violationConfidence > 0.8
+        }}
+        accessibilityActions={[
+          { name: 'activate', label: 'فتح المحادثة' },
+          { name: 'longpress', label: 'خيارات المحادثة' }
+        ]}
       >
       {/* Selection Indicator */}
       {isSelectionMode && (
@@ -770,5 +830,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     paddingHorizontal: 6,
+  },
+  // Skeleton styles
+  skeletonAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E1E9EE',
+    marginRight: 12,
+  },
+  skeletonName: {
+    width: 120,
+    height: 16,
+    backgroundColor: '#E1E9EE',
+    borderRadius: 8,
+  },
+  skeletonTime: {
+    width: 40,
+    height: 12,
+    backgroundColor: '#E1E9EE',
+    borderRadius: 6,
+  },
+  skeletonMessage: {
+    width: 180,
+    height: 14,
+    backgroundColor: '#E1E9EE',
+    borderRadius: 7,
+    flex: 1,
+  },
+  skeletonBadge: {
+    width: 24,
+    height: 24,
+    backgroundColor: '#E1E9EE',
+    borderRadius: 12,
+    marginLeft: 8,
   },
 });

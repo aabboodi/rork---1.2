@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, FlatList, StyleSheet, TextInput, TouchableOpacity, Text, Alert, ActionSheetIOS, Platform, RefreshControl, Animated } from 'react-native';
+import { View, StyleSheet, TextInput, TouchableOpacity, Text, Alert, ActionSheetIOS, Platform, RefreshControl, Animated } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Search, MessageCircle, Archive, Settings, Users, Radio, Plus, Trash2, Filter, Shield, Key, Lock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { mockChats, mockGroups, mockChannels } from '@/mocks/chats';
@@ -755,11 +756,12 @@ Secure messaging even when offline`,
         </TouchableOpacity>
       </View>
       
-      {/* Chat List */}
-      <FlatList
+      {/* Enhanced Virtualized Chat List */}
+      <FlashList
         data={getFilteredData()}
         keyExtractor={(item) => item.id}
         renderItem={renderChatItem}
+        estimatedItemSize={80}
         showsVerticalScrollIndicator={false}
         style={styles.chatList}
         refreshControl={
@@ -783,6 +785,16 @@ Secure messaging even when offline`,
             </TouchableOpacity>
           </View>
         }
+        // Performance optimizations
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={15}
+        updateCellsBatchingPeriod={50}
+        // Accessibility
+        accessible={true}
+        accessibilityRole="list"
+        accessibilityLabel="قائمة المحادثات"
       />
       
       {/* Floating Action Button */}
