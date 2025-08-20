@@ -22,6 +22,7 @@ import ThreatIntelligenceService from './ThreatIntelligenceService';
 import BehaviorAnalyticsService from './BehaviorAnalyticsService';
 import SecurityNotificationService from './SecurityNotificationService';
 import RootJailbreakDetectionService from './RootJailbreakDetectionService';
+import { UEBASafe, RASPSafe, BiometricSafe, AttestationSafe } from '@/services/security/NativeAvailability';
 
 interface SecurityConfig {
   enableEncryption: boolean;
@@ -861,14 +862,21 @@ class SecurityManager {
   private async initializeUEBA(): Promise<void> {
     try {
       console.log('🧠 Initializing UEBA (User and Entity Behavior Analytics)...');
-      
+
+      try {
+        await UEBASafe.init?.();
+      } catch (e) {
+        console.warn('UEBA native module init failed or unavailable; continuing with JS UEBAService');
+      }
+
       await this.uebaService.initialize();
       
       this.logSecurityEvent({
-        type: 'security_violation', // Using existing type
+        type: 'security_violation',
         timestamp: Date.now(),
         details: { 
           action: 'ueba_initialized',
+          nativeAvailable: typeof (UEBASafe as any)?.isAvailable === 'function' ? await (UEBASafe as any).isAvailable() : false,
           features: ['anomaly_detection', 'behavior_profiling', 'risk_scoring', 'ml_analytics', 'real_time_monitoring']
         },
         severity: 'low',
