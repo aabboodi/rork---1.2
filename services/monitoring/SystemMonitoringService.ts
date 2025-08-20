@@ -259,8 +259,14 @@ class SystemMonitoringService {
   private async ensureDependencies(): Promise<void> {
     if (!this.securityManager) {
       try {
-        const mod = await import('@/services/security/SecurityManager');
-        this.securityManager = mod.default.getInstance();
+        const registry = (await import('@/services/ServiceRegistry')).default;
+        const fromRegistry = registry.get<any>('SecurityManager');
+        if (fromRegistry) {
+          this.securityManager = fromRegistry;
+        } else {
+          const mod = await import('@/services/security/SecurityManager');
+          this.securityManager = mod.default.getInstance();
+        }
       } catch (e) {
         console.warn('SystemMonitoringService: failed to load SecurityManager', e);
       }

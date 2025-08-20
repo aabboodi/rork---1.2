@@ -17,7 +17,7 @@ import AccessControlService from './AccessControlService';
 import HttpOnlyCookieService from './HttpOnlyCookieService';
 import MessageSecurityService from './MessageSecurityService';
 import E2EEService from './E2EEService';
-import UEBAService from './UEBAService';
+import type UEBAService from './UEBAService';
 import ThreatIntelligenceService from './ThreatIntelligenceService';
 import BehaviorAnalyticsService from './BehaviorAnalyticsService';
 import SecurityNotificationService from './SecurityNotificationService';
@@ -174,7 +174,7 @@ class SecurityManager {
   private get httpOnlyCookieService(): HttpOnlyCookieService { if (!this._httpOnlyCookieService) { this._httpOnlyCookieService = HttpOnlyCookieService.getInstance(); } return this._httpOnlyCookieService; }
   private get messageSecurityService(): MessageSecurityService { if (!this._messageSecurityService) { this._messageSecurityService = MessageSecurityService.getInstance(); } return this._messageSecurityService; }
   private get e2eeService(): E2EEService { if (!this._e2eeService) { this._e2eeService = E2EEService.getInstance(); } return this._e2eeService; }
-  private get uebaService(): UEBAService { if (!this._uebaService) { this._uebaService = UEBAService.getInstance(); } return this._uebaService; }
+  private get uebaService(): UEBAService { if (!this._uebaService) { try { const mod = require('./UEBAService'); const maybe = mod?.default && typeof mod.default.getInstance === 'function' ? mod.default.getInstance() : null; if (maybe) this._uebaService = maybe; else throw new Error('UEBAService not ready'); } catch (e) { console.error('UEBAService dynamic load failed', e); throw e; } } return this._uebaService as UEBAService; }
   private get threatIntelligenceService(): ThreatIntelligenceService { if (!this._threatIntelligenceService) { this._threatIntelligenceService = ThreatIntelligenceService.getInstance(); } return this._threatIntelligenceService; }
   private get behaviorAnalyticsService(): BehaviorAnalyticsService { if (!this._behaviorAnalyticsService) { this._behaviorAnalyticsService = BehaviorAnalyticsService.getInstance(); } return this._behaviorAnalyticsService; }
   private get securityNotificationService(): SecurityNotificationService { if (!this._securityNotificationService) { this._securityNotificationService = SecurityNotificationService.getInstance(); } return this._securityNotificationService; }
@@ -246,6 +246,14 @@ class SecurityManager {
   static getInstance(): SecurityManager {
     if (!SecurityManager.instance) {
       SecurityManager.instance = new SecurityManager();
+      try {
+        const registry = require('@/services/ServiceRegistry').default;
+        if (registry && !registry.has('SecurityManager')) {
+          registry.register('SecurityManager', () => SecurityManager.instance);
+        }
+      } catch (e) {
+        console.warn('SecurityManager: ServiceRegistry not available at init');
+      }
     }
     return SecurityManager.instance;
   }
