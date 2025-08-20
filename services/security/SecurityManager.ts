@@ -2910,7 +2910,13 @@ class SecurityManager {
 
     // Log critical events immediately
     if (event.severity === 'critical') {
-      console.error('🚨 CRITICAL SECURITY EVENT:', event);
+      try {
+        const serialized = JSON.stringify(event, null, 2);
+        console.error('🚨 CRITICAL SECURITY EVENT:', serialized);
+      } catch (e) {
+        console.error('🚨 CRITICAL SECURITY EVENT:', String(e));
+        console.error('🚨 CRITICAL SECURITY EVENT (raw):', Object.prototype.toString.call(event));
+      }
     }
 
     // Store critical events in secure storage
