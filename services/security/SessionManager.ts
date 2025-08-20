@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as Constants from 'expo-constants';
 import CryptoService from './CryptoService';
 import SecureStorage from './SecureStorage';
 import DeviceSecurityService from './DeviceSecurityService';
@@ -99,6 +100,11 @@ class SessionManager {
     this.startJWTRotationScheduler();
     this.startDeviceIDValidation();
     this.startSecureEnclaveValidation();
+  }
+
+  private isDevRelaxed(): boolean {
+    const isExpoGo = (Constants as any)?.appOwnership === 'expo';
+    return __DEV__ || Platform.OS === 'web' || isExpoGo;
   }
 
   static getInstance(): SessionManager {
@@ -520,18 +526,34 @@ class SessionManager {
       if (sessionId) {
         const bindingValidation = await this.deviceBinding.validateSessionBinding(sessionId);
         if (!bindingValidation.valid) {
-          this.logSessionEvent({
-            type: 'security_violation',
-            timestamp: Date.now(),
-            userId: payload.userId,
-            details: { 
-              reason: 'device_binding_validation_failed',
-              anomalies: bindingValidation.anomalies,
-              riskScore: bindingValidation.riskScore
-            },
-            severity: bindingValidation.requiresReauth ? 'critical' : 'high'
-          });
-          return { valid: false, error: 'Device binding validation failed' };
+          const relaxed = this.isDevRelaxed();
+          if (relaxed && !bindingValidation.requiresReauth && !bindingValidation.anomalies.includes('device_security_compromised')) {
+            this.logSessionEvent({
+              type: 'validated',
+              timestamp: Date.now(),
+              userId: payload.userId,
+              details: {
+                reason: 'device_binding_relaxed_dev',
+                anomalies: bindingValidation.anomalies,
+                riskScore: bindingValidation.riskScore,
+                bindingStrength: bindingValidation.bindingStrength
+              },
+              severity: 'medium'
+            });
+          } else {
+            this.logSessionEvent({
+              type: 'security_violation',
+              timestamp: Date.now(),
+              userId: payload.userId,
+              details: { 
+                reason: 'device_binding_validation_failed',
+                anomalies: bindingValidation.anomalies,
+                riskScore: bindingValidation.riskScore
+              },
+              severity: bindingValidation.requiresReauth ? 'critical' : 'high'
+            });
+            return { valid: false, error: 'Device binding validation failed' };
+          }
         }
         
         // Log successful binding validation
@@ -767,18 +789,33 @@ class SessionManager {
       if (sessionId) {
         const bindingValidation = await this.deviceBinding.validateSessionBinding(sessionId);
         if (!bindingValidation.valid || bindingValidation.requiresReauth) {
-          this.logSessionEvent({
-            type: 'security_violation',
-            timestamp: Date.now(),
-            userId: this.currentSession.userId,
-            details: { 
-              reason: 'device_binding_refresh_validation_failed',
-              anomalies: bindingValidation.anomalies,
-              riskScore: bindingValidation.riskScore
-            },
-            severity: 'critical'
-          });
-          return { success: false, error: 'Device binding verification failed during refresh' };
+          const relaxed = this.isDevRelaxed();
+          if (relaxed && !bindingValidation.requiresReauth && !bindingValidation.anomalies.includes('device_security_compromised')) {
+            this.logSessionEvent({
+              type: 'validated',
+              timestamp: Date.now(),
+              userId: this.currentSession.userId,
+              details: { 
+                reason: 'device_binding_refresh_relaxed_dev',
+                anomalies: bindingValidation.anomalies,
+                riskScore: bindingValidation.riskScore
+              },
+              severity: 'medium'
+            });
+          } else {
+            this.logSessionEvent({
+              type: 'security_violation',
+              timestamp: Date.now(),
+              userId: this.currentSession.userId,
+              details: { 
+                reason: 'device_binding_refresh_validation_failed',
+                anomalies: bindingValidation.anomalies,
+                riskScore: bindingValidation.riskScore
+              },
+              severity: 'critical'
+            });
+            return { success: false, error: 'Device binding verification failed during refresh' };
+          }
         }
       } else {
         // Fallback to legacy device fingerprint check
@@ -1081,22 +1118,38 @@ class SessionManager {
       if (sessionId) {
         const bindingValidation = await this.deviceBinding.validateSessionBinding(sessionId);
         if (!bindingValidation.valid) {
-          this.logSessionEvent({
-            type: 'security_violation',
-            timestamp: Date.now(),
-            userId: this.currentSession.userId,
-            details: { 
-              reason: 'device_binding_security_check_failed',
-              anomalies: bindingValidation.anomalies,
-              riskScore: bindingValidation.riskScore,
-              bindingStrength: bindingValidation.bindingStrength
-            },
-            severity: bindingValidation.requiresReauth ? 'critical' : 'high'
-          });
-          
-          if (bindingValidation.requiresReauth) {
-            await this.destroySession();
-            return;
+          const relaxed = this.isDevRelaxed();
+          if (relaxed && !bindingValidation.requiresReauth && !bindingValidation.anomalies.includes('device_security_compromised')) {
+            this.logSessionEvent({
+              type: 'validated',
+              timestamp: Date.now(),
+              userId: this.currentSession.userId,
+              details: { 
+                reason: 'device_binding_security_check_relaxed_dev',
+                anomalies: bindingValidation.anomalies,
+                riskScore: bindingValidation.riskScore,
+                bindingStrength: bindingValidation.bindingStrength
+              },
+              severity: 'medium'
+            });
+          } else {
+            this.logSessionEvent({
+              type: 'security_violation',
+              timestamp: Date.now(),
+              userId: this.currentSession.userId,
+              details: { 
+                reason: 'device_binding_security_check_failed',
+                anomalies: bindingValidation.anomalies,
+                riskScore: bindingValidation.riskScore,
+                bindingStrength: bindingValidation.bindingStrength
+              },
+              severity: bindingValidation.requiresReauth ? 'critical' : 'high'
+            });
+            
+            if (bindingValidation.requiresReauth) {
+              await this.destroySession();
+              return;
+            }
           }
         }
       } else {
@@ -2050,6 +2103,10 @@ class SessionManager {
 
   // Validate device binding (called from layout)
   async validateDeviceBinding(): Promise<boolean> {
+    if (this.isDevRelaxed()) {
+      console.warn('[DEV] Skipping strict device binding validation');
+      return true;
+    }
     if (!this.currentSession) {
       return false;
     }
