@@ -97,6 +97,14 @@ class DeviceBindingService {
     this.cryptoService = CryptoService.getInstance();
     this.secureStorage = SecureStorage.getInstance();
     this.deviceSecurity = DeviceSecurityService.getInstance();
+
+    const isExpoGo = (Constants as any)?.appOwnership === 'expo';
+    if (__DEV__ || Platform.OS === 'web' || isExpoGo) {
+      this.anomalyThreshold = 0.5;
+      this.validationFrequency = 10 * 60 * 1000;
+      console.log('DeviceBindingService: relaxed validation in dev/web/Expo Go');
+    }
+
     this.initializeDeviceBinding();
   }
 
@@ -170,8 +178,8 @@ class DeviceBindingService {
       }
 
       // Installation ID
-      if (Constants.sessionId) {
-        installationId = Constants.sessionId;
+      if ((Constants as any).sessionId) {
+        installationId = (Constants as any).sessionId;
       } else if ((Constants as any).installationId) {
         installationId = (Constants as any).installationId;
       } else {
@@ -190,14 +198,19 @@ class DeviceBindingService {
       const cpuFingerprint = await this.generateCPUFingerprint();
       const sensorsFingerprint = await this.generateSensorsFingerprint();
 
-      // Create comprehensive security hash
+      // Create comprehensive security hash using only stable, low-variance components
       const stableFingerprintData = [
-        deviceId, model, osVersion, appVersion, installationId,
-        buildFingerprint, kernelVersion, bootloaderStatus,
-        hardwareFingerprint, networkFingerprint, screenFingerprint,
-        timezoneFingerprint, localeFingerprint, batteryFingerprint,
-        storageFingerprint, memoryFingerprint, cpuFingerprint,
-        sensorsFingerprint
+        deviceId,
+        model,
+        osVersion,
+        appVersion,
+        installationId,
+        buildFingerprint,
+        kernelVersion,
+        bootloaderStatus,
+        hardwareFingerprint,
+        timezoneFingerprint,
+        localeFingerprint
       ].join('|');
 
       const securityHash = this.createStableDeviceHash(stableFingerprintData);
@@ -670,9 +683,13 @@ class DeviceBindingService {
       const anomalies: string[] = [];
       let riskScore = 0;
 
+      const isExpoGo = (Constants as any)?.appOwnership === 'expo';
+      const isDevRelaxed = __DEV__ || Platform.OS === 'web' || isExpoGo;
       if (similarity < this.anomalyThreshold) {
-        anomalies.push('fingerprint_mismatch');
-        riskScore += 50;
+        if (!(isDevRelaxed && similarity >= 0.5)) {
+          anomalies.push('fingerprint_mismatch');
+          riskScore += 50;
+        }
       }
 
       // Check for device security threats
@@ -712,7 +729,9 @@ class DeviceBindingService {
 
       await this.persistBinding(binding);
 
-      const isValid = riskScore < 50 && anomalies.length === 0;
+      const isExpoGo2 = (Constants as any)?.appOwnership === 'expo';
+      const isDevRelaxed2 = __DEV__ || Platform.OS === 'web' || isExpoGo2;
+      const isValid = isDevRelaxed2 ? (riskScore < 80 && !anomalies.includes('device_security_compromised')) : (riskScore < 50 && anomalies.length === 0);
       
       this.logSecurityEvent({
         type: isValid ? 'validated' : 'anomaly_detected',
