@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Image, Alert, ActionSheetIOS } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert, ActionSheetIOS } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import KeyRotationService from '@/services/security/KeyRotationService';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Send, Paperclip, Mic, Image as ImageIcon, Wallet, Phone, Video, MoreVertical, ArrowLeft, Camera, Users, Radio, Share2, Copy, Info, Shield, Lock, Key, AlertTriangle, CheckCircle, Eye, EyeOff } from 'lucide-react-native';
 import { MessageSecurityService } from '@/services/security/MessageSecurityService';
@@ -21,6 +25,7 @@ import SocialEngineeringProtectionService from '@/services/security/SocialEngine
 import LinkPreview from '@/components/LinkPreview';
 import FileAttachment from '@/components/FileAttachment';
 import SocialEngineeringWarning from '@/components/SocialEngineeringWarning';
+import ContentModerationAIService from '@/services/security/ContentModerationAIService';
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -59,7 +64,7 @@ export default function ChatScreen() {
   const [socialEngineeringService] = useState(() => SocialEngineeringProtectionService.getInstance());
   const [useE2EEInterface, setUseE2EEInterface] = useState(true);
   
-  const flatListRef = useRef<FlatList>(null);
+  const flashListRef = useRef<FlashList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   
   useEffect(() => {
@@ -465,26 +470,62 @@ What would you like to do?`,
     await sendMessageInternal(content, forceEncrypt);
   };
 
-  // CRITICAL: Send Signal Protocol encrypted message with DLP scanning
+  // CRITICAL: Send Signal Protocol encrypted message with DLP and AI Moderation
   const sendMessage = async () => {
-    if (!inputText.trim()) return;
+    const trimmedText = inputText.trim();
+    if (!trimmedText) return;
     
     try {
-      // First, scan content with DLP
-      const scanResult = await scanMessageContent(inputText.trim());
+      // Step 1: AI Content Moderation
+      const moderationService = ContentModerationAIService.getInstance();
+      const moderationResult = await moderationService.moderateText(trimmedText);
+
+      if (moderationResult.suggestedAction === 'block') {
+        Alert.alert('Message Blocked', 'This message could not be sent because it violates our content policy.');
+        return;
+      }
+
+      if (moderationResult.suggestedAction === 'flag') {
+        Alert.alert(
+          'Suspicious Content Warning',
+          'This message may contain suspicious content (e.g., unusual links or sensitive information). Are you sure you want to send it?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Send Anyway',
+              style: 'destructive',
+              onPress: () => proceedWithDLPCheck(trimmedText)
+            },
+          ]
+        );
+        return;
+      }
+
+      // If allowed by AI, proceed to DLP check
+      await proceedWithDLPCheck(trimmedText);
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      Alert.alert('Error', 'Failed to send message');
+    }
+  };
+
+  const proceedWithDLPCheck = async (text: string) => {
+    try {
+      // Step 2: Scan content with DLP
+      const scanResult = await scanMessageContent(text);
       
       // Handle DLP result
-      const canProceed = handleDLPScanResult(scanResult, inputText.trim());
+      const canProceed = handleDLPScanResult(scanResult, text);
       if (!canProceed) {
         return; // DLP blocked or requires user confirmation
       }
 
-      // Proceed with sending
-      await sendMessageInternal(inputText.trim());
-      
+      // Step 3: Proceed with sending
+      await sendMessageInternal(text);
     } catch (error) {
-      console.error('Failed to send message:', error);
-      Alert.alert('Error', 'Failed to send message');
+      console.error('Failed to proceed with DLP check:', error);
+      Alert.alert('Error', 'An error occurred after the security check.');
     }
   };
 
@@ -546,7 +587,7 @@ What would you like to do?`,
       
       // Scroll to bottom
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
+        flashListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (error) {
       console.error('Failed to send Signal Protocol message:', error);
@@ -893,11 +934,73 @@ ${user.workPlace || ''}`,
     }
   };
   
-  const handleAttachmentSelect = (index: number) => {
+  const handleAttachmentSelect = async (index: number) => {
     const types = ['camera', 'gallery', 'document', 'location', 'contact'];
     const type = types[index];
-    
-    if (type) {
+
+    if (type === 'gallery') {
+      // Ask for permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please grant permission to access the photo library.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: true,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        try {
+          // Read file as base64
+          const base64Content = await FileSystem.readAsStringAsync(asset.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          // Encrypt the file content
+          const keyRotationService = KeyRotationService.getInstance();
+          if (!keyRotationService.enforceKeyUsage('att_key', 'attachment')) {
+            throw new Error('Key usage violation for att_key');
+          }
+          const keyWindow = keyRotationService.getActiveKeyWindow('att_key');
+          const keyVersion = keyWindow.current;
+          if (!keyVersion) throw new Error('No active attachment key found');
+
+          const encryptionKey = await keyRotationService.fetchKey('att_key', keyVersion);
+          if (!encryptionKey) throw new Error('Failed to fetch attachment key');
+
+          const cryptoService = securityManager.getCryptoService();
+          const encryptedData = await cryptoService.advancedEncrypt(base64Content, encryptionKey);
+
+          // Create a message representing the encrypted file
+          const newMessage: Message = {
+            id: Date.now().toString(),
+            chatId: id as string,
+            senderId: userId || '0',
+            content: JSON.stringify(encryptedData), // In real app, this would be a URL to the uploaded encrypted file
+            timestamp: Date.now(),
+            status: 'sent',
+            type: 'file',
+            fileName: asset.fileName || 'attachment.jpg',
+            fileSize: asset.fileSize,
+            fileType: asset.mimeType,
+            keyVersion: keyVersion,
+            encrypted: true, // Indicates at-rest encryption
+          };
+
+          setMessages(prev => [...prev, newMessage]);
+          setTimeout(() => flashListRef.current?.scrollToEnd({ animated: true }), 100);
+
+        } catch (error) {
+          console.error('Error handling attachment:', error);
+          Alert.alert('Error', 'Could not process the attachment.');
+        }
+      }
+    } else if (type) {
       const newMessage: Message = {
         id: Date.now().toString(),
         chatId: id as string,
@@ -1033,8 +1136,46 @@ ${user.workPlace || ''}`,
           fileType={item.fileType || 'unknown'}
           senderId={senderId}
           senderName={senderName}
-          onDownload={() => {
-            Alert.alert('Download', 'File download started');
+          onDownload={async () => {
+            try {
+              if (!item.encrypted || !item.keyVersion) {
+                Alert.alert('Error', 'This file is not encrypted or is missing key information.');
+                return;
+              }
+
+              const encryptedData = JSON.parse(item.content);
+              const keyRotationService = KeyRotationService.getInstance();
+              const cryptoService = securityManager.getCryptoService();
+
+              const keyWindow = keyRotationService.getActiveKeyWindow('att_key');
+              const versionsToTry = [item.keyVersion, keyWindow.current, keyWindow.previous].filter(v => v != null);
+              const uniqueVersions = [...new Set(versionsToTry)];
+
+              let decryptedContent: string | null = null;
+              for (const version of uniqueVersions) {
+                if (version === undefined) continue;
+                try {
+                  const key = await keyRotationService.fetchKey('att_key', version);
+                  if (key) {
+                    decryptedContent = await cryptoService.advancedDecrypt(encryptedData, key);
+                    break;
+                  }
+                } catch (e) {
+                  // Decryption failed with this key, try next
+                }
+              }
+
+              if (decryptedContent) {
+                Alert.alert('Success', `File decrypted successfully! (Content length: ${decryptedContent.length})`);
+                // In a real app, you would save the base64 as a file and open it
+              } else {
+                Alert.alert('Error', 'Failed to decrypt the file with any available key.');
+              }
+
+            } catch (error) {
+              console.error('Error decrypting attachment:', error);
+              Alert.alert('Error', 'An error occurred during decryption.');
+            }
           }}
         />
       );
@@ -1304,13 +1445,14 @@ ${user.workPlace || ''}`,
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <FlatList
-          ref={flatListRef}
+        <FlashList
+          ref={flashListRef}
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
           contentContainerStyle={styles.messagesContainer}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          estimatedItemSize={100}
+          onLayout={() => flashListRef.current?.scrollToEnd({ animated: false })}
         />
         
         {isTyping && (

@@ -2085,7 +2085,9 @@ export interface Message {
   mediaUrl?: string;
   fileName?: string;
   fileSize?: number;
+  fileType?: string;
   duration?: number;
+  keyVersion?: number;
   encrypted?: boolean;
   signature?: string;
   sessionKeyId?: string;
