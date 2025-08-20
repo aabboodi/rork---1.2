@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Modal } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Globe, Bell, Lock, Moon, Wifi, Shield, Info, Eye } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { translations } from '@/constants/i18n';
@@ -10,6 +10,7 @@ import PrivacyPolicyExplainer from '@/components/PrivacyPolicyExplainer';
 import PrivacySettingsPanel from '@/components/PrivacySettingsPanel';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { language } = useAuthStore();
   const t = translations[language];
   const [showPrivacyExplainer, setShowPrivacyExplainer] = useState(false);
@@ -201,6 +202,22 @@ export default function SettingsScreen() {
             <Text style={styles.highlightItem}>• يمكنك تعطيل الخدمات غير الضرورية</Text>
             <Text style={styles.highlightItem}>• شفافية كاملة في استخدام البيانات</Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.securityActivityButton}
+            onPress={() => router.push('/security/activity')}
+          >
+            <View style={styles.transparencyContent}>
+              <Shield size={20} color={Colors.primary} />
+              <View style={styles.transparencyText}>
+                <Text style={styles.transparencyTitle}>سجل النشاط الأمني</Text>
+                <Text style={styles.transparencyDescription}>
+                  مراجعة آخر الأحداث الأمنية المتعلقة بحسابك
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
         </View>
       </ScrollView>
 
@@ -365,5 +382,13 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     lineHeight: 20,
     marginBottom: 4,
+  },
+  securityActivityButton: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
   },
 });

@@ -26,6 +26,7 @@ import BehaviorAnalyticsService from "@/services/security/BehaviorAnalyticsServi
 import SecurityNotificationService from "@/services/security/SecurityNotificationService";
 import SecureStorage from "@/services/security/SecureStorage";
 import SystemMonitoringService from "@/services/monitoring/SystemMonitoringService";
+import KeyRotationService from "@/services/security/KeyRotationService";
 
 // Force RTL layout for Arabic
 I18nManager.allowRTL(true);
@@ -177,9 +178,17 @@ export default function RootLayout() {
         return;
       }
       
-      // Enable screen protection globally
-      await screenProtection.enableGlobalProtection();
+      // Enable screen protection globally with maximum settings
+      await screenProtection.forceEnableProtection();
       
+      // Initialize Key Rotation Service and register keys
+      console.log('🔑 Initializing Key Rotation Service...');
+      const keyRotationService = KeyRotationService.getInstance();
+      await keyRotationService.initialize();
+      await keyRotationService.registerKey('msg_key', 'AES-256', 256, 'message');
+      await keyRotationService.registerKey('att_key', 'AES-256', 256, 'attachment');
+      console.log('✅ Key Rotation Service initialized and keys registered');
+
       // Initialize dynamic CSP for web platform
       if (Platform.OS === 'web') {
         await initializeWebCSP();
@@ -908,6 +917,7 @@ function RootLayoutNav() {
           <Stack.Screen name="dashboard" options={{ headerShown: true, presentation: 'card' }} />
           <Stack.Screen name="accessibility" options={{ headerShown: true, presentation: 'card' }} />
           <Stack.Screen name="accessibility-showcase" options={{ headerShown: true, presentation: 'card' }} />
+          <Stack.Screen name="security/activity" options={{ headerShown: true, presentation: 'card' }} />
         </>
       )}
     </Stack>

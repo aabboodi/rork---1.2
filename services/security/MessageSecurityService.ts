@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { E2EEService, E2EEMessage } from './E2EEService';
 import * as Crypto from 'expo-crypto';
+import KeyRotationService from './KeyRotationService';
+import CryptoService from './CryptoService';
 
 export interface SecureMessage {
   id: string;
@@ -16,6 +18,7 @@ export interface SecureMessage {
   expiresAt?: number; // For disappearing messages
   forwardSecrecy: boolean;
   integrityHash: string;
+  keyVersion?: number;
 }
 
 export interface ChatSession {
@@ -33,12 +36,16 @@ export interface ChatSession {
 export class MessageSecurityService {
   private static instance: MessageSecurityService;
   private e2eeService: E2EEService;
+  private keyRotationService: KeyRotationService;
+  private cryptoService: CryptoService;
   private chatSessions: Map<string, ChatSession> = new Map();
   private messageQueue: Map<string, SecureMessage[]> = new Map();
   private deliveryCallbacks: Map<string, (message: SecureMessage) => void> = new Map();
 
   private constructor() {
     this.e2eeService = E2EEService.getInstance();
+    this.keyRotationService = KeyRotationService.getInstance();
+    this.cryptoService = this.cryptoService = CryptoService.getInstance();
   }
 
   static getInstance(): MessageSecurityService {
@@ -126,20 +133,41 @@ export class MessageSecurityService {
     }
 
     try {
-      let encryptedContent: string;
+      let e2eePayload: string;
       let sessionId: string | undefined;
 
       if (chatSession.e2eeEnabled) {
         // Encrypt message using E2EE
         const e2eeMessage = await this.e2eeService.encryptMessage(chatSession.sessionId, content);
-        encryptedContent = JSON.stringify(e2eeMessage);
+        e2eePayload = JSON.stringify(e2eeMessage);
         sessionId = chatSession.sessionId;
       } else {
         // Fallback to basic encryption
-        encryptedContent = await this.basicEncrypt(content);
+        e2eePayload = await this.basicEncrypt(content);
       }
 
-      // Calculate integrity hash
+      // At-rest encryption using KeyRotationService
+      if (!this.keyRotationService.enforceKeyUsage('msg_key', 'message')) {
+        // In a real app, this should probably be a more robust alert
+        console.error('Key usage violation: msg_key is not for messages.');
+        throw new Error('Key usage violation for msg_key.');
+      }
+
+      const keyWindow = this.keyRotationService.getActiveKeyWindow('msg_key');
+      const currentKeyVersion = keyWindow.current;
+
+      if (!currentKeyVersion) {
+        throw new Error('No active message key found for at-rest encryption.');
+      }
+
+      const encryptionKey = await this.keyRotationService.fetchKey('msg_key', currentKeyVersion);
+      if (!encryptionKey) {
+        throw new Error(`Failed to fetch message key v${currentKeyVersion}`);
+      }
+
+      const atRestEncrypted = await this.cryptoService.advancedEncrypt(e2eePayload, encryptionKey);
+
+      // Calculate integrity hash on original content
       const integrityHash = await this.calculateIntegrityHash(content, senderId, Date.now());
 
       const secureMessage: SecureMessage = {
@@ -147,7 +175,7 @@ export class MessageSecurityService {
         chatId,
         senderId,
         receiverId: chatSession.participants.find(p => p !== senderId) || '',
-        content: encryptedContent,
+        content: JSON.stringify(atRestEncrypted), // Store the encrypted object as a string
         timestamp: Date.now(),
         messageType,
         isEncrypted: true,
@@ -155,6 +183,7 @@ export class MessageSecurityService {
         deliveryStatus: 'sent',
         forwardSecrecy: chatSession.e2eeEnabled,
         integrityHash,
+        keyVersion: currentKeyVersion, // Store the key version
         expiresAt: chatSession.disappearingMessagesEnabled 
           ? Date.now() + chatSession.disappearingMessagesDuration 
           : undefined
@@ -182,16 +211,51 @@ export class MessageSecurityService {
         throw new Error('Chat session not found for received message');
       }
 
+      let e2eePayload: string;
+
+      // Handle at-rest decryption if keyVersion is present
+      if (encryptedMessage.keyVersion) {
+        const atRestEncrypted = JSON.parse(encryptedMessage.content);
+        const keyWindow = this.keyRotationService.getActiveKeyWindow('msg_key');
+
+        const versionsToTry = [encryptedMessage.keyVersion, keyWindow.current, keyWindow.previous].filter(v => v != null);
+        const uniqueVersions = [...new Set(versionsToTry)];
+
+        let decrypted = false;
+        for (const version of uniqueVersions) {
+          if (version === undefined) continue;
+          try {
+            const key = await this.keyRotationService.fetchKey('msg_key', version);
+            if (key) {
+              e2eePayload = await this.cryptoService.advancedDecrypt(atRestEncrypted, key);
+              decrypted = true;
+              console.log(`Decrypted with key version ${version}`);
+              break;
+            }
+          } catch (e) {
+             console.warn(`Decryption with key version ${version} failed. It might be the wrong key.`);
+          }
+        }
+
+        if (!decrypted) {
+          throw new Error('Failed to decrypt message with any available key.');
+        }
+      } else {
+        // Backward compatibility: no at-rest encryption
+        e2eePayload = encryptedMessage.content;
+      }
+
       let decryptedContent: string;
 
       if (chatSession.e2eeEnabled && encryptedMessage.sessionId) {
         // Decrypt using E2EE
-        const e2eeMessage: E2EEMessage = JSON.parse(encryptedMessage.content);
+        const e2eeMessage: E2EEMessage = JSON.parse(e2eePayload);
         decryptedContent = await this.e2eeService.decryptMessage(e2eeMessage);
       } else {
         // Fallback decryption
-        decryptedContent = await this.basicDecrypt(encryptedMessage.content);
+        decryptedContent = await this.basicDecrypt(e2eePayload);
       }
+
 
       // Verify message integrity
       const isIntegrityValid = await this.verifyIntegrityHash(
