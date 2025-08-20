@@ -259,9 +259,8 @@ class DeviceSecurityService {
     }
     
     const combinedHash = Math.abs(hash1 ^ hash2 ^ hash3).toString(16);
-    const timestamp = Date.now().toString(16);
     
-    return `${combinedHash}-${timestamp}`;
+    return `${combinedHash}`;
   }
 
   // Generate web-specific fingerprint

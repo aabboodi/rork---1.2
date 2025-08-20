@@ -269,7 +269,7 @@ class DeviceBindingService {
       navigator.deviceMemory?.toString() || 'unknown'
     ];
     
-    return this.createAdvancedSecurityHash(components.join('|'));
+    return this.createStableDeviceHash(components.join('|'));
   }
 
   // Generate hardware fingerprint
@@ -390,7 +390,7 @@ class DeviceBindingService {
           battery.dischargingTime?.toString() || 'unknown'
         ];
         
-        return this.createAdvancedSecurityHash(batteryData.join('|'));
+        return this.createStableDeviceHash(batteryData.join('|'));
       }
       
       return 'no-battery-api';
@@ -493,29 +493,6 @@ class DeviceBindingService {
     } catch (error) {
       return 'fallback-sensors-fingerprint';
     }
-  }
-
-  // Create advanced security hash with multiple algorithms
-  private createAdvancedSecurityHash(data: string): string {
-    let hash1 = 0;
-    let hash2 = 0;
-    let hash3 = 0;
-    let hash4 = 0;
-    for (let i = 0; i < data.length; i++) {
-      const char = data.charCodeAt(i);
-      hash1 = ((hash1 << 5) - hash1) + char;
-      hash1 = hash1 & hash1;
-      hash2 = ((hash2 << 3) - hash2) + char + i;
-      hash2 = hash2 & hash2;
-      hash3 = ((hash3 << 7) - hash3) + char * i;
-      hash3 = hash3 & hash3;
-      hash4 = ((hash4 << 11) - hash4) + char * (i + 1);
-      hash4 = hash4 & hash4;
-    }
-    const combinedHash = Math.abs(hash1 ^ hash2 ^ hash3 ^ hash4).toString(16);
-    const timestamp = Date.now().toString(16);
-    const entropy = Math.random().toString(36).substr(2, 8);
-    return `${combinedHash}-${timestamp}-${entropy}`;
   }
 
   private createStableDeviceHash(data: string): string {
