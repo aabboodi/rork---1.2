@@ -1,0 +1,658 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+  Platform
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { 
+  Brain, 
+  Shield, 
+  Activity, 
+  Users, 
+  Zap,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  BarChart3
+} from 'lucide-react-native';
+import { EdgeAIOrchestrator } from '@/services/ai/EdgeAIOrchestrator';
+import type { AITask } from '@/services/ai/EdgeAIOrchestrator';
+
+interface StatusCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ComponentType<{ size: number; color: string }>;
+  status: 'success' | 'warning' | 'error' | 'info';
+  onPress?: () => void;
+}
+
+const StatusCard: React.FC<StatusCardProps> = ({ 
+  title, 
+  value, 
+  subtitle, 
+  icon, 
+  status, 
+  onPress 
+}) => {
+  const statusColors = {
+    success: '#10B981',
+    warning: '#F59E0B',
+    error: '#EF4444',
+    info: '#3B82F6'
+  };
+
+  return (
+    <TouchableOpacity 
+      style={[styles.statusCard, { borderLeftColor: statusColors[status] }]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      <View style={styles.cardHeader}>
+        <View style={[styles.iconContainer, { backgroundColor: statusColors[status] + '20' }]}>
+          {React.createElement(icon, { size: 24, color: statusColors[status] })}
+        </View>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          <Text style={[styles.cardValue, { color: statusColors[status] }]}>{value}</Text>
+          {subtitle && <Text style={styles.cardSubtitle}>{subtitle}</Text>}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+export default function EdgeAIDashboard() {
+  const [orchestrator] = useState(() => EdgeAIOrchestrator.getInstance());
+  const [status, setStatus] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [testResults, setTestResults] = useState<any[]>([]);
+
+  useEffect(() => {
+    const init = async () => {
+      await initializeEdgeAI();
+    };
+    init();
+  }, []);
+
+  const initializeEdgeAI = async () => {
+    try {
+      setIsLoading(true);
+      
+      console.log('🚀 Initializing Edge AI system...');
+      await orchestrator.initialize();
+      
+      updateStatus();
+      
+      console.log('✅ Edge AI system initialized successfully');
+    } catch (error) {
+      console.error('❌ Edge AI initialization failed:', error);
+      Alert.alert(
+        'Initialization Error',
+        'Failed to initialize Edge AI system. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateStatus = () => {
+    const currentStatus = orchestrator.getStatus();
+    setStatus(currentStatus);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await orchestrator.updatePolicies();
+      await orchestrator.updateModels();
+      updateStatus();
+    } catch (error) {
+      console.error('❌ Refresh failed:', error);
+      Alert.alert('Refresh Error', 'Failed to update policies and models.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const runTestTask = async (taskType: 'chat' | 'classification' | 'moderation' | 'recommendation') => {
+    try {
+      const testInputs = {
+        chat: 'مرحبا، كيف يمكنني استخدام تطبيق مدى؟',
+        classification: 'هذا تطبيق رائع وسهل الاستخدام',
+        moderation: 'محتوى آمن للاختبار',
+        recommendation: { userId: 'test_user', preferences: ['finance', 'technology'] }
+      };
+
+      const task: AITask = {
+        id: `test_${taskType}_${Date.now()}`,
+        type: taskType,
+        input: testInputs[taskType],
+        priority: 'medium'
+      };
+
+      console.log(`🧪 Running test task: ${taskType}`);
+      const startTime = Date.now();
+      
+      const result = await orchestrator.processTask(task);
+      const endTime = Date.now();
+
+      const testResult = {
+        taskType,
+        success: true,
+        processingTime: endTime - startTime,
+        tokensUsed: result.tokensUsed,
+        source: result.source,
+        confidence: result.confidence,
+        timestamp: Date.now()
+      };
+
+      setTestResults(prev => [testResult, ...prev.slice(0, 9)]); // Keep last 10 results
+      updateStatus();
+
+      Alert.alert(
+        'Test Completed',
+        `Task: ${taskType}\nProcessing Time: ${result.processingTime}ms\nTokens Used: ${result.tokensUsed}\nSource: ${result.source}\nConfidence: ${(result.confidence * 100).toFixed(1)}%`,
+        [{ text: 'OK' }]
+      );
+
+    } catch (error) {
+      console.error(`❌ Test task ${taskType} failed:`, error);
+      
+      const testResult = {
+        taskType,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: Date.now()
+      };
+
+      setTestResults(prev => [testResult, ...prev.slice(0, 9)]);
+
+      Alert.alert(
+        'Test Failed',
+        `Task ${taskType} failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const participateInFederatedLearning = async () => {
+    try {
+      console.log('🤝 Starting federated learning participation...');
+      await orchestrator.participateInFederatedLearning();
+      
+      Alert.alert(
+        'Federated Learning',
+        'Successfully participated in federated learning round.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('❌ Federated learning failed:', error);
+      Alert.alert(
+        'Federated Learning Error',
+        'Failed to participate in federated learning.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Activity size={48} color="#3B82F6" />
+          <Text style={styles.loadingText}>Initializing Edge AI System...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!status) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <AlertTriangle size={48} color="#EF4444" />
+          <Text style={styles.errorText}>Failed to load Edge AI status</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={initializeEdgeAI}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const getTokenBudgetStatus = () => {
+    const percentage = status.tokenBudget?.usagePercentage || 0;
+    if (percentage < 50) return 'success';
+    if (percentage < 80) return 'warning';
+    return 'error';
+  };
+
+  const formatUptime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>مدى Edge AI</Text>
+            <Text style={styles.subtitle}>On-Device Intelligence & Central Orchestration</Text>
+          </View>
+          <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+            <RefreshCw size={24} color="#3B82F6" />
+          </TouchableOpacity>
+        </View>
+
+        {/* System Status Cards */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>System Status</Text>
+          <View style={styles.cardGrid}>
+            <StatusCard
+              title="System Status"
+              value={status.isInitialized ? "Active" : "Inactive"}
+              icon={CheckCircle}
+              status={status.isInitialized ? "success" : "error"}
+            />
+            
+            <StatusCard
+              title="Token Budget"
+              value={`${status.tokenBudget?.usagePercentage?.toFixed(1) || 0}%`}
+              subtitle={`${status.tokenBudget?.remainingTokens || 0} remaining`}
+              icon={Zap}
+              status={getTokenBudgetStatus()}
+            />
+            
+            <StatusCard
+              title="Active Tasks"
+              value={status.activeTasks || 0}
+              icon={Activity}
+              status="info"
+            />
+            
+            <StatusCard
+              title="Session Uptime"
+              value={formatUptime(status.sessionUptime || 0)}
+              icon={Clock}
+              status="info"
+            />
+          </View>
+        </View>
+
+        {/* AI Task Testing */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>AI Task Testing</Text>
+          <View style={styles.taskButtons}>
+            <TouchableOpacity 
+              style={[styles.taskButton, styles.chatButton]}
+              onPress={() => runTestTask('chat')}
+            >
+              <Brain size={20} color="#FFFFFF" />
+              <Text style={styles.taskButtonText}>Test Chat</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.taskButton, styles.classificationButton]}
+              onPress={() => runTestTask('classification')}
+            >
+              <BarChart3 size={20} color="#FFFFFF" />
+              <Text style={styles.taskButtonText}>Test Classification</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.taskButton, styles.moderationButton]}
+              onPress={() => runTestTask('moderation')}
+            >
+              <Shield size={20} color="#FFFFFF" />
+              <Text style={styles.taskButtonText}>Test Moderation</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.taskButton, styles.recommendationButton]}
+              onPress={() => runTestTask('recommendation')}
+            >
+              <Users size={20} color="#FFFFFF" />
+              <Text style={styles.taskButtonText}>Test Recommendation</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Federated Learning */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Federated Learning</Text>
+          <TouchableOpacity 
+            style={styles.federatedButton}
+            onPress={participateInFederatedLearning}
+          >
+            <Users size={24} color="#FFFFFF" />
+            <View style={styles.federatedButtonContent}>
+              <Text style={styles.federatedButtonTitle}>Participate in Learning</Text>
+              <Text style={styles.federatedButtonSubtitle}>
+                Contribute to model improvement while preserving privacy
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Recent Test Results */}
+        {testResults.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Test Results</Text>
+            {testResults.slice(0, 5).map((result, index) => (
+              <View key={index} style={styles.testResult}>
+                <View style={styles.testResultHeader}>
+                  <Text style={styles.testResultType}>{result.taskType}</Text>
+                  <Text style={styles.testResultTime}>
+                    {new Date(result.timestamp).toLocaleTimeString()}
+                  </Text>
+                </View>
+                {result.success ? (
+                  <View style={styles.testResultDetails}>
+                    <Text style={styles.testResultSuccess}>
+                      ✅ {result.processingTime}ms • {result.tokensUsed} tokens • {result.source}
+                    </Text>
+                    <Text style={styles.testResultConfidence}>
+                      Confidence: {(result.confidence * 100).toFixed(1)}%
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.testResultError}>❌ {result.error}</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Configuration Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Configuration</Text>
+          <View style={styles.configInfo}>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Device ID:</Text>
+              <Text style={styles.configValue}>{status.config?.deviceId || 'N/A'}</Text>
+            </View>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Model Version:</Text>
+              <Text style={styles.configValue}>{status.config?.modelVersion || 'N/A'}</Text>
+            </View>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Policy Version:</Text>
+              <Text style={styles.configValue}>{status.config?.policyVersion || 'N/A'}</Text>
+            </View>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Security Level:</Text>
+              <Text style={styles.configValue}>{status.config?.securityLevel || 'N/A'}</Text>
+            </View>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Platform:</Text>
+              <Text style={styles.configValue}>{Platform.OS}</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#EF4444',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  refreshButton: {
+    padding: 8,
+  },
+  section: {
+    margin: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  statusCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  cardValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  cardSubtitle: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  taskButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  taskButton: {
+    flex: 1,
+    minWidth: '45%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  chatButton: {
+    backgroundColor: '#3B82F6',
+  },
+  classificationButton: {
+    backgroundColor: '#10B981',
+  },
+  moderationButton: {
+    backgroundColor: '#EF4444',
+  },
+  recommendationButton: {
+    backgroundColor: '#8B5CF6',
+  },
+  taskButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  federatedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  federatedButtonContent: {
+    flex: 1,
+  },
+  federatedButtonTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  federatedButtonSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    opacity: 0.9,
+    marginTop: 2,
+  },
+  testResult: {
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  testResultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  testResultType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    textTransform: 'capitalize',
+  },
+  testResultTime: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  testResultDetails: {
+    gap: 2,
+  },
+  testResultSuccess: {
+    fontSize: 12,
+    color: '#10B981',
+  },
+  testResultConfidence: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  testResultError: {
+    fontSize: 12,
+    color: '#EF4444',
+  },
+  configInfo: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  configItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  configLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  configValue: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+});
