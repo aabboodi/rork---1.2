@@ -316,6 +316,26 @@ export default function EdgeAIDashboard() {
           </View>
         </View>
 
+        {/* Phase 1 MVP Demo */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Phase 1: Local Intelligence MVP</Text>
+          <TouchableOpacity 
+            style={styles.mvpDemoButton}
+            onPress={() => {
+              // Navigate to Phase 1 demo
+              console.log('Navigate to Phase 1 MVP Demo');
+            }}
+          >
+            <Brain size={24} color="#FFFFFF" />
+            <View style={styles.mvpDemoContent}>
+              <Text style={styles.mvpDemoTitle}>Local Intelligence MVP Demo</Text>
+              <Text style={styles.mvpDemoSubtitle}>
+                LLM محلي خفيف + مصنف إساءة + RAG محلي عملي
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* AI Task Testing */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>AI Task Testing</Text>
@@ -913,5 +933,27 @@ const styles = StyleSheet.create({
   distributionCount: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  mvpDemoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  mvpDemoContent: {
+    flex: 1,
+  },
+  mvpDemoTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mvpDemoSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    opacity: 0.9,
+    marginTop: 2,
   },
 });
