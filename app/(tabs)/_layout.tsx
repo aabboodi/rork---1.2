@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { MessageCircle, Users, Wallet, User, BarChart3 } from 'lucide-react-native';
+import { MessageCircle, Users, Wallet, User, BarChart3, Brain } from 'lucide-react-native';
 import SecurityNotificationBell from '@/components/SecurityNotificationBell';
 import { useThemeStore } from '@/store/themeStore';
 import { translations } from '@/constants/i18n';
@@ -266,6 +266,16 @@ export default function TabLayout() {
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => (
             <BarChart3 size={size} color={color} />
+          ),
+        }}
+      />
+      
+      <Tabs.Screen
+        name="edge-ai"
+        options={{
+          title: 'Edge AI',
+          tabBarIcon: ({ color, size }) => (
+            <Brain size={size} color={color} />
           ),
         }}
       />

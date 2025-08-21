@@ -7,6 +7,7 @@ import { PolicyEngine } from './PolicyEngine';
 import { LocalRAGService } from './LocalRAGService';
 import { CentralOrchestrator } from './CentralOrchestrator';
 import { FederatedLearningManager } from './FederatedLearningManager';
+import { UEBALiteService } from './UEBALiteService';
 import SecurityManager from '../security/SecurityManager';
 import CentralizedLoggingService from '../security/CentralizedLoggingService';
 
@@ -73,6 +74,7 @@ export class EdgeAIOrchestrator {
   private ragService: LocalRAGService;
   private centralOrchestrator: CentralOrchestrator;
   private federatedLearning: FederatedLearningManager;
+  private uebaLite: UEBALiteService;
   private isInitialized = false;
   private activeTasks = new Map<string, AITask>();
   private sessionStartTime = Date.now();
@@ -94,6 +96,7 @@ export class EdgeAIOrchestrator {
     this.ragService = new LocalRAGService();
     this.centralOrchestrator = new CentralOrchestrator();
     this.federatedLearning = new FederatedLearningManager();
+    this.uebaLite = new UEBALiteService();
   }
 
   static getInstance(): EdgeAIOrchestrator {
@@ -125,6 +128,7 @@ export class EdgeAIOrchestrator {
       await this.ragService.initialize();
       await this.centralOrchestrator.initialize(this.config.deviceId);
       await this.federatedLearning.initialize();
+      await this.uebaLite.initialize();
 
       // Load and validate policies
       await this.loadPolicies();
@@ -217,6 +221,16 @@ export class EdgeAIOrchestrator {
 
       const processingTime = Date.now() - startTime;
 
+      // Record UEBA event for AI task
+      await this.uebaLite.recordEvent('ai_task', {
+        taskType: task.type,
+        tokensUsed,
+        processingTime,
+        source,
+        confidence,
+        riskScore: this.calculateTaskRiskScore(task, result)
+      });
+
       // Create response
       const response: AIResponse = {
         taskId: task.id,
@@ -255,6 +269,8 @@ export class EdgeAIOrchestrator {
    * Get current system status
    */
   getStatus() {
+    const uebaStatus = this.uebaLite ? this.uebaLite.getBehaviorSummary() : null;
+    
     return {
       isInitialized: this.isInitialized,
       tokenBudget: this.tokenBudget.getStatus(),
@@ -264,7 +280,14 @@ export class EdgeAIOrchestrator {
         ...this.config,
         deviceId: this.config.deviceId.substring(0, 8) + '...' // Partial for privacy
       },
-      telemetryBufferSize: this.telemetryBuffer.length
+      telemetryBufferSize: this.telemetryBuffer.length,
+      behaviorAnalytics: uebaStatus ? {
+        riskScore: uebaStatus.riskAssessment.score,
+        riskLevel: uebaStatus.riskAssessment.level,
+        recentEvents: uebaStatus.recentEvents,
+        recentAnomalies: uebaStatus.recentAnomalies,
+        topPatterns: uebaStatus.topPatterns
+      } : null
     };
   }
 
@@ -560,6 +583,57 @@ export class EdgeAIOrchestrator {
       }
     }
     return undefined; // Would use expo-battery on mobile
+  }
+
+  private calculateTaskRiskScore(task: AITask, result: unknown): number {
+    let riskScore = 0;
+
+    // Base risk by task type
+    const taskRisk = {
+      'chat': 30,
+      'classification': 10,
+      'moderation': 5,
+      'recommendation': 20
+    };
+
+    riskScore += taskRisk[task.type] || 15;
+
+    // Input size risk
+    if (typeof task.input === 'string' && task.input.length > 10000) {
+      riskScore += 20;
+    }
+
+    // Priority risk
+    const priorityRisk = {
+      'low': 0,
+      'medium': 10,
+      'high': 20,
+      'critical': 40
+    };
+
+    riskScore += priorityRisk[task.priority] || 0;
+
+    // Result confidence (lower confidence = higher risk)
+    if (typeof result === 'object' && result !== null && 'confidence' in result) {
+      const confidence = (result as { confidence: number }).confidence;
+      riskScore += (1 - confidence) * 30;
+    }
+
+    return Math.min(riskScore, 100);
+  }
+
+  /**
+   * Get UEBA behavior summary
+   */
+  getBehaviorSummary() {
+    return this.uebaLite ? this.uebaLite.getBehaviorSummary() : null;
+  }
+
+  /**
+   * Get recent anomalies from UEBA
+   */
+  getRecentAnomalies() {
+    return this.uebaLite ? this.uebaLite.getRecentAnomalies() : [];
   }
 }
 

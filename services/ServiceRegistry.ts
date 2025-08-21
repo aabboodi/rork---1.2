@@ -70,4 +70,9 @@ registry.register('FederatedLearningManager', () => {
   return new FederatedLearningManager();
 });
 
+registry.register('UEBALiteService', () => {
+  const { UEBALiteService } = require('./ai/UEBALiteService');
+  return new UEBALiteService();
+});
+
 export default registry;
