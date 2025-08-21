@@ -10,6 +10,7 @@ import { FederatedLearningManager } from './FederatedLearningManager';
 import { UEBALiteService } from './UEBALiteService';
 import SecurityManager from '../security/SecurityManager';
 import CentralizedLoggingService from '../security/CentralizedLoggingService';
+import DatabaseService, { DeviceProfile, Policy as DBPolicy, ModelArtifact, EdgeTelemetry } from './DatabaseService';
 
 export interface EdgeAIConfig {
   maxTokensPerSession: number;
@@ -75,6 +76,7 @@ export class EdgeAIOrchestrator {
   private centralOrchestrator: CentralOrchestrator;
   private federatedLearning: FederatedLearningManager;
   private uebaLite: UEBALiteService;
+  private databaseService: DatabaseService;
   private isInitialized = false;
   private activeTasks = new Map<string, AITask>();
   private sessionStartTime = Date.now();
@@ -97,6 +99,7 @@ export class EdgeAIOrchestrator {
     this.centralOrchestrator = new CentralOrchestrator();
     this.federatedLearning = new FederatedLearningManager();
     this.uebaLite = new UEBALiteService();
+    this.databaseService = DatabaseService.getInstance();
   }
 
   static getInstance(): EdgeAIOrchestrator {
@@ -122,6 +125,7 @@ export class EdgeAIOrchestrator {
       await this.validateSecurityRequirements();
 
       // Initialize core components
+      await this.databaseService.initialize();
       await this.tokenBudget.initialize();
       await this.inferenceEngine.initialize();
       await this.policyEngine.initialize();
@@ -129,6 +133,9 @@ export class EdgeAIOrchestrator {
       await this.centralOrchestrator.initialize(this.config.deviceId);
       await this.federatedLearning.initialize();
       await this.uebaLite.initialize();
+
+      // Initialize device profile in database
+      await this.initializeDeviceProfile();
 
       // Load and validate policies
       await this.loadPolicies();
@@ -292,6 +299,22 @@ export class EdgeAIOrchestrator {
   }
 
   /**
+   * Get database statistics
+   */
+  async getDatabaseStats() {
+    if (!this.isInitialized) return null;
+    return await this.databaseService.getDatabaseStats();
+  }
+
+  /**
+   * Get telemetry summary
+   */
+  async getTelemetrySummary(timeRange?: number) {
+    if (!this.isInitialized) return null;
+    return await this.databaseService.getTelemetrySummary(this.config.deviceId, timeRange);
+  }
+
+  /**
    * Update policies from central orchestrator
    */
   async updatePolicies(): Promise<void> {
@@ -372,21 +395,95 @@ export class EdgeAIOrchestrator {
 
   private async loadPolicies(): Promise<void> {
     try {
-      const policies = await this.centralOrchestrator.fetchPolicies();
-      await this.policyEngine.loadPolicies(policies);
+      // Load policies from central orchestrator
+      const remotePolicies = await this.centralOrchestrator.fetchPolicies();
+      
+      // Store policies in database
+      for (const policy of remotePolicies) {
+        const dbPolicy: DBPolicy = {
+          id: policy.id,
+          version: policy.version,
+          rules: policy.rules || {},
+          signature: policy.signature || 'default_signature',
+          created_at: Date.now(),
+          expires_at: policy.validUntil || (Date.now() + 30 * 24 * 60 * 60 * 1000)
+        };
+        
+        await this.databaseService.insertPolicy(dbPolicy);
+      }
+      
+      await this.policyEngine.loadPolicies(remotePolicies);
     } catch (error) {
-      console.warn('⚠️ Failed to load remote policies, using defaults');
-      await this.policyEngine.loadDefaultPolicies();
+      console.warn('⚠️ Failed to load remote policies, using cached/defaults');
+      
+      // Try to load from database
+      const cachedPolicies = await this.databaseService.getActivePolicies();
+      if (cachedPolicies.length > 0) {
+        console.log(`📋 Loaded ${cachedPolicies.length} cached policies`);
+        // Convert DB policies to policy engine format
+        const enginePolicies = cachedPolicies.map(p => ({
+          id: p.id,
+          version: p.version,
+          name: `Policy ${p.version}`,
+          signature: p.signature,
+          validFrom: p.created_at,
+          validUntil: p.expires_at,
+          securityLevel: 'medium' as const,
+          rules: []
+        }));
+        await this.policyEngine.loadPolicies(enginePolicies);
+      } else {
+        await this.policyEngine.loadDefaultPolicies();
+      }
     }
   }
 
   private async loadModels(): Promise<void> {
     try {
-      const models = await this.centralOrchestrator.fetchAvailableModels();
-      await this.inferenceEngine.loadModels(models);
+      // Load models from central orchestrator
+      const remoteModels = await this.centralOrchestrator.fetchAvailableModels();
+      
+      // Store model artifacts in database
+      for (const model of remoteModels) {
+        const artifact: ModelArtifact = {
+          id: model.id,
+          name: model.name,
+          version: model.version,
+          target_hw: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web',
+          quantization: model.quantization || '8bit',
+          url: `https://models.example.com/${model.name}/${model.version}`,
+          sha256: model.signature || 'mock_sha256',
+          signature: model.signature || 'model_signature'
+        };
+        
+        await this.databaseService.insertModelArtifact(artifact);
+      }
+      
+      await this.inferenceEngine.loadModels(remoteModels);
     } catch (error) {
       console.warn('⚠️ Failed to load remote models, using cached versions');
-      await this.inferenceEngine.loadCachedModels();
+      
+      // Try to load from database
+      const hwClass = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+      const cachedModels = await this.databaseService.getModelArtifactsByHardware(hwClass);
+      
+      if (cachedModels.length > 0) {
+        console.log(`🤖 Loaded ${cachedModels.length} cached models`);
+        // Convert DB artifacts to model info format
+        const modelInfos = cachedModels.map(a => ({
+          id: a.id,
+          name: a.name,
+          version: a.version,
+          type: 'onnx' as const,
+          size: 25 * 1024 * 1024, // Default size
+          capabilities: ['chat', 'classification'],
+          quantization: a.quantization,
+          signature: a.signature
+        }));
+        await this.inferenceEngine.loadModels(modelInfos);
+      } else {
+        await this.inferenceEngine.loadCachedModels();
+      }
     }
   }
 
@@ -497,6 +594,26 @@ export class EdgeAIOrchestrator {
       timestamp: Date.now()
     };
 
+    // Store in database
+    const dbTelemetry: EdgeTelemetry = {
+      id: await Crypto.randomUUID(),
+      device_id: this.config.deviceId,
+      policy_version: this.config.policyVersion,
+      model_version: this.config.modelVersion,
+      metrics: {
+        taskType: task.type,
+        tokensUsed: response.tokensUsed,
+        processingTime: response.processingTime,
+        source: response.source,
+        confidence: response.confidence,
+        memoryUsage: telemetry.deviceMetrics.memoryUsage,
+        cpuUsage: telemetry.deviceMetrics.cpuUsage,
+        batteryLevel: telemetry.deviceMetrics.batteryLevel
+      },
+      created_at: Date.now()
+    };
+
+    await this.databaseService.insertTelemetry(dbTelemetry);
     this.telemetryBuffer.push(telemetry);
 
     // Send telemetry when buffer is full
@@ -620,6 +737,28 @@ export class EdgeAIOrchestrator {
     }
 
     return Math.min(riskScore, 100);
+  }
+
+  /**
+   * Initialize device profile in database
+   */
+  private async initializeDeviceProfile(): Promise<void> {
+    try {
+      const profile: DeviceProfile = {
+        device_id: this.config.deviceId,
+        hw_class: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web',
+        os_version: Platform.Version?.toString() || 'unknown',
+        app_version: '1.0.0', // Would get from app.json
+        llm_variant: 'chat-lite-v1',
+        rag_budget_tokens: this.config.maxTokensPerSession,
+        last_seen: Date.now()
+      };
+
+      await this.databaseService.upsertDeviceProfile(profile);
+      console.log('📱 Device profile initialized in database');
+    } catch (error) {
+      console.error('❌ Failed to initialize device profile:', error);
+    }
   }
 
   /**
