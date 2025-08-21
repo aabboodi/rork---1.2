@@ -918,6 +918,7 @@ function RootLayoutNav() {
           <Stack.Screen name="accessibility" options={{ headerShown: true, presentation: 'card' }} />
           <Stack.Screen name="accessibility-showcase" options={{ headerShown: true, presentation: 'card' }} />
           <Stack.Screen name="security/activity" options={{ headerShown: true, presentation: 'card' }} />
+          <Stack.Screen name="edge-ai" options={{ headerShown: true, presentation: 'card', title: 'مدى Edge AI' }} />
         </>
       )}
     </Stack>
