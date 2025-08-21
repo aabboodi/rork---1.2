@@ -185,6 +185,13 @@ export default function ProfileScreen() {
             title="Audit Logs"
             onPress={() => router.push('/security/audit-logs')}
           />
+          
+          <ProfileOption
+            icon={Shield}
+            title="Security Tests"
+            onPress={() => router.push('/security/acceptance-tests')}
+            iconColor={colors.warning}
+          />
         </AccessibleCard>
 
         {/* Security Status */}
