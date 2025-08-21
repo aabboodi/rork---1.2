@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -130,7 +130,7 @@ export default function Phase2OrchestratorDemo() {
           successRate: ((prev.successRate * (newTotal - 1)) + newSuccess) / newTotal
         };
       });
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to process task');
     } finally {
       setIsProcessing(false);
