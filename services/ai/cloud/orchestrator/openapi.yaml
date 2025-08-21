@@ -1,0 +1,606 @@
+openapi: 3.0.3
+info:
+  title: Cloud Orchestrator API
+  description: |
+    Central Orchestrator API for Phase 2 - Receives compressed summaries from edge devices 
+    and returns processing strategies or results based on dynamic policies.
+  version: 2.0.0
+  contact:
+    name: AI Orchestration Team
+    email: ai-team@rork.com
+
+servers:
+  - url: https://api.rork.com/v2/orchestrator
+    description: Production server
+  - url: https://staging-api.rork.com/v2/orchestrator
+    description: Staging server
+
+security:
+  - DeviceSignature: []
+  - ApiKey: []
+
+paths:
+  /process:
+    post:
+      summary: Process compressed summary
+      description: |
+        Receives a compressed summary from an edge device and returns either:
+        - A processing strategy for the device to execute
+        - A complete processing result if processed in the cloud
+      operationId: processCompressedSummary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessRequest'
+            examples:
+              chatRequest:
+                summary: Chat processing request
+                value:
+                  summary:
+                    taskId: "task_12345"
+                    deviceId: "device_abc123"
+                    taskType: "chat"
+                    compressedContext: "User discussing travel plans to Japan..."
+                    query: "What's the best time to visit Tokyo?"
+                    metadata:
+                      originalSize: 5000
+                      compressionRatio: 0.3
+                      priority: "medium"
+                      timestamp: 1703123456789
+                    deviceCapabilities:
+                      availableMemory: 2048
+                      processingPower: "medium"
+                      batteryLevel: 75
+                      networkQuality: "good"
+                  signature: "sig_device_abc_1703123456_hash"
+      responses:
+        '200':
+          description: Processing strategy or result
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OrchestratorStrategy'
+                  - $ref: '#/components/schemas/ProcessingResult'
+              examples:
+                strategyResponse:
+                  summary: Strategy for local processing
+                  value:
+                    type: "process_local"
+                    reasoning: "Device has sufficient capabilities for local processing"
+                    parameters:
+                      modelToUse: "chat-lite-v2"
+                      maxTokens: 1000
+                      timeout: 30000
+                    metadata:
+                      confidence: 0.85
+                      estimatedCost: 0
+                      estimatedLatency: 300
+                      privacyLevel: "high"
+                resultResponse:
+                  summary: Cloud processing result
+                  value:
+                    type: "result"
+                    taskId: "task_12345"
+                    result: "The best time to visit Tokyo is during spring (March-May) or autumn (September-November)..."
+                    processingTime: 850
+                    tokensUsed: 150
+                    modelUsed: "cloud-chat-gpt4"
+                    confidence: 0.95
+                    metadata:
+                      processedInCloud: true
+                      strategy: "process_cloud"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /policies:
+    put:
+      summary: Update device policies
+      description: Update dynamic policies for a specific device
+      operationId: updateDevicePolicies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyUpdateRequest'
+      responses:
+        '200':
+          description: Policies updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  updatedPolicies:
+                    type: integer
+        '400':
+          description: Invalid policy data
+        '401':
+          description: Authentication failed
+        '403':
+          description: Device not authorized for policy updates
+
+  /status/{deviceId}:
+    get:
+      summary: Get device status
+      description: Get current status, policies, and recommendations for a device
+      operationId: getDeviceStatus
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_]{8,64}$'
+          description: Unique device identifier
+      responses:
+        '200':
+          description: Device status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceStatus'
+        '404':
+          description: Device not found
+
+  /telemetry/{deviceId}:
+    get:
+      summary: Get device telemetry
+      description: Get telemetry data and performance insights for a device
+      operationId: getDeviceTelemetry
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique device identifier
+      responses:
+        '200':
+          description: Device telemetry data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceTelemetryResponse'
+
+  /health:
+    get:
+      summary: Health check
+      description: Get orchestrator health status
+      operationId: getHealth
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+components:
+  securitySchemes:
+    DeviceSignature:
+      type: apiKey
+      in: header
+      name: X-Device-Signature
+      description: ECDSA-P256 signature of request content
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for device authentication
+
+  schemas:
+    ProcessRequest:
+      type: object
+      required:
+        - summary
+        - signature
+      properties:
+        summary:
+          $ref: '#/components/schemas/CompressedSummary'
+        signature:
+          type: string
+          description: Cryptographic signature of the request
+          minLength: 10
+
+    CompressedSummary:
+      type: object
+      required:
+        - taskId
+        - deviceId
+        - taskType
+        - compressedContext
+        - query
+        - metadata
+        - deviceCapabilities
+      properties:
+        taskId:
+          type: string
+          description: Unique identifier for this task
+        deviceId:
+          type: string
+          pattern: '^[a-zA-Z0-9_]{8,64}$'
+          description: Unique device identifier
+        taskType:
+          type: string
+          enum: [chat, classification, moderation, recommendation]
+          description: Type of AI task to process
+        compressedContext:
+          type: string
+          maxLength: 50000
+          description: Compressed/summarized context data
+        query:
+          type: string
+          maxLength: 10000
+          description: User query or input
+        metadata:
+          $ref: '#/components/schemas/TaskMetadata'
+        deviceCapabilities:
+          $ref: '#/components/schemas/DeviceCapabilities'
+
+    TaskMetadata:
+      type: object
+      required:
+        - originalSize
+        - compressionRatio
+        - priority
+        - timestamp
+      properties:
+        originalSize:
+          type: integer
+          minimum: 0
+          description: Original data size before compression (bytes)
+        compressionRatio:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Compression efficiency ratio
+        priority:
+          type: string
+          enum: [low, medium, high]
+          description: Task priority level
+        timestamp:
+          type: integer
+          description: Unix timestamp when task was created
+        sessionId:
+          type: string
+          description: Optional session identifier
+
+    DeviceCapabilities:
+      type: object
+      required:
+        - availableMemory
+        - processingPower
+        - batteryLevel
+        - networkQuality
+      properties:
+        availableMemory:
+          type: integer
+          minimum: 0
+          description: Available memory in MB
+        processingPower:
+          type: string
+          enum: [low, medium, high]
+          description: Device processing capability
+        batteryLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Battery level percentage
+        networkQuality:
+          type: string
+          enum: [poor, good, excellent]
+          description: Network connection quality
+
+    OrchestratorStrategy:
+      type: object
+      required:
+        - type
+        - reasoning
+        - metadata
+      properties:
+        type:
+          type: string
+          enum: [process_local, process_cloud, hybrid, cache_result, defer]
+          description: Processing strategy to execute
+        reasoning:
+          type: string
+          description: Human-readable explanation of strategy choice
+        parameters:
+          type: object
+          description: Strategy-specific parameters
+          properties:
+            modelToUse:
+              type: string
+            maxTokens:
+              type: integer
+            timeout:
+              type: integer
+            fallbackStrategy:
+              type: string
+            cacheKey:
+              type: string
+            deferUntil:
+              type: integer
+        metadata:
+          $ref: '#/components/schemas/StrategyMetadata'
+
+    StrategyMetadata:
+      type: object
+      required:
+        - confidence
+        - estimatedCost
+        - estimatedLatency
+        - privacyLevel
+      properties:
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence in strategy choice
+        estimatedCost:
+          type: number
+          minimum: 0
+          description: Estimated processing cost
+        estimatedLatency:
+          type: number
+          minimum: 0
+          description: Estimated processing time (ms)
+        privacyLevel:
+          type: string
+          enum: [low, medium, high]
+          description: Privacy level of strategy
+
+    ProcessingResult:
+      type: object
+      required:
+        - type
+        - taskId
+        - result
+        - processingTime
+        - tokensUsed
+        - modelUsed
+        - confidence
+        - metadata
+      properties:
+        type:
+          type: string
+          enum: [result]
+          description: Indicates this is a processing result
+        taskId:
+          type: string
+          description: Original task identifier
+        result:
+          description: Processing result (type varies by task)
+        processingTime:
+          type: integer
+          description: Actual processing time (ms)
+        tokensUsed:
+          type: integer
+          description: Number of tokens consumed
+        modelUsed:
+          type: string
+          description: Model used for processing
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence in result
+        metadata:
+          type: object
+          required:
+            - processedInCloud
+            - strategy
+          properties:
+            processedInCloud:
+              type: boolean
+            strategy:
+              type: string
+            cacheHit:
+              type: boolean
+
+    PolicyUpdateRequest:
+      type: object
+      required:
+        - deviceId
+        - policies
+        - signature
+      properties:
+        deviceId:
+          type: string
+          pattern: '^[a-zA-Z0-9_]{8,64}$'
+        policies:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/DynamicPolicy'
+        signature:
+          type: string
+          minLength: 20
+          description: Cryptographic signature for policy update
+
+    DynamicPolicy:
+      type: object
+      required:
+        - id
+        - version
+        - name
+        - deviceFilters
+        - rules
+        - validFrom
+        - validUntil
+        - signature
+      properties:
+        id:
+          type: string
+          description: Unique policy identifier
+        version:
+          type: string
+          description: Policy version
+        name:
+          type: string
+          description: Human-readable policy name
+        deviceFilters:
+          type: object
+          description: Device compatibility filters
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyRule'
+        validFrom:
+          type: integer
+          description: Unix timestamp when policy becomes valid
+        validUntil:
+          type: integer
+          description: Unix timestamp when policy expires
+        signature:
+          type: string
+          description: Policy signature for integrity
+
+    PolicyRule:
+      type: object
+      required:
+        - id
+        - type
+        - priority
+        - condition
+        - action
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [route, limit, cache, defer, deny]
+        priority:
+          type: integer
+          description: Rule priority (higher = more important)
+        condition:
+          type: object
+          description: Conditions for rule activation
+        action:
+          type: object
+          description: Action to take when rule matches
+
+    DeviceStatus:
+      type: object
+      required:
+        - status
+        - policies
+        - recommendations
+        - telemetry
+      properties:
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/DynamicPolicy'
+        recommendations:
+          type: array
+          items:
+            type: string
+        telemetry:
+          description: Device telemetry summary
+
+    DeviceTelemetryResponse:
+      type: object
+      properties:
+        deviceId:
+          type: string
+        totalRequests:
+          type: integer
+        successRate:
+          type: number
+        averageProcessingTime:
+          type: number
+        preferredStrategies:
+          type: object
+          additionalProperties:
+            type: integer
+        errorPatterns:
+          type: array
+          items:
+            type: string
+        performanceMetrics:
+          type: object
+        insights:
+          type: object
+          properties:
+            recommendations:
+              type: array
+              items:
+                type: string
+            performanceScore:
+              type: integer
+            issues:
+              type: array
+              items:
+                type: string
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - lastCheck
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        lastCheck:
+          type: integer
+          description: Unix timestamp of last health check
+        details:
+          type: object
+          description: Additional health information
+        components:
+          type: object
+          description: Status of individual components
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+        timestamp:
+          type: integer
+          description: Unix timestamp of error
