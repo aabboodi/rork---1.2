@@ -20,7 +20,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  BarChart3
+  BarChart3,
+  Eye,
+  TrendingUp
 } from 'lucide-react-native';
 import { EdgeAIOrchestrator } from '@/services/ai/EdgeAIOrchestrator';
 import type { AITask } from '@/services/ai/EdgeAIOrchestrator';
@@ -356,6 +358,69 @@ export default function EdgeAIDashboard() {
           </TouchableOpacity>
         </View>
 
+        {/* Behavior Analytics */}
+        {status.behaviorAnalytics && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Behavior Analytics (UEBA Lite)</Text>
+            <View style={styles.cardGrid}>
+              <StatusCard
+                title="Risk Score"
+                value={`${status.behaviorAnalytics.riskScore}/100`}
+                subtitle={status.behaviorAnalytics.riskLevel}
+                icon={Eye}
+                status={status.behaviorAnalytics.riskLevel === 'low' ? 'success' : 
+                       status.behaviorAnalytics.riskLevel === 'medium' ? 'warning' : 'error'}
+              />
+              
+              <StatusCard
+                title="Recent Events"
+                value={status.behaviorAnalytics.recentEvents}
+                subtitle="Last 24 hours"
+                icon={Activity}
+                status="info"
+              />
+              
+              <StatusCard
+                title="Anomalies"
+                value={status.behaviorAnalytics.recentAnomalies}
+                subtitle="Detected today"
+                icon={AlertTriangle}
+                status={status.behaviorAnalytics.recentAnomalies > 0 ? 'warning' : 'success'}
+              />
+              
+              <StatusCard
+                title="Top Patterns"
+                value={status.behaviorAnalytics.topPatterns?.length || 0}
+                subtitle="Learned behaviors"
+                icon={TrendingUp}
+                status="info"
+              />
+            </View>
+            
+            {status.behaviorAnalytics.topPatterns && status.behaviorAnalytics.topPatterns.length > 0 && (
+              <View style={styles.patternsContainer}>
+                <Text style={styles.patternsTitle}>Top Behavior Patterns</Text>
+                {status.behaviorAnalytics.topPatterns.slice(0, 3).map((pattern, index) => (
+                  <View key={index} style={styles.patternItem}>
+                    <View style={styles.patternHeader}>
+                      <Text style={styles.patternType}>{pattern.type}</Text>
+                      <Text style={[styles.patternRisk, {
+                        color: pattern.riskLevel === 'low' ? '#10B981' :
+                               pattern.riskLevel === 'medium' ? '#F59E0B' : '#EF4444'
+                      }]}>
+                        {pattern.riskLevel}
+                      </Text>
+                    </View>
+                    <Text style={styles.patternFrequency}>
+                      Frequency: {pattern.frequency} occurrences
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Recent Test Results */}
         {testResults.length > 0 && (
           <View style={styles.section}>
@@ -654,5 +719,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1F2937',
     fontWeight: '600',
+  },
+  patternsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  patternsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  patternItem: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  patternHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  patternType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    textTransform: 'capitalize',
+  },
+  patternRisk: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  patternFrequency: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });
