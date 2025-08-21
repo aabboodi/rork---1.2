@@ -1,0 +1,463 @@
+config:
+  target: "{{ $processEnvironment.BASE_URL || 'https://api.example.com' }}"
+  phases:
+    # Phase 1: Security baseline
+    - duration: 60
+      arrivalRate: 5
+      name: "Security Baseline"
+    
+    # Phase 2: Authentication stress
+    - duration: 120
+      arrivalRate: 10
+      name: "Authentication Load"
+    
+    # Phase 3: Policy enforcement under load
+    - duration: 180
+      arrivalRate: 15
+      name: "Policy Enforcement Stress"
+    
+    # Phase 4: Security audit simulation
+    - duration: 60
+      arrivalRate: 8
+      name: "Security Audit Simulation"
+  
+  processor: "./artillery-processor.js"
+  
+  variables:
+    apiKey:
+      - "test-key-1"
+      - "test-key-2"
+      - "test-key-3"
+    
+    userId:
+      - "user-001"
+      - "user-002"
+      - "user-003"
+      - "user-004"
+      - "user-005"
+    
+    testPrompt:
+      - "Analyze this transaction for fraud detection"
+      - "Moderate this message for inappropriate content"
+      - "Generate a secure summary of this conversation"
+      - "Classify this image for safety compliance"
+      - "Process this data with privacy protection"
+  
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+  
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      User-Agent: "Artillery-Security-Test/1.0"
+
+scenarios:
+  # Scenario 1: Authentication & Authorization Security
+  - name: "Authentication Security"
+    weight: 25
+    flow:
+      # Valid authentication
+      - post:
+          url: "/auth/login"
+          json:
+            username: "{{ userId }}"
+            password: "secure-password-123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+            - hasProperty: "token"
+      
+      # Test token validation
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            prompt: "{{ testPrompt }}"
+            mode: "secure"
+          expect:
+            - statusCode: 200
+            - contentType: json
+      
+      # Test invalid token rejection
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer invalid-token-12345"
+          json:
+            prompt: "{{ testPrompt }}"
+          expect:
+            - statusCode: 401
+      
+      # Test token expiration handling
+      - function: "simulateTokenExpiry"
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ expiredToken }}"
+          json:
+            prompt: "{{ testPrompt }}"
+          expect:
+            - statusCode: 401
+            - hasProperty: "error"
+
+  # Scenario 2: Policy Enforcement Security
+  - name: "Policy Enforcement"
+    weight: 30
+    flow:
+      # Authenticate first
+      - post:
+          url: "/auth/login"
+          json:
+            username: "{{ userId }}"
+            password: "secure-password-123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Test valid signed policy
+      - post:
+          url: "/ai/validate-policy"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            policy:
+              id: "security-policy-v2"
+              version: "2.0"
+              signature: "valid-signature-hash"
+              permissions: ["data_processing", "ai_inference"]
+            action: "process_sensitive_data"
+          expect:
+            - statusCode: 200
+            - json: "$.valid"
+              equals: true
+      
+      # Test unsigned policy rejection
+      - post:
+          url: "/ai/validate-policy"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            policy:
+              id: "malicious-policy"
+              version: "1.0"
+              signature: "invalid-signature"
+              permissions: ["admin_access"]
+            action: "escalate_privileges"
+          expect:
+            - statusCode: 403
+            - json: "$.error"
+              contains: "signature"
+      
+      # Test policy version enforcement
+      - post:
+          url: "/ai/validate-policy"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            policy:
+              id: "outdated-policy"
+              version: "0.5"
+              signature: "old-signature"
+            action: "process_data"
+          expect:
+            - statusCode: 400
+            - json: "$.error"
+              contains: "version"
+      
+      # Test policy scope validation
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-Policy-ID: "security-policy-v2"
+          json:
+            prompt: "{{ testPrompt }}"
+            mode: "secure"
+            dataClassification: "sensitive"
+          expect:
+            - statusCode: 200
+            - hasProperty: "result"
+
+  # Scenario 3: Data Protection & Privacy
+  - name: "Data Protection"
+    weight: 25
+    flow:
+      # Authenticate
+      - post:
+          url: "/auth/login"
+          json:
+            username: "{{ userId }}"
+            password: "secure-password-123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Test encrypted data processing
+      - post:
+          url: "/ai/process-encrypted"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            encryptedPrompt: "{{ $randomString() }}"
+            encryptionKey: "test-key-256bit"
+            mode: "privacy_preserving"
+          expect:
+            - statusCode: 200
+            - hasProperty: "encryptedResult"
+      
+      # Test PII detection and masking
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            prompt: "Process this data: John Doe, SSN: 123-45-6789, Email: john@example.com"
+            mode: "pii_safe"
+          expect:
+            - statusCode: 200
+            - json: "$.piiDetected"
+              equals: true
+            - json: "$.maskedResult"
+              not:
+                contains: "123-45-6789"
+      
+      # Test data retention compliance
+      - get:
+          url: "/compliance/data-retention/{{ userId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "retentionPolicy"
+            - json: "$.retentionPolicy.compliant"
+              equals: true
+      
+      # Test user data request (GDPR)
+      - post:
+          url: "/compliance/data-request"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            requestType: "access"
+            dataCategories: ["profile", "messages", "ai_interactions"]
+            verificationMethod: "email"
+          expect:
+            - statusCode: 202
+            - hasProperty: "requestId"
+            - json: "$.estimatedCompletion"
+              exists: true
+
+  # Scenario 4: Security Monitoring & Incident Response
+  - name: "Security Monitoring"
+    weight: 20
+    flow:
+      # Authenticate
+      - post:
+          url: "/auth/login"
+          json:
+            username: "{{ userId }}"
+            password: "secure-password-123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Test security event logging
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-Security-Context: "high-risk"
+          json:
+            prompt: "{{ testPrompt }}"
+            mode: "monitored"
+          expect:
+            - statusCode: 200
+            - hasProperty: "securityEventId"
+      
+      # Test anomaly detection
+      - function: "generateAnomalousRequest"
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            prompt: "{{ anomalousPrompt }}"
+            mode: "suspicious"
+          expect:
+            - statusCode: 429  # Rate limited due to anomaly
+            - json: "$.error"
+              contains: "anomaly"
+      
+      # Test security alert generation
+      - get:
+          url: "/security/alerts"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "alerts"
+      
+      # Test incident response trigger
+      - post:
+          url: "/security/incident"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            type: "suspicious_activity"
+            severity: "medium"
+            description: "Automated test incident"
+          expect:
+            - statusCode: 201
+            - hasProperty: "incidentId"
+            - json: "$.status"
+              equals: "investigating"
+      
+      # Test security metrics collection
+      - get:
+          url: "/metrics/security"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "threatLevel"
+            - hasProperty: "complianceScore"
+            - json: "$.complianceScore"
+              greaterThan: 0.8
+
+  # Scenario 5: External Security Audit Simulation
+  - name: "External Security Audit"
+    weight: 15
+    flow:
+      # Simulate external auditor access
+      - post:
+          url: "/auth/auditor-login"
+          json:
+            auditorId: "external-auditor-001"
+            credentials: "audit-token-2024"
+          capture:
+            - json: "$.auditToken"
+              as: "auditToken"
+          expect:
+            - statusCode: 200
+            - hasProperty: "auditToken"
+      
+      # Test compliance report generation
+      - get:
+          url: "/audit/compliance-report"
+          headers:
+            Authorization: "Bearer {{ auditToken }}"
+          qs:
+            framework: "GDPR"
+            scope: "full"
+          expect:
+            - statusCode: 200
+            - hasProperty: "complianceStatus"
+            - json: "$.complianceStatus.overall"
+              equals: "compliant"
+      
+      # Test security configuration audit
+      - get:
+          url: "/audit/security-config"
+          headers:
+            Authorization: "Bearer {{ auditToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "securityControls"
+            - json: "$.securityControls.encryption"
+              equals: "AES-256"
+      
+      # Test access control audit
+      - get:
+          url: "/audit/access-controls"
+          headers:
+            Authorization: "Bearer {{ auditToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "accessPolicies"
+            - json: "$.accessPolicies.length"
+              greaterThan: 0
+      
+      # Test audit trail verification
+      - get:
+          url: "/audit/trail"
+          headers:
+            Authorization: "Bearer {{ auditToken }}"
+          qs:
+            startDate: "2024-01-01"
+            endDate: "2024-12-31"
+          expect:
+            - statusCode: 200
+            - hasProperty: "auditEvents"
+            - json: "$.auditEvents.length"
+              greaterThan: 0
+
+  # Scenario 6: Performance Under Security Load
+  - name: "Security Performance"
+    weight: 10
+    flow:
+      # Authenticate
+      - post:
+          url: "/auth/login"
+          json:
+            username: "{{ userId }}"
+            password: "secure-password-123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Test encrypted processing performance
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            prompt: "{{ testPrompt }}"
+            mode: "encrypted"
+            encryption: "AES-256-GCM"
+          expect:
+            - statusCode: 200
+            - responseTime: 1000  # Max 1 second for encrypted processing
+      
+      # Test policy validation performance
+      - post:
+          url: "/ai/validate-policy"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            policy:
+              id: "performance-policy"
+              version: "1.0"
+              signature: "perf-signature"
+            action: "benchmark_test"
+          expect:
+            - statusCode: 200
+            - responseTime: 200  # Max 200ms for policy validation
+      
+      # Test security monitoring overhead
+      - post:
+          url: "/ai/process"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-Monitor-Performance: "true"
+          json:
+            prompt: "{{ testPrompt }}"
+            mode: "monitored"
+          expect:
+            - statusCode: 200
+            - hasProperty: "performanceMetrics"
+            - json: "$.performanceMetrics.securityOverhead"
+              lessThan: 50  # Less than 50ms overhead
+
+# Custom functions for test scenarios
+functions:
+  simulateTokenExpiry:
+    - set:
+        expiredToken: "expired.jwt.token.here"
+  
+  generateAnomalousRequest:
+    - set:
+        anomalousPrompt: "INJECT SQL; DROP TABLE users; --"
