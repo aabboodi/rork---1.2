@@ -77,6 +77,8 @@ export default function EdgeAIDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [testResults, setTestResults] = useState<any[]>([]);
+  const [databaseStats, setDatabaseStats] = useState<any>(null);
+  const [telemetrySummary, setTelemetrySummary] = useState<any>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -92,7 +94,7 @@ export default function EdgeAIDashboard() {
       console.log('🚀 Initializing Edge AI system...');
       await orchestrator.initialize();
       
-      updateStatus();
+      await updateStatus();
       
       console.log('✅ Edge AI system initialized successfully');
     } catch (error) {
@@ -107,9 +109,20 @@ export default function EdgeAIDashboard() {
     }
   };
 
-  const updateStatus = () => {
+  const updateStatus = async () => {
     const currentStatus = orchestrator.getStatus();
     setStatus(currentStatus);
+    
+    // Get database statistics
+    try {
+      const dbStats = await orchestrator.getDatabaseStats();
+      setDatabaseStats(dbStats);
+      
+      const telemetrySum = await orchestrator.getTelemetrySummary();
+      setTelemetrySummary(telemetrySum);
+    } catch (error) {
+      console.error('❌ Failed to get database stats:', error);
+    }
   };
 
   const handleRefresh = async () => {
@@ -117,7 +130,7 @@ export default function EdgeAIDashboard() {
     try {
       await orchestrator.updatePolicies();
       await orchestrator.updateModels();
-      updateStatus();
+      await updateStatus();
     } catch (error) {
       console.error('❌ Refresh failed:', error);
       Alert.alert('Refresh Error', 'Failed to update policies and models.');
@@ -159,7 +172,7 @@ export default function EdgeAIDashboard() {
       };
 
       setTestResults(prev => [testResult, ...prev.slice(0, 9)]); // Keep last 10 results
-      updateStatus();
+      await updateStatus();
 
       Alert.alert(
         'Test Completed',
@@ -447,6 +460,97 @@ export default function EdgeAIDashboard() {
                 )}
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Database Statistics */}
+        {databaseStats && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Database Statistics</Text>
+            <View style={styles.cardGrid}>
+              <StatusCard
+                title="Device Profiles"
+                value={databaseStats.deviceProfiles}
+                icon={Users}
+                status="info"
+              />
+              
+              <StatusCard
+                title="Policies"
+                value={databaseStats.policies}
+                icon={Shield}
+                status="info"
+              />
+              
+              <StatusCard
+                title="Model Artifacts"
+                value={databaseStats.modelArtifacts}
+                icon={Brain}
+                status="info"
+              />
+              
+              <StatusCard
+                title="Telemetry Records"
+                value={databaseStats.telemetryRecords}
+                icon={BarChart3}
+                status="info"
+              />
+            </View>
+            
+            <View style={styles.storageInfo}>
+              <Text style={styles.storageLabel}>Storage Used:</Text>
+              <Text style={styles.storageValue}>
+                {(databaseStats.totalStorageUsed / 1024).toFixed(1)} KB
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Telemetry Summary */}
+        {telemetrySummary && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Telemetry Summary (24h)</Text>
+            <View style={styles.cardGrid}>
+              <StatusCard
+                title="Total Records"
+                value={telemetrySummary.totalRecords}
+                icon={Activity}
+                status="info"
+              />
+              
+              <StatusCard
+                title="Avg Tokens"
+                value={Math.round(telemetrySummary.avgTokensUsed)}
+                icon={Zap}
+                status="info"
+              />
+              
+              <StatusCard
+                title="Avg Processing"
+                value={`${Math.round(telemetrySummary.avgProcessingTime)}ms`}
+                icon={Clock}
+                status="info"
+              />
+              
+              <StatusCard
+                title="Task Types"
+                value={Object.keys(telemetrySummary.taskTypeDistribution).length}
+                icon={BarChart3}
+                status="info"
+              />
+            </View>
+            
+            {Object.keys(telemetrySummary.taskTypeDistribution).length > 0 && (
+              <View style={styles.taskDistribution}>
+                <Text style={styles.distributionTitle}>Task Type Distribution</Text>
+                {Object.entries(telemetrySummary.taskTypeDistribution).map(([type, count]) => (
+                  <View key={type} style={styles.distributionItem}>
+                    <Text style={styles.distributionType}>{type}</Text>
+                    <Text style={styles.distributionCount}>{count as number} tasks</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
@@ -759,6 +863,55 @@ const styles = StyleSheet.create({
   },
   patternFrequency: {
     fontSize: 12,
+    color: '#6B7280',
+  },
+  storageInfo: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  storageLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  storageValue: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  taskDistribution: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  distributionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  distributionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  distributionType: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  distributionCount: {
+    fontSize: 14,
     color: '#6B7280',
   },
 });
