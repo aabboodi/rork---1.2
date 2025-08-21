@@ -28,8 +28,8 @@ export default function TabLayout() {
 
         // Add custom CSP configurations for tab routes
         await cspMiddleware.addRouteConfiguration({
-          route: '/tabs/index',
-          pattern: /^\/tabs\/index$/,
+          route: '/tabs/chats',
+          pattern: /^\/tabs\/chats$/,
           policy: {
             'default-src': ["'self'"],
             'script-src': ["'self'", "'nonce-{nonce}'"],
@@ -221,7 +221,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="chats"
         options={{
           title: t.chats,
           tabBarIcon: ({ color, size }) => (
