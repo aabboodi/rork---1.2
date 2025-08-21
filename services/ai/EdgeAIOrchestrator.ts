@@ -4,6 +4,7 @@ import * as Crypto from 'expo-crypto';
 import { TokenBudgetManager } from './TokenBudgetManager';
 import { OnDeviceInferenceEngine } from './OnDeviceInferenceEngine';
 import { PolicyEngine } from './PolicyEngine';
+import { PolicyAgent, PolicyValidationRequest, PolicyValidationResult } from './edge/policy';
 import { LocalRAGService } from './LocalRAGService';
 import { CentralOrchestrator } from './CentralOrchestrator';
 import { FederatedLearningManager } from './FederatedLearningManager';
@@ -72,6 +73,7 @@ export class EdgeAIOrchestrator {
   private tokenBudget: TokenBudgetManager;
   private inferenceEngine: OnDeviceInferenceEngine;
   private policyEngine: PolicyEngine;
+  private policyAgent: PolicyAgent;
   private ragService: LocalRAGService;
   private centralOrchestrator: CentralOrchestrator;
   private federatedLearning: FederatedLearningManager;
@@ -95,6 +97,7 @@ export class EdgeAIOrchestrator {
     this.tokenBudget = new TokenBudgetManager(this.config.maxTokensPerSession);
     this.inferenceEngine = new OnDeviceInferenceEngine();
     this.policyEngine = new PolicyEngine();
+    this.policyAgent = new PolicyAgent();
     this.ragService = new LocalRAGService();
     this.centralOrchestrator = new CentralOrchestrator();
     this.federatedLearning = new FederatedLearningManager();
@@ -129,6 +132,7 @@ export class EdgeAIOrchestrator {
       await this.tokenBudget.initialize();
       await this.inferenceEngine.initialize();
       await this.policyEngine.initialize();
+      await this.policyAgent.initialize();
       await this.ragService.initialize();
       await this.centralOrchestrator.initialize(this.config.deviceId);
       await this.federatedLearning.initialize();
@@ -177,10 +181,44 @@ export class EdgeAIOrchestrator {
     let source: 'edge' | 'cloud' | 'hybrid' = 'edge';
 
     try {
-      // Validate task against policies
-      const policyCheck = await this.policyEngine.validateTask(task);
-      if (!policyCheck.allowed) {
-        throw new Error(`Task blocked by policy: ${policyCheck.reason}`);
+      // Validate task against signed policies using PolicyAgent
+      const policyRequest: PolicyValidationRequest = {
+        taskId: task.id,
+        taskType: task.type,
+        input: task.input,
+        maxTokens: task.maxTokens,
+        userContext: {
+          userId: 'current-user', // In real implementation, get from auth context
+          role: 'user',
+          securityLevel: this.config.securityLevel
+        },
+        deviceContext: {
+          deviceId: this.config.deviceId,
+          osVersion: Platform.Version.toString(),
+          appVersion: '1.0.0', // In real implementation, get from app config
+          securityFeatures: await this.getDeviceSecurityFeatures()
+        }
+      };
+
+      const policyResult = await this.policyAgent.validateTask(policyRequest);
+      if (!policyResult.allowed) {
+        console.log(`🚫 Task ${task.id} blocked by policy: ${policyResult.reason}`);
+        
+        // Log policy violation
+        await this.logPolicyViolation(task, policyResult);
+        
+        throw new Error(`Task blocked by policy: ${policyResult.reason}`);
+      }
+
+      console.log(`✅ Task ${task.id} approved by policy agent`);
+      
+      // Handle alternative actions if specified
+      if (policyResult.alternativeActions && policyResult.alternativeActions.length > 0) {
+        const cloudRedirect = policyResult.alternativeActions.find(action => action.type === 'redirect_cloud');
+        if (cloudRedirect) {
+          console.log(`☁️ Task ${task.id} redirected to cloud processing`);
+          task.requiresCloud = true;
+        }
       }
 
       // Estimate token usage
@@ -773,6 +811,77 @@ export class EdgeAIOrchestrator {
    */
   getRecentAnomalies() {
     return this.uebaLite ? this.uebaLite.getRecentAnomalies() : [];
+  }
+
+  /**
+   * Get device security features for policy validation
+   */
+  private async getDeviceSecurityFeatures(): Promise<string[]> {
+    const features: string[] = [];
+    
+    try {
+      const securityManager = SecurityManager.getInstance();
+      const securityStatus = await securityManager.forceSecurityCheck();
+      
+      // Add security features based on device capabilities
+      if (Platform.OS === 'ios') {
+        features.push('secure-enclave', 'biometric-auth', 'app-transport-security');
+      } else if (Platform.OS === 'android') {
+        features.push('hardware-security-module', 'biometric-auth', 'verified-boot');
+      } else {
+        features.push('web-crypto-api', 'secure-context');
+      }
+      
+      // Add features based on security status
+      if (securityStatus.securityStatus.riskLevel === 'low') {
+        features.push('high-security-level');
+      }
+      
+      if (securityStatus.securityStatus.deviceBinding) {
+        features.push('device-binding');
+      }
+      
+      if (securityStatus.securityStatus.rootDetection === false) {
+        features.push('integrity-verified');
+      }
+      
+    } catch (error) {
+      console.warn('⚠️ Failed to get device security features:', error);
+      // Return minimal features on error
+      features.push('basic-security');
+    }
+    
+    return features;
+  }
+
+  /**
+   * Log policy violation for security monitoring
+   */
+  private async logPolicyViolation(task: AITask, policyResult: PolicyValidationResult): Promise<void> {
+    try {
+      const loggingService = CentralizedLoggingService.getInstance();
+      
+      await loggingService.logSecurity('warning', 'policy_violation', 'AI task blocked by policy', {
+        taskId: task.id,
+        taskType: task.type,
+        reason: policyResult.reason,
+        appliedRules: policyResult.appliedRules,
+        policyVersion: policyResult.policyVersion,
+        deviceId: this.config.deviceId.substring(0, 8) + '...', // Partial for privacy
+        timestamp: policyResult.validationTimestamp
+      });
+      
+      // Record UEBA event for policy violation
+      await this.uebaLite.recordEvent('policy_violation', {
+        taskType: task.type,
+        reason: policyResult.reason,
+        riskScore: 80, // High risk score for policy violations
+        appliedRules: policyResult.appliedRules.length
+      });
+      
+    } catch (error) {
+      console.error('❌ Failed to log policy violation:', error);
+    }
   }
 }
 
