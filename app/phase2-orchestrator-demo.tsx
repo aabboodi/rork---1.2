@@ -41,28 +41,59 @@ export default function Phase2OrchestratorDemo() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<'auto' | 'local' | 'cloud'>('auto');
 
-  // Simulate orchestrator decision making
+  // Simulate Phase 2 offload decision logic
   const makeOrchestratorDecision = (task: TaskRequest): 'local' | 'hybrid' | 'cloud' => {
     if (selectedStrategy === 'local') return 'local';
     if (selectedStrategy === 'cloud') return 'cloud';
     
-    // Auto strategy - intelligent routing
+    // Auto strategy - Phase 2 offload rules
     const deviceLoad = Math.random(); // Simulate device load
     const networkQuality = Math.random(); // Simulate network quality
     
+    // Simulate token estimation based on task type
+    const tokenEstimates = {
+      'llm': 150000 + Math.random() * 100000, // 150k-250k tokens
+      'analysis': 120000 + Math.random() * 80000, // 120k-200k tokens
+      'rag': 80000 + Math.random() * 60000, // 80k-140k tokens
+      'moderation': 20000 + Math.random() * 30000 // 20k-50k tokens
+    };
+    
+    // Simulate processing time based on device and task
+    const baseProcessingTimes = {
+      'llm': 800,
+      'analysis': 600,
+      'rag': 400,
+      'moderation': 200
+    };
+    
+    const deviceMultiplier = deviceLoad > 0.7 ? 2.0 : deviceLoad > 0.4 ? 1.5 : 1.0;
+    const estimatedTokens = tokenEstimates[task.type as keyof typeof tokenEstimates] || 100000;
+    const estimatedTime = (baseProcessingTimes[task.type as keyof typeof baseProcessingTimes] || 400) * deviceMultiplier;
+    
+    console.log(`🎯 Task ${task.type}: ${Math.round(estimatedTokens)} tokens, ${Math.round(estimatedTime)}ms`);
+    
+    // Phase 2 Rule: > 180k tokens OR > 600ms => offload to cloud
+    if (estimatedTokens > 180000 || estimatedTime > 600) {
+      console.log(`📤 Offloading: ${estimatedTokens > 180000 ? 'tokens > 180k' : 'time > 600ms'}`);
+      return 'cloud';
+    }
+    
+    // High priority tasks with good conditions stay local
     if (task.priority === 'high' && deviceLoad < 0.3) {
-      return 'local'; // High priority + low load = local
+      return 'local';
     }
     
-    if (task.type === 'moderation' && deviceLoad < 0.7) {
-      return 'local'; // Moderation usually stays local
+    // Moderation usually stays local (unless offload criteria met)
+    if (task.type === 'moderation') {
+      return 'local';
     }
     
+    // Good network + high load = hybrid approach
     if (networkQuality > 0.8 && deviceLoad > 0.6) {
-      return 'cloud'; // Good network + high load = offload
+      return 'hybrid';
     }
     
-    return 'hybrid'; // Mixed approach
+    return 'local'; // Default to local
   };
 
   // Simulate task processing
@@ -228,15 +259,43 @@ export default function Phase2OrchestratorDemo() {
           </View>
         </View>
 
+        {/* Offload Decision Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Phase 2 Offload Rules</Text>
+          <View style={styles.offloadRulesContainer}>
+            <View style={styles.ruleItem}>
+              <Text style={styles.ruleTitle}>Token Limit</Text>
+              <Text style={styles.ruleDescription}>
+                Tasks {'>'} 180,000 tokens {'->'} Cloud
+              </Text>
+            </View>
+            <View style={styles.ruleItem}>
+              <Text style={styles.ruleTitle}>Processing Time</Text>
+              <Text style={styles.ruleDescription}>
+                Local processing {'>'} 600ms {'->'} Cloud
+              </Text>
+            </View>
+            <View style={styles.ruleItem}>
+              <Text style={styles.ruleTitle}>Summary Only</Text>
+              <Text style={styles.ruleDescription}>
+                Offloaded tasks send compressed summaries
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* Task Controls */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Submit Tasks</Text>
+          <Text style={styles.sectionSubtitle}>
+            Test offload decision logic with different task types
+          </Text>
           <View style={styles.taskGrid}>
             {[
-              { type: 'llm' as const, label: 'LLM Query', priority: 'high' as const },
-              { type: 'moderation' as const, label: 'Content Moderation', priority: 'medium' as const },
-              { type: 'rag' as const, label: 'RAG Search', priority: 'medium' as const },
-              { type: 'analysis' as const, label: 'Data Analysis', priority: 'low' as const }
+              { type: 'llm' as const, label: 'LLM Query (Heavy)', priority: 'high' as const, description: '~200k tokens' },
+              { type: 'analysis' as const, label: 'Data Analysis', priority: 'low' as const, description: '~150k tokens' },
+              { type: 'rag' as const, label: 'RAG Search', priority: 'medium' as const, description: '~100k tokens' },
+              { type: 'moderation' as const, label: 'Content Moderation', priority: 'medium' as const, description: '~35k tokens' }
             ].map((task) => (
               <TouchableOpacity
                 key={task.type}
@@ -250,7 +309,10 @@ export default function Phase2OrchestratorDemo() {
                 {isProcessing ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.taskButtonText}>{task.label}</Text>
+                  <View style={styles.taskButtonContent}>
+                    <Text style={styles.taskButtonText}>{task.label}</Text>
+                    <Text style={styles.taskButtonDescription}>{task.description}</Text>
+                  </View>
                 )}
               </TouchableOpacity>
             ))}
@@ -501,5 +563,43 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontSize: 20,
     fontWeight: 'bold'
+  },
+  offloadRulesContainer: {
+    gap: 12
+  },
+  ruleItem: {
+    backgroundColor: '#1a1a1a',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3'
+  },
+  ruleTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4
+  },
+  ruleDescription: {
+    color: '#888',
+    fontSize: 14,
+    lineHeight: 20
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 16,
+    lineHeight: 20
+  },
+  taskButtonContent: {
+    alignItems: 'center'
+  },
+  taskButtonDescription: {
+    color: '#ccc',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center'
   }
 });

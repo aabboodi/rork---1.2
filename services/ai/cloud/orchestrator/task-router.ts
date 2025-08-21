@@ -48,6 +48,13 @@ export class TaskRouter {
         return cached.strategy;
       }
 
+      // Apply offload decision rules first (Phase 2 requirement)
+      const offloadDecision = this.evaluateOffloadCriteria(summary);
+      if (offloadDecision) {
+        console.log(`🎯 Offload decision: ${offloadDecision.reasoning}`);
+        return offloadDecision;
+      }
+
       // Evaluate policies to determine strategy
       const strategy = await this.evaluatePolicies(summary, policies, deviceId);
 
@@ -81,6 +88,111 @@ export class TaskRouter {
         cacheTTL: this.CACHE_TTL
       }
     };
+  }
+
+  /**
+   * Phase 2 Offload Decision Logic
+   * Rule: If estimate > 180k tokens OR local time > 600ms => send summary to cloud
+   */
+  private evaluateOffloadCriteria(summary: CompressedSummary): OrchestratorStrategy | null {
+    const tokenEstimate = this.estimateTokenCount(summary);
+    const localProcessingTime = this.estimateLocalProcessingTime(summary);
+    
+    console.log(`🎯 Offload evaluation: ${tokenEstimate} tokens, ${localProcessingTime}ms estimated`);
+    
+    // Phase 2 Rule: > 180k tokens OR > 600ms => offload to cloud
+    if (tokenEstimate > 180000 || localProcessingTime > 600) {
+      return {
+        type: 'process_cloud',
+        reasoning: `Offloading to cloud: ${tokenEstimate > 180000 ? `${tokenEstimate} tokens > 180k` : ''} ${tokenEstimate > 180000 && localProcessingTime > 600 ? 'AND' : ''} ${localProcessingTime > 600 ? `${localProcessingTime}ms > 600ms` : ''}`,
+        parameters: {
+          sendSummaryOnly: true,
+          maxTokens: Math.min(tokenEstimate, 200000),
+          timeout: 30000
+        },
+        metadata: {
+          confidence: 0.95,
+          estimatedCost: this.estimateCost('process_cloud', summary),
+          estimatedLatency: Math.min(localProcessingTime * 0.6, 2000), // Cloud should be faster
+          privacyLevel: 'medium',
+          offloadReason: tokenEstimate > 180000 ? 'token_limit' : 'processing_time'
+        }
+      };
+    }
+    
+    return null; // No offload needed
+  }
+
+  /**
+   * Estimate token count for the task
+   */
+  private estimateTokenCount(summary: CompressedSummary): number {
+    // Base token estimation
+    let tokenCount = 0;
+    
+    // Context tokens (compressed context)
+    tokenCount += summary.compressedContext.length * 0.75; // Assume 0.75 tokens per character
+    
+    // Task-specific token multipliers
+    const taskMultipliers = {
+      'llm': 2.5,      // LLM tasks require more tokens for generation
+      'chat': 2.0,     // Chat requires context + response
+      'rag': 1.8,      // RAG requires retrieval + generation
+      'analysis': 1.5, // Analysis tasks are more focused
+      'moderation': 1.2, // Moderation is usually classification
+      'classification': 1.0
+    };
+    
+    const multiplier = taskMultipliers[summary.taskType as keyof typeof taskMultipliers] || 1.5;
+    tokenCount *= multiplier;
+    
+    // Add base overhead
+    tokenCount += 500; // System prompts, formatting, etc.
+    
+    return Math.round(tokenCount);
+  }
+
+  /**
+   * Estimate local processing time in milliseconds
+   */
+  private estimateLocalProcessingTime(summary: CompressedSummary): number {
+    const { deviceCapabilities } = summary;
+    
+    // Base processing times by task type (ms)
+    const baseProcessingTimes = {
+      'llm': 800,
+      'chat': 600,
+      'rag': 400,
+      'analysis': 300,
+      'moderation': 200,
+      'classification': 150
+    };
+    
+    let baseTime = baseProcessingTimes[summary.taskType as keyof typeof baseProcessingTimes] || 400;
+    
+    // Device capability multipliers
+    const processingMultipliers = {
+      'low': 2.5,
+      'medium': 1.5,
+      'high': 1.0
+    };
+    
+    const deviceMultiplier = processingMultipliers[deviceCapabilities.processingPower];
+    baseTime *= deviceMultiplier;
+    
+    // Context size impact
+    const contextLength = summary.compressedContext.length;
+    const contextMultiplier = Math.max(1, contextLength / 1000); // +1x per 1000 chars
+    baseTime *= contextMultiplier;
+    
+    // Battery impact (lower battery = slower processing to conserve)
+    if (deviceCapabilities.batteryLevel < 30) {
+      baseTime *= 1.5;
+    } else if (deviceCapabilities.batteryLevel < 50) {
+      baseTime *= 1.2;
+    }
+    
+    return Math.round(baseTime);
   }
 
   // Private methods
