@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MLLoggingService from '@/services/recommendation/MLLoggingService';
 
@@ -123,16 +123,21 @@ class SystemMonitoringService {
   static getInstance(): SystemMonitoringService {
     if (!SystemMonitoringService.instance) {
       SystemMonitoringService.instance = new SystemMonitoringService();
-      try {
-        const registry = require('@/services/ServiceRegistry').default;
-        if (registry && !registry.has('SystemMonitoringService')) {
-          registry.register('SystemMonitoringService', () => SystemMonitoringService.instance);
-        }
-      } catch (e) {
-        console.warn('SystemMonitoringService: ServiceRegistry not available at init');
-      }
+      // Register with ServiceRegistry asynchronously
+      SystemMonitoringService.registerWithServiceRegistry();
     }
     return SystemMonitoringService.instance;
+  }
+
+  private static async registerWithServiceRegistry(): Promise<void> {
+    try {
+      const { default: registry } = await import('@/services/ServiceRegistry');
+      if (registry && !registry.has('SystemMonitoringService')) {
+        registry.register('SystemMonitoringService', () => SystemMonitoringService.instance);
+      }
+    } catch {
+      console.warn('SystemMonitoringService: ServiceRegistry not available at init');
+    }
   }
 
   // ===== SYSTEM MONITORING =====
@@ -252,9 +257,6 @@ class SystemMonitoringService {
   }
 
   private async collectApplicationMetrics(): Promise<Partial<SystemMetrics>> {
-    // Get metrics from various services
-    const mlMetrics = this.mlLoggingService.getMetrics();
-    
     return {
       activeUsers: Math.floor(Math.random() * 1000) + 100,
       sessionDuration: Math.random() * 3600000 + 300000, // 5 minutes to 1 hour
