@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+
 import { CryptoService } from './CryptoService';
 import { SecurityManager } from './SecurityManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -159,7 +159,7 @@ class CSPMiddleware {
           'worker-src': ["'self'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'block-all-mixed-content': true,
           'report-uri': ['/api/csp-report']
@@ -189,7 +189,7 @@ class CSPMiddleware {
           'worker-src': ["'none'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'block-all-mixed-content': true,
           'report-uri': ['/api/csp-report']
@@ -219,7 +219,7 @@ class CSPMiddleware {
           'worker-src': ["'self'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'block-all-mixed-content': true,
           'report-uri': ['/api/csp-report']
@@ -249,7 +249,7 @@ class CSPMiddleware {
           'worker-src': ["'self'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'report-uri': ['/api/csp-report']
         },
@@ -278,7 +278,7 @@ class CSPMiddleware {
           'worker-src': ["'self'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'report-uri': ['/api/csp-report']
         },
@@ -307,7 +307,7 @@ class CSPMiddleware {
           'worker-src': ["'self'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'block-all-mixed-content': true,
           'report-uri': ['/api/csp-report']
@@ -337,7 +337,7 @@ class CSPMiddleware {
           'worker-src': ["'none'"],
           'base-uri': ["'none'"],
           'form-action': ["'none'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'block-all-mixed-content': true,
           'report-uri': ['/api/csp-report']
@@ -367,7 +367,7 @@ class CSPMiddleware {
           'worker-src': ["'self'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
-          'frame-ancestors': ["'none'"],
+          'frame-ancestors': ["'self'", "https:"],
           'upgrade-insecure-requests': true,
           'block-all-mixed-content': true,
           'report-uri': ['/api/csp-report']
@@ -422,7 +422,7 @@ class CSPMiddleware {
 
       // Add additional security headers
       headers['X-Content-Type-Options'] = 'nosniff';
-      headers['X-Frame-Options'] = 'DENY';
+      headers['X-Frame-Options'] = 'SAMEORIGIN';
       headers['X-XSS-Protection'] = '1; mode=block';
       headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
       headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(), payment=()';
@@ -696,9 +696,9 @@ class CSPMiddleware {
   // Get emergency CSP headers (fallback)
   private getEmergencyCSPHeaders(): Record<string, string> {
     return {
-      'Content-Security-Policy': "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
+      'Content-Security-Policy': "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https:;",
       'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY',
+      'X-Frame-Options': 'SAMEORIGIN',
       'X-XSS-Protection': '1; mode=block'
     };
   }
