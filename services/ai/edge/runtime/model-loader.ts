@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
-import DatabaseService, { ModelArtifact } from '../../DatabaseService';
+import DatabaseService, { ModelArtifact } from '../../../ai/DatabaseService';
 import { PolicyVerifier } from '../policy/verifier';
 
 export interface LoadedModel {
