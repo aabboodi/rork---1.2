@@ -1,12 +1,97 @@
 #!/bin/bash
 
-# Phase B Validation Script
+# Phase B Validation Script - Enhanced
 # Validates TypeScript configuration and Node.js import prevention
+# Includes comprehensive Node.js import detection
 
-echo "🔍 Phase B - TypeScript Configuration Guard Validation"
-echo "=================================================="
+set -e
+
+echo "🔍 Phase B - TypeScript Configuration Guard Validation (Enhanced)"
+echo "================================================================"
 
 VALIDATION_PASSED=true
+VIOLATIONS=0
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Node.js modules that should not be imported in mobile code
+NODE_MODULES=(
+    "events"
+    "fs" 
+    "path"
+    "crypto"
+    "child_process"
+    "net"
+    "tls"
+    "dns"
+    "os"
+    "http"
+    "https"
+    "url"
+    "querystring"
+    "stream"
+    "buffer"
+    "util"
+    "zlib"
+    "readline"
+    "cluster"
+    "worker_threads"
+    "perf_hooks"
+    "v8"
+    "vm"
+    "repl"
+    "dgram"
+    "timers"
+    "console"
+    "process"
+    "assert"
+)
+
+# Mobile code directories (should not import Node.js modules)
+MOBILE_DIRS=(
+    "app"
+    "components"
+    "services"
+    "store"
+    "utils"
+    "constants"
+    "types"
+)
+
+# Function to check for Node.js imports in a file
+check_file_for_node_imports() {
+    local file="$1"
+    local violations_in_file=0
+    
+    for module in "${NODE_MODULES[@]}"; do
+        # Check for various import patterns
+        if grep -q "import.*from ['\"]${module}['\"]" "$file" 2>/dev/null; then
+            echo -e "${RED}❌ VIOLATION: $file imports Node.js module '${module}'${NC}"
+            violations_in_file=$((violations_in_file + 1))
+        fi
+        
+        if grep -q "import.*from ['\"]node:${module}['\"]" "$file" 2>/dev/null; then
+            echo -e "${RED}❌ VIOLATION: $file imports Node.js module 'node:${module}'${NC}"
+            violations_in_file=$((violations_in_file + 1))
+        fi
+        
+        if grep -q "require(['\"]${module}['\"])" "$file" 2>/dev/null; then
+            echo -e "${RED}❌ VIOLATION: $file requires Node.js module '${module}'${NC}"
+            violations_in_file=$((violations_in_file + 1))
+        fi
+        
+        if grep -q "require(['\"]node:${module}['\"])" "$file" 2>/dev/null; then
+            echo -e "${RED}❌ VIOLATION: $file requires Node.js module 'node:${module}'${NC}"
+            violations_in_file=$((violations_in_file + 1))
+        fi
+    done
+    
+    return $violations_in_file
+}
 
 # 1. Check ESLint Configuration
 echo ""
@@ -85,18 +170,28 @@ else
     VALIDATION_PASSED=false
 fi
 
-# 5. Run Node.js Import Check
+# 5. Run Comprehensive Node.js Import Check
 echo ""
-echo "5️⃣ Running Node.js Import Check..."
-if [ -f "scripts/check-node-imports.sh" ]; then
-    if ./scripts/check-node-imports.sh > /dev/null 2>&1; then
-        echo "✅ No Node.js imports detected"
-    else
-        echo "❌ Node.js imports detected - run ./scripts/check-node-imports.sh for details"
-        VALIDATION_PASSED=false
+echo "5️⃣ Running Comprehensive Node.js Import Check..."
+echo "📱 Checking mobile code directories for Node.js imports..."
+
+for dir in "${MOBILE_DIRS[@]}"; do
+    if [ -d "$dir" ]; then
+        echo "🔍 Scanning $dir/..."
+        
+        # Find all TypeScript and JavaScript files
+        while IFS= read -r -d '' file; do
+            check_file_for_node_imports "$file"
+            VIOLATIONS=$((VIOLATIONS + $?))
+        done < <(find "$dir" -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) -print0)
     fi
+done
+
+if [ $VIOLATIONS -eq 0 ]; then
+    echo -e "${GREEN}✅ No Node.js imports detected in mobile code${NC}"
 else
-    echo "⚠️  Cannot run check - script not found"
+    echo -e "${RED}❌ Found $VIOLATIONS Node.js import violations${NC}"
+    VALIDATION_PASSED=false
 fi
 
 # 6. Check Package Dependencies
@@ -144,23 +239,35 @@ fi
 
 # Final Result
 echo ""
-echo "=================================================="
-if [ "$VALIDATION_PASSED" = true ]; then
-    echo "🎉 Phase B Validation PASSED"
+echo "================================================================"
+if [ "$VALIDATION_PASSED" = true ] && [ $VIOLATIONS -eq 0 ]; then
+    echo -e "${GREEN}🎉 Phase B Validation PASSED${NC}"
     echo ""
-    echo "✅ All TypeScript configuration guards are in place"
-    echo "✅ Node.js import prevention system is active"
-    echo "✅ React Native/Expo compatibility ensured"
+    echo -e "${GREEN}✅ All TypeScript configuration guards are in place${NC}"
+    echo -e "${GREEN}✅ Node.js import prevention system is active${NC}"
+    echo -e "${GREEN}✅ React Native/Expo compatibility ensured${NC}"
+    echo -e "${GREEN}✅ No Node.js imports found in mobile code${NC}"
     echo ""
     echo "📋 Next Steps:"
     echo "   • Run: expo start -c (to test bundling)"
     echo "   • Run: npx eslint . --ext .ts,.tsx (to check all files)"
-    echo "   • Consider adding check script to CI/CD pipeline"
+    echo "   • Consider adding this script to CI/CD pipeline"
+    echo "   • Add pre-commit hook: npm run validate:phase-b"
     exit 0
 else
-    echo "❌ Phase B Validation FAILED"
+    echo -e "${RED}❌ Phase B Validation FAILED${NC}"
     echo ""
     echo "🔧 Issues found that need attention:"
+    if [ $VIOLATIONS -gt 0 ]; then
+        echo -e "${RED}   • Found $VIOLATIONS Node.js import violations${NC}"
+        echo -e "${YELLOW}   💡 Recommended fixes:${NC}"
+        echo "      • Replace 'events' with services/events/EventBus"
+        echo "      • Replace 'fs' with expo-file-system"
+        echo "      • Replace 'crypto' with expo-crypto"
+        echo "      • Replace 'path' with string manipulation"
+        echo "      • Replace 'os' with expo-device or Platform API"
+        echo "      • Use fetch API instead of 'http'/'https'"
+    fi
     echo "   • Check the specific errors above"
     echo "   • Ensure all Node.js imports are replaced"
     echo "   • Verify ESLint configuration is complete"

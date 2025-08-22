@@ -75,20 +75,29 @@ For build scripts and tools that legitimately need Node.js types, create `tools/
 }
 ```
 
-### ✅ 4. Pre-commit Hook (Available)
+### ✅ 4. Enhanced Validation Script (Available)
 
-The `scripts/check-node-imports.sh` provides automated checking:
+The `scripts/validate-phase-b.sh` provides comprehensive Phase B validation:
 
 ```bash
 # Make executable
-chmod +x scripts/check-node-imports.sh
+chmod +x scripts/validate-phase-b.sh
 
-# Run check
-./scripts/check-node-imports.sh
+# Run comprehensive validation
+./scripts/validate-phase-b.sh
 
-# Install as git hook (optional)
-cp scripts/check-node-imports.sh .git/hooks/pre-commit
+# Add to package.json scripts
+npm run validate:phase-b
 ```
+
+**Features:**
+- ✅ Checks ESLint configuration completeness
+- ✅ Validates TypeScript setup
+- ✅ Scans all mobile code for Node.js imports (23+ modules)
+- ✅ Verifies EventBus implementation
+- ✅ Checks package dependencies
+- ✅ Validates documentation presence
+- ✅ Provides detailed error messages and fix suggestions
 
 ## TypeScript Best Practices
 
@@ -128,7 +137,12 @@ project/
 npx eslint . --ext .ts,.tsx,.js,.jsx
 ```
 
-### Check for Node.js Imports
+### Run Comprehensive Phase B Validation
+```bash
+./scripts/validate-phase-b.sh
+```
+
+### Check for Node.js Imports (Legacy)
 ```bash
 ./scripts/check-node-imports.sh
 ```
@@ -158,19 +172,36 @@ import { Platform } from 'react-native'; // In a build script
 
 ## Phase B Checklist
 
-- [x] ESLint rules prevent Node.js imports
-- [x] Pre-commit hook available for automated checking
+- [x] ESLint rules prevent Node.js imports (23+ modules blocked)
+- [x] Enhanced validation script with comprehensive checking
 - [x] Documentation for TypeScript configuration best practices
 - [x] Separate configuration strategy for tools/scripts
 - [x] Verification commands documented
+- [x] EventBus replacement for Node.js events module
+- [x] Package dependency validation
+- [x] Colored output and detailed error reporting
 - [ ] Main tsconfig.json updated (blocked by file permissions)
 
 ## Next Steps
 
-1. **Manual Verification**: Run `./scripts/check-node-imports.sh` to ensure no Node.js imports exist
+1. **Enhanced Validation**: Run `./scripts/validate-phase-b.sh` for comprehensive checking
 2. **Build Test**: Run `expo start -c` to verify bundling works
 3. **Team Guidelines**: Share this documentation with the development team
-4. **CI Integration**: Consider adding the check script to CI/CD pipeline
+4. **CI Integration**: Add validation script to CI/CD pipeline
+5. **Pre-commit Hook**: Set up automatic validation before commits
+
+### Adding to CI/CD Pipeline
+
+```json
+// package.json
+{
+  "scripts": {
+    "validate:phase-b": "./scripts/validate-phase-b.sh",
+    "pre-commit": "npm run validate:phase-b && npm run lint:security",
+    "ci:test": "npm run validate:phase-b && npm test"
+  }
+}
+```
 
 ## Security Benefits
 
@@ -179,9 +210,41 @@ import { Platform } from 'react-native'; // In a build script
 - **Type Safety**: Explicit type restrictions prevent accidental imports
 - **Development Efficiency**: Catch issues early in development cycle
 
+## Enhanced Validation Output
+
+When validation passes:
+
+```
+🎉 Phase B Validation PASSED
+
+✅ All TypeScript configuration guards are in place
+✅ Node.js import prevention system is active  
+✅ React Native/Expo compatibility ensured
+✅ No Node.js imports found in mobile code
+
+📋 Next Steps:
+   • Run: expo start -c (to test bundling)
+   • Run: npx eslint . --ext .ts,.tsx (to check all files)
+   • Consider adding this script to CI/CD pipeline
+```
+
+When violations are found:
+
+```
+❌ Phase B Validation FAILED
+
+🔧 Issues found that need attention:
+❌ Found 3 Node.js import violations
+   💡 Recommended fixes:
+      • Replace 'events' with services/events/EventBus
+      • Replace 'fs' with expo-file-system
+      • Replace 'crypto' with expo-crypto
+```
+
 ## Related Files
 
 - `.eslintrc.security.js` - ESLint configuration with Node.js import restrictions
-- `scripts/check-node-imports.sh` - Automated checking script
+- `scripts/validate-phase-b.sh` - Enhanced comprehensive validation script
+- `scripts/check-node-imports.sh` - Legacy automated checking script
 - `services/events/EventBus.ts` - Node.js EventEmitter replacement
 - `docs/NODE_IMPORT_PREVENTION.md` - Comprehensive prevention guide
