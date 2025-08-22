@@ -164,6 +164,51 @@ module.exports = {
   },
   overrides: [
     {
+      files: ['**/*.{ts,tsx,js,jsx}'],
+      rules: {
+        // CRITICAL: Prevent Node.js imports in React Native/Expo mobile code
+        'no-restricted-imports': ['error', {
+          'paths': [
+            { 'name': 'events', 'message': 'Use services/events/EventBus instead of Node.js events module' },
+            { 'name': 'fs', 'message': 'Use expo-file-system instead of Node.js fs module' },
+            { 'name': 'path', 'message': 'Avoid Node.js path module in React Native - use string manipulation or expo-file-system' },
+            { 'name': 'crypto', 'message': 'Use expo-crypto instead of Node.js crypto module' },
+            { 'name': 'child_process', 'message': 'Node.js child_process is not available in React Native' },
+            { 'name': 'net', 'message': 'Node.js net module is not available in React Native' },
+            { 'name': 'tls', 'message': 'Node.js tls module is not available in React Native' },
+            { 'name': 'dns', 'message': 'Node.js dns module is not available in React Native' },
+            { 'name': 'os', 'message': 'Node.js os module is not available in React Native - use expo-device or Platform API' },
+            { 'name': 'http', 'message': 'Use fetch API or axios instead of Node.js http module' },
+            { 'name': 'https', 'message': 'Use fetch API or axios instead of Node.js https module' },
+            { 'name': 'url', 'message': 'Use URL constructor or react-native URL polyfill instead of Node.js url module' },
+            { 'name': 'querystring', 'message': 'Use URLSearchParams or manual parsing instead of Node.js querystring' },
+            { 'name': 'stream', 'message': 'Node.js stream module is not available in React Native' },
+            { 'name': 'buffer', 'message': 'Use react-native buffer polyfill if needed, but prefer Uint8Array' },
+            { 'name': 'util', 'message': 'Node.js util module is not available in React Native' },
+            { 'name': 'zlib', 'message': 'Node.js zlib module is not available in React Native' },
+            { 'name': 'readline', 'message': 'Node.js readline module is not available in React Native' },
+            { 'name': 'cluster', 'message': 'Node.js cluster module is not available in React Native' },
+            { 'name': 'worker_threads', 'message': 'Node.js worker_threads module is not available in React Native' },
+            { 'name': 'perf_hooks', 'message': 'Node.js perf_hooks module is not available in React Native' },
+            { 'name': 'v8', 'message': 'Node.js v8 module is not available in React Native' },
+            { 'name': 'vm', 'message': 'Node.js vm module is not available in React Native' },
+            { 'name': 'repl', 'message': 'Node.js repl module is not available in React Native' },
+            { 'name': 'dgram', 'message': 'Node.js dgram module is not available in React Native' },
+            { 'name': 'timers', 'message': 'Use setTimeout/setInterval directly instead of Node.js timers module' },
+            { 'name': 'console', 'message': 'Use global console object instead of importing Node.js console module' },
+            { 'name': 'process', 'message': 'Use Platform API from react-native instead of Node.js process' },
+            { 'name': 'assert', 'message': 'Node.js assert module is not available in React Native' }
+          ],
+          'patterns': [
+            {
+              'group': ['node:*'],
+              'message': 'Node.js built-in modules with node: prefix are not available in React Native'
+            }
+          ]
+        }]
+      }
+    },
+    {
       files: ['*.ts', '*.tsx'],
       parser: '@typescript-eslint/parser',
       parserOptions: {
