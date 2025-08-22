@@ -85,10 +85,17 @@ class CSPMiddleware {
   private violationReports: CSPViolationReport[] = [];
   private metrics: CSPMetrics;
   private nonceCache: Map<string, { nonce: string; expiry: number }> = new Map();
-  private securityManager: SecurityManager;
+  private securityManager: SecurityManager | null = null;
 
   private constructor() {
-    this.securityManager = SecurityManager.getInstance();
+    // Defer SecurityManager initialization to prevent circular dependencies
+    setTimeout(() => {
+      try {
+        this.securityManager = SecurityManager.getInstance();
+      } catch (error) {
+        console.warn('SecurityManager not available for CSPMiddleware:', error);
+      }
+    }, 100);
     this.metrics = {
       totalRequests: 0,
       violationsBlocked: 0,
@@ -140,7 +147,7 @@ class CSPMiddleware {
         pattern: /^\/auth\//,
         policy: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'nonce-{nonce}'"],
+          'script-src': ["'self'", "'nonce-{nonce}'", "'unsafe-eval'"],
           'style-src': ["'self'", "'nonce-{nonce}'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:', 'https:'],
           'connect-src': ["'self'", 'https://toolkit.rork.com'],
@@ -170,7 +177,7 @@ class CSPMiddleware {
         pattern: /^\/wallet\//,
         policy: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'nonce-{nonce}'"],
+          'script-src': ["'self'", "'nonce-{nonce}'", "'unsafe-eval'"],
           'style-src': ["'self'", "'nonce-{nonce}'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:'],
           'connect-src': ["'self'", 'https://toolkit.rork.com'],
@@ -200,7 +207,7 @@ class CSPMiddleware {
         pattern: /^\/chat\//,
         policy: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'nonce-{nonce}'"],
+          'script-src': ["'self'", "'nonce-{nonce}'", "'unsafe-eval'"],
           'style-src': ["'self'", "'nonce-{nonce}'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:', 'https:', 'blob:'],
           'connect-src': ["'self'", 'https://toolkit.rork.com', 'wss:', 'ws:'],
@@ -230,7 +237,7 @@ class CSPMiddleware {
         pattern: /^\/profile\//,
         policy: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'nonce-{nonce}'"],
+          'script-src': ["'self'", "'nonce-{nonce}'", "'unsafe-eval'"],
           'style-src': ["'self'", "'nonce-{nonce}'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:', 'https:', 'blob:'],
           'connect-src': ["'self'", 'https://toolkit.rork.com'],
@@ -259,7 +266,7 @@ class CSPMiddleware {
         pattern: /^\/feed$/,
         policy: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'nonce-{nonce}'"],
+          'script-src': ["'self'", "'nonce-{nonce}'", "'unsafe-eval'"],
           'style-src': ["'self'", "'nonce-{nonce}'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:', 'https:', 'blob:'],
           'connect-src': ["'self'", 'https://toolkit.rork.com'],
@@ -288,7 +295,7 @@ class CSPMiddleware {
         pattern: /^\/dashboard$/,
         policy: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'nonce-{nonce}'"],
+          'script-src': ["'self'", "'nonce-{nonce}'", "'unsafe-eval'"],
           'style-src': ["'self'", "'nonce-{nonce}'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:'],
           'connect-src': ["'self'", 'https://toolkit.rork.com'],
@@ -348,7 +355,7 @@ class CSPMiddleware {
         pattern: /.*/,
         policy: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'nonce-{nonce}'"],
+          'script-src': ["'self'", "'nonce-{nonce}'", "'unsafe-eval'"],
           'style-src': ["'self'", "'nonce-{nonce}'"],
           'img-src': ["'self'", 'data:'],
           'connect-src': ["'self'"],
@@ -518,21 +525,23 @@ class CSPMiddleware {
     console.log(`CSP Applied: ${config.route} (${config.riskLevel}) - Nonce: ${nonce ? 'Yes' : 'No'}`);
     
     // Log to security manager for audit trail
-    this.securityManager.logSecurityEvent?.({
-      type: 'security_violation', // Using existing type
-      timestamp: Date.now(),
-      details: {
-        action: 'csp_policy_applied',
-        route: context.route,
-        policy: config.route,
-        riskLevel: config.riskLevel,
-        nonce: !!nonce,
-        userAgent: context.userAgent,
-        clientIP: context.clientIP
-      },
-      severity: 'low',
-      userId: context.userId
-    });
+    if (this.securityManager?.logSecurityEvent) {
+      this.securityManager.logSecurityEvent({
+        type: 'security_violation', // Using existing type
+        timestamp: Date.now(),
+        details: {
+          action: 'csp_policy_applied',
+          route: context.route,
+          policy: config.route,
+          riskLevel: config.riskLevel,
+          nonce: !!nonce,
+          userAgent: context.userAgent,
+          clientIP: context.clientIP
+        },
+        severity: 'low',
+        userId: context.userId
+      });
+    }
   }
 
   // Handle CSP violation reports
@@ -561,22 +570,24 @@ class CSPMiddleware {
       console.warn(`CSP Violation ${isCritical ? '(CRITICAL)' : ''}: ${report['violated-directive']} on ${report['document-uri']}`);
 
       // Report to security manager
-      this.securityManager.logSecurityEvent?.({
-        type: 'security_violation',
-        timestamp: Date.now(),
-        details: {
-          action: 'csp_violation',
-          violatedDirective: report['violated-directive'],
-          blockedUri: report['blocked-uri'],
-          documentUri: report['document-uri'],
-          sourceFile: report['source-file'],
-          lineNumber: report['line-number'],
-          route: context.route,
-          critical: isCritical
-        },
-        severity: isCritical ? 'critical' : 'medium',
-        userId: context.userId
-      });
+      if (this.securityManager?.logSecurityEvent) {
+        this.securityManager.logSecurityEvent({
+          type: 'security_violation',
+          timestamp: Date.now(),
+          details: {
+            action: 'csp_violation',
+            violatedDirective: report['violated-directive'],
+            blockedUri: report['blocked-uri'],
+            documentUri: report['document-uri'],
+            sourceFile: report['source-file'],
+            lineNumber: report['line-number'],
+            route: context.route,
+            critical: isCritical
+          },
+          severity: isCritical ? 'critical' : 'medium',
+          userId: context.userId
+        });
+      }
 
       // Auto-adjust policy if needed
       if (isCritical) {

@@ -562,7 +562,7 @@ Incident ID: ${incident.id}`,
         if (!existingCSP) {
           const cspMeta = document.createElement('meta');
           cspMeta.httpEquiv = 'Content-Security-Policy';
-          cspMeta.content = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://toolkit.rork.com;";
+          cspMeta.content = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://toolkit.rork.com;";
           document.head.appendChild(cspMeta);
         }
         
@@ -664,7 +664,11 @@ Incident ID: ${incident.id}`,
   const handleAppStateChange = (nextAppState: string) => {
     try {
       const screenProtection = ScreenProtectionService.getInstance();
-      screenProtection.handleAppStateChange(nextAppState);
+      if (screenProtection && typeof screenProtection.handleAppStateChange === 'function') {
+        screenProtection.handleAppStateChange(nextAppState);
+      } else {
+        console.warn('ScreenProtectionService.handleAppStateChange not available');
+      }
       
       // Perform security check when app becomes active
       if (nextAppState === 'active') {
