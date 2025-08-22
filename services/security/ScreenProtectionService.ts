@@ -554,6 +554,19 @@ class ScreenProtectionService {
     }
   }
 
+  // Handle app state changes for security monitoring
+  handleAppStateChange(nextAppState: string): void {
+    try {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        this.handleAppBackground();
+      } else if (nextAppState === 'active') {
+        this.handleAppForeground();
+      }
+    } catch (error) {
+      console.error('❌ Failed to handle app state change:', error);
+    }
+  }
+
   // Check if protection is active
   isProtectionEnabled(): boolean {
     return this.isProtectionActive;

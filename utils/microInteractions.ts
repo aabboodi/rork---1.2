@@ -1,5 +1,12 @@
 import { Animated, Platform, Easing } from 'react-native';
 
+// Ensure easing functions are properly defined
+const safeEasing = {
+  quad: Easing.quad || Easing.linear,
+  back: () => Easing.back ? Easing.back() : Easing.linear,
+  linear: Easing.linear
+};
+
 // Micro-interaction utilities for smooth animations
 export class MicroInteractions {
   // Smooth scale animation for touch feedback
@@ -18,7 +25,7 @@ export class MicroInteractions {
       toValue,
       duration,
       useNativeDriver: true,
-      easing: Easing.out(Easing.cubic),
+      easing: safeEasing.quad,
     });
   }
 
@@ -29,13 +36,13 @@ export class MicroInteractions {
         toValue: 1.1,
         duration: 150,
         useNativeDriver: true,
-        easing: Easing.out(Easing.back(1.2)),
+        easing: safeEasing.back(),
       }),
       Animated.timing(animatedValue, {
         toValue: 1,
         duration: 150,
         useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
+        easing: safeEasing.quad,
       })
     ]);
   }
@@ -47,7 +54,7 @@ export class MicroInteractions {
       toValue,
       duration,
       useNativeDriver: true,
-      easing: Easing.out(Easing.cubic),
+      easing: safeEasing.quad,
     });
   }
 
@@ -59,13 +66,13 @@ export class MicroInteractions {
           toValue: maxValue,
           duration: 800,
           useNativeDriver: true,
-          easing: Easing.inOut(Easing.sine),
+          easing: safeEasing.quad,
         }),
         Animated.timing(animatedValue, {
           toValue: minValue,
           duration: 800,
           useNativeDriver: true,
-          easing: Easing.inOut(Easing.sine),
+          easing: safeEasing.quad,
         })
       ])
     );
@@ -89,7 +96,7 @@ export class MicroInteractions {
         toValue: 1,
         duration: 1000,
         useNativeDriver: true,
-        easing: Easing.linear,
+        easing: safeEasing.linear,
       })
     );
   }
@@ -103,7 +110,7 @@ export class MicroInteractions {
           toValue: 1,
           duration: 300,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic),
+          easing: safeEasing.quad,
         })
       )
     );
@@ -151,14 +158,14 @@ export class MicroInteractions {
         duration: 400,
         delay,
         useNativeDriver: true,
-        easing: Easing.out(Easing.back(1.1)),
+        easing: safeEasing.back(),
       }),
       Animated.timing(opacityValue, {
         toValue: 1,
         duration: 300,
         delay,
         useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
+        easing: safeEasing.quad,
       })
     ]);
   }
@@ -170,13 +177,13 @@ export class MicroInteractions {
         toValue: 0.8,
         duration: 200,
         useNativeDriver: true,
-        easing: Easing.in(Easing.cubic),
+        easing: safeEasing.quad,
       }),
       Animated.timing(opacityValue, {
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
-        easing: Easing.in(Easing.cubic),
+        easing: safeEasing.quad,
       })
     ]);
   }
