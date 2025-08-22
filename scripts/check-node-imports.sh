@@ -122,12 +122,22 @@ done
 
 # Additional checks for EventBus compatibility
 echo "Checking EventBus compatibility..."
-EVENT_EMITTER_USAGE=$(check_files "EventEmitter" "eventemitter" | xargs grep -l "EventEmitter" 2>/dev/null | xargs grep -L "eventemitter3" 2>/dev/null || true)
+EVENT_EMITTER_USAGE=$(check_files "EventEmitter" "eventemitter" | xargs grep -l "EventEmitter" 2>/dev/null | xargs grep -L "SimpleEventEmitter" 2>/dev/null || true)
 
 if [ ! -z "$EVENT_EMITTER_USAGE" ]; then
     echo "⚠️  Found potential Node.js EventEmitter usage:"
     echo "   Files: $EVENT_EMITTER_USAGE"
-    echo "   → Use eventemitter3 package instead of Node.js events"
+    echo "   → Use services/events/EventBus instead of Node.js events"
+fi
+
+# Check for eventemitter3 usage (now replaced with SimpleEventEmitter)
+echo "Checking for eventemitter3 usage..."
+EVENTEMITTER3_USAGE=$(check_files "eventemitter3" "eventemitter3")
+
+if [ ! -z "$EVENTEMITTER3_USAGE" ]; then
+    echo "⚠️  Found eventemitter3 usage (now replaced with SimpleEventEmitter):"
+    echo "   Files: $EVENTEMITTER3_USAGE"
+    echo "   → EventBus now uses SimpleEventEmitter for better React Native compatibility"
 fi
 
 # Summary

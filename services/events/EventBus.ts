@@ -1,4 +1,61 @@
-import EE from 'eventemitter3';
+// React Native compatible EventEmitter replacement
+class SimpleEventEmitter {
+  private listeners = new Map<string, Set<Function>>();
+  
+  on(event: string, listener: Function): void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(listener);
+  }
+  
+  once(event: string, listener: Function): void {
+    const onceWrapper = (...args: any[]) => {
+      this.off(event, onceWrapper);
+      listener(...args);
+    };
+    this.on(event, onceWrapper);
+  }
+  
+  off(event: string, listener: Function): void {
+    const eventListeners = this.listeners.get(event);
+    if (eventListeners) {
+      eventListeners.delete(listener);
+      if (eventListeners.size === 0) {
+        this.listeners.delete(event);
+      }
+    }
+  }
+  
+  emit(event: string, ...args: any[]): void {
+    const eventListeners = this.listeners.get(event);
+    if (eventListeners) {
+      for (const listener of eventListeners) {
+        try {
+          listener(...args);
+        } catch (error) {
+          console.error(`EventEmitter error in ${event}:`, error);
+        }
+      }
+    }
+  }
+  
+  removeAllListeners(event?: string): void {
+    if (event) {
+      this.listeners.delete(event);
+    } else {
+      this.listeners.clear();
+    }
+  }
+  
+  listenerCount(event: string): number {
+    return this.listeners.get(event)?.size || 0;
+  }
+  
+  eventNames(): string[] {
+    return Array.from(this.listeners.keys());
+  }
+}
 
 /**
  * PII Detection and Sanitization Utilities
@@ -281,7 +338,7 @@ export type EventMap = {
  */
 export class EventBus {
   private static _inst: EventBus;
-  private ee = new EE();
+  private ee = new SimpleEventEmitter();
   private listenerCounts = new Map<string, number>();
   private maxListeners = 50; // Prevent memory leaks
   private securityConfig: EventSecurityConfig = { ...DEFAULT_SECURITY_CONFIG };
