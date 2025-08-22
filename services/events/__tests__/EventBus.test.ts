@@ -646,3 +646,419 @@ describe('EventBus Integration without Native Dependencies', () => {
     }
   });
 });
+
+/**
+ * Phase D Performance Tests - 60fps Frame Time Verification
+ * Ensures EventBus replacement doesn't impact rendering performance
+ */
+describe('EventBus Performance Tests (60fps)', () => {
+  let testEventBus: EventBus;
+  const TARGET_FRAME_TIME = 16.67; // 60fps = 16.67ms per frame
+  const PERFORMANCE_THRESHOLD = 5; // 5ms threshold for event operations
+
+  beforeEach(() => {
+    testEventBus = EventBus.instance;
+    testEventBus.reset();
+    
+    // Disable logging for performance tests
+    testEventBus.configureSecurity({
+      enableEventLogging: false,
+      enablePIIProtection: false, // Disable for pure performance testing
+      enableRateLimiting: false
+    });
+  });
+
+  afterEach(() => {
+    testEventBus.reset();
+  });
+
+  describe('Event Emission Performance', () => {
+    it('should emit events within frame budget (< 5ms)', () => {
+      const handler = jest.fn();
+      testEventBus.on('performance:metric', handler);
+
+      const startTime = performance.now();
+      
+      // Emit 100 events to simulate burst activity
+      for (let i = 0; i < 100; i++) {
+        testEventBus.emit('performance:metric', {
+          metric: `test_metric_${i}`,
+          value: Math.random() * 100,
+          timestamp: Date.now()
+        });
+      }
+
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      const avgTimePerEvent = totalTime / 100;
+
+      console.log(`[Performance] 100 events emitted in ${totalTime.toFixed(2)}ms (avg: ${avgTimePerEvent.toFixed(3)}ms per event)`);
+      
+      // Total time should be well under frame budget
+      expect(totalTime).toBeLessThan(PERFORMANCE_THRESHOLD);
+      expect(avgTimePerEvent).toBeLessThan(0.1); // Each event should take < 0.1ms
+      expect(handler).toHaveBeenCalledTimes(100);
+    });
+
+    it('should handle subscription/unsubscription within frame budget', () => {
+      const handlers = Array.from({ length: 50 }, () => jest.fn());
+      
+      const startTime = performance.now();
+      
+      // Subscribe all handlers
+      handlers.forEach(handler => {
+        testEventBus.on('monitor:metric', handler);
+      });
+      
+      // Emit one event to all handlers
+      testEventBus.emit('monitor:metric', {
+        name: 'cpu_usage',
+        value: 75.5,
+        timestamp: Date.now()
+      });
+      
+      // Unsubscribe all handlers
+      handlers.forEach(handler => {
+        testEventBus.off('monitor:metric', handler);
+      });
+      
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      
+      console.log(`[Performance] 50 subscribe/emit/unsubscribe operations in ${totalTime.toFixed(2)}ms`);
+      
+      expect(totalTime).toBeLessThan(PERFORMANCE_THRESHOLD);
+      handlers.forEach(handler => {
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('should maintain performance with complex payloads', () => {
+      const handler = jest.fn();
+      testEventBus.on('ai:inference-completed', handler);
+
+      // Create complex payload
+      const complexPayload = {
+        modelId: 'large-language-model-v2',
+        inputSize: 1024 * 1024, // 1MB
+        outputSize: 512 * 1024, // 512KB
+        duration: 2500,
+        timestamp: Date.now(),
+        metadata: {
+          layers: Array.from({ length: 100 }, (_, i) => ({
+            id: `layer_${i}`,
+            weights: Array.from({ length: 50 }, () => Math.random()),
+            activations: Array.from({ length: 50 }, () => Math.random())
+          }))
+        }
+      };
+
+      const startTime = performance.now();
+      
+      // Emit 10 complex events
+      for (let i = 0; i < 10; i++) {
+        testEventBus.emit('ai:inference-completed', {
+          ...complexPayload,
+          modelId: `${complexPayload.modelId}_${i}`
+        });
+      }
+
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      
+      console.log(`[Performance] 10 complex events emitted in ${totalTime.toFixed(2)}ms`);
+      
+      expect(totalTime).toBeLessThan(PERFORMANCE_THRESHOLD * 2); // Allow 2x threshold for complex data
+      expect(handler).toHaveBeenCalledTimes(10);
+    });
+  });
+
+  describe('Memory Performance', () => {
+    it('should not cause memory pressure during high-frequency events', () => {
+      const handler = jest.fn();
+      testEventBus.on('monitor:performance', handler);
+
+      const initialMemory = (performance as any).memory?.usedJSHeapSize || 0;
+      const startTime = performance.now();
+      
+      // Emit 1000 events rapidly
+      for (let i = 0; i < 1000; i++) {
+        testEventBus.emit('monitor:performance', {
+          operation: `high_freq_test_${i}`,
+          duration: Math.random() * 10,
+          success: true,
+          metadata: {
+            iteration: i,
+            batch: Math.floor(i / 100)
+          },
+          timestamp: Date.now()
+        });
+      }
+
+      const endTime = performance.now();
+      const finalMemory = (performance as any).memory?.usedJSHeapSize || 0;
+      const totalTime = endTime - startTime;
+      const memoryIncrease = finalMemory - initialMemory;
+      
+      console.log(`[Performance] 1000 high-frequency events:`);
+      console.log(`  - Total time: ${totalTime.toFixed(2)}ms`);
+      console.log(`  - Avg per event: ${(totalTime / 1000).toFixed(3)}ms`);
+      console.log(`  - Memory increase: ${(memoryIncrease / 1024).toFixed(2)}KB`);
+      
+      expect(totalTime).toBeLessThan(50); // Should complete in under 50ms
+      expect(handler).toHaveBeenCalledTimes(1000);
+      
+      // Memory increase should be reasonable (< 1MB for 1000 events)
+      if (initialMemory > 0) {
+        expect(memoryIncrease).toBeLessThan(1024 * 1024);
+      }
+    });
+
+    it('should clean up listeners efficiently', () => {
+      const startTime = performance.now();
+      
+      // Create and destroy many listeners
+      for (let i = 0; i < 100; i++) {
+        const handler = jest.fn();
+        testEventBus.on('security:alert', handler);
+        testEventBus.emit('security:alert', {
+          level: 'low',
+          message: `Test ${i}`,
+          source: 'perf_test',
+          timestamp: Date.now()
+        });
+        testEventBus.off('security:alert', handler);
+      }
+      
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      
+      console.log(`[Performance] 100 listener lifecycle operations in ${totalTime.toFixed(2)}ms`);
+      
+      expect(totalTime).toBeLessThan(PERFORMANCE_THRESHOLD);
+      expect(testEventBus.listenerCount('security:alert')).toBe(0);
+    });
+  });
+
+  describe('Concurrent Performance', () => {
+    it('should handle multiple event types simultaneously', () => {
+      const handlers = {
+        security: jest.fn(),
+        monitor: jest.fn(),
+        ai: jest.fn(),
+        user: jest.fn(),
+        system: jest.fn()
+      };
+
+      // Subscribe to different event types
+      testEventBus.on('security:alert', handlers.security);
+      testEventBus.on('monitor:metric', handlers.monitor);
+      testEventBus.on('ai:inference', handlers.ai);
+      testEventBus.on('user:action', handlers.user);
+      testEventBus.on('system:health', handlers.system);
+
+      const startTime = performance.now();
+      
+      // Emit events concurrently across different types
+      for (let i = 0; i < 50; i++) {
+        testEventBus.emit('security:alert', {
+          level: 'low',
+          message: `Security ${i}`,
+          source: 'test',
+          timestamp: Date.now()
+        });
+        
+        testEventBus.emit('monitor:metric', {
+          name: `metric_${i}`,
+          value: i,
+          timestamp: Date.now()
+        });
+        
+        testEventBus.emit('ai:inference', {
+          model: `model_${i}`,
+          latency: i * 10,
+          timestamp: Date.now()
+        });
+        
+        testEventBus.emit('user:action', {
+          userHash: `user_${i}`,
+          action: `action_${i}`,
+          category: 'navigation',
+          sessionId: `session_${i}`,
+          timestamp: Date.now()
+        });
+        
+        testEventBus.emit('system:health', {
+          component: `component_${i}`,
+          status: 'healthy',
+          timestamp: Date.now()
+        });
+      }
+
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      
+      console.log(`[Performance] 250 concurrent multi-type events in ${totalTime.toFixed(2)}ms`);
+      
+      expect(totalTime).toBeLessThan(PERFORMANCE_THRESHOLD * 2);
+      
+      // Verify all handlers were called
+      Object.values(handlers).forEach(handler => {
+        expect(handler).toHaveBeenCalledTimes(50);
+      });
+    });
+
+    it('should maintain performance under stress conditions', () => {
+      // Simulate real-world stress: many listeners, frequent events
+      const handlers = Array.from({ length: 20 }, () => jest.fn());
+      
+      handlers.forEach(handler => {
+        testEventBus.on('performance:metric', handler);
+      });
+
+      const startTime = performance.now();
+      
+      // Emit events that will trigger all 20 handlers
+      for (let i = 0; i < 100; i++) {
+        testEventBus.emit('performance:metric', {
+          metric: `stress_test_${i}`,
+          value: Math.random() * 1000,
+          timestamp: Date.now()
+        });
+      }
+
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      const totalOperations = 100 * 20; // 100 events × 20 handlers
+      
+      console.log(`[Performance] Stress test: ${totalOperations} handler invocations in ${totalTime.toFixed(2)}ms`);
+      
+      expect(totalTime).toBeLessThan(PERFORMANCE_THRESHOLD * 3); // Allow 3x threshold for stress
+      
+      handlers.forEach(handler => {
+        expect(handler).toHaveBeenCalledTimes(100);
+      });
+    });
+  });
+
+  describe('Frame Rate Impact Simulation', () => {
+    it('should not block the main thread during typical usage', (done) => {
+      let frameCount = 0;
+      let totalFrameTime = 0;
+      const targetFrames = 10;
+      
+      const handler = jest.fn();
+      testEventBus.on('monitor:performance', handler);
+
+      // Simulate frame rendering with EventBus activity
+      const simulateFrame = () => {
+        const frameStart = performance.now();
+        
+        // Simulate typical EventBus activity during a frame
+        for (let i = 0; i < 5; i++) {
+          testEventBus.emit('monitor:performance', {
+            operation: `frame_${frameCount}_event_${i}`,
+            duration: Math.random() * 10,
+            success: true,
+            timestamp: Date.now()
+          });
+        }
+        
+        const frameEnd = performance.now();
+        const frameTime = frameEnd - frameStart;
+        totalFrameTime += frameTime;
+        frameCount++;
+        
+        console.log(`[Frame ${frameCount}] EventBus operations took ${frameTime.toFixed(3)}ms`);
+        
+        // Each frame's EventBus operations should be well under budget
+        expect(frameTime).toBeLessThan(TARGET_FRAME_TIME / 4); // Use max 25% of frame budget
+        
+        if (frameCount < targetFrames) {
+          // Schedule next frame
+          setTimeout(simulateFrame, 16); // ~60fps
+        } else {
+          // Test complete
+          const avgFrameTime = totalFrameTime / targetFrames;
+          console.log(`[Performance] Average EventBus frame impact: ${avgFrameTime.toFixed(3)}ms`);
+          
+          expect(avgFrameTime).toBeLessThan(TARGET_FRAME_TIME / 4);
+          expect(handler).toHaveBeenCalledTimes(targetFrames * 5);
+          done();
+        }
+      };
+      
+      simulateFrame();
+    });
+
+    it('should handle burst events without frame drops', () => {
+      const handler = jest.fn();
+      testEventBus.on('security:threat-detected', handler);
+
+      // Simulate security event burst (like during an attack)
+      const burstStart = performance.now();
+      
+      for (let i = 0; i < 50; i++) {
+        testEventBus.emit('security:threat-detected', {
+          threatType: 'brute_force',
+          confidence: 0.9 + (Math.random() * 0.1),
+          threatId: `threat_${i}`,
+          sourceCategory: 'network',
+          timestamp: Date.now(),
+          riskScore: 7 + (Math.random() * 3)
+        });
+      }
+      
+      const burstEnd = performance.now();
+      const burstTime = burstEnd - burstStart;
+      
+      console.log(`[Performance] Security burst: 50 threat events in ${burstTime.toFixed(2)}ms`);
+      
+      // Even burst events should complete within frame budget
+      expect(burstTime).toBeLessThan(TARGET_FRAME_TIME);
+      expect(handler).toHaveBeenCalledTimes(50);
+    });
+  });
+
+  describe('Performance Regression Detection', () => {
+    it('should maintain consistent performance across multiple runs', () => {
+      const handler = jest.fn();
+      testEventBus.on('ai:model-loaded', handler);
+      
+      const runTimes: number[] = [];
+      const eventsPerRun = 100;
+      const numberOfRuns = 5;
+      
+      for (let run = 0; run < numberOfRuns; run++) {
+        const runStart = performance.now();
+        
+        for (let i = 0; i < eventsPerRun; i++) {
+          testEventBus.emit('ai:model-loaded', {
+            modelId: `model_${run}_${i}`,
+            modelType: 'transformer',
+            loadTime: Math.random() * 1000,
+            timestamp: Date.now()
+          });
+        }
+        
+        const runEnd = performance.now();
+        const runTime = runEnd - runStart;
+        runTimes.push(runTime);
+        
+        console.log(`[Run ${run + 1}] ${eventsPerRun} events in ${runTime.toFixed(2)}ms`);
+      }
+      
+      const avgTime = runTimes.reduce((a, b) => a + b, 0) / runTimes.length;
+      const maxTime = Math.max(...runTimes);
+      const minTime = Math.min(...runTimes);
+      const variance = maxTime - minTime;
+      
+      console.log(`[Performance Summary] Avg: ${avgTime.toFixed(2)}ms, Min: ${minTime.toFixed(2)}ms, Max: ${maxTime.toFixed(2)}ms, Variance: ${variance.toFixed(2)}ms`);
+      
+      // Performance should be consistent
+      expect(avgTime).toBeLessThan(PERFORMANCE_THRESHOLD);
+      expect(variance).toBeLessThan(PERFORMANCE_THRESHOLD / 2); // Low variance
+      expect(handler).toHaveBeenCalledTimes(eventsPerRun * numberOfRuns);
+    });
+  });
+});
