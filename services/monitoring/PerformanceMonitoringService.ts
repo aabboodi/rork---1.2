@@ -132,7 +132,7 @@ class PerformanceMonitoringService {
   
   // Monitoring state
   private serviceMonitoring: boolean = false;
-  private monitoringInterval: NodeJS.Timeout | null = null;
+  private monitoringInterval: ReturnType<typeof setInterval> | null = null;
   private systemMonitoring: SystemMonitoringService;
   
   // Performance baselines

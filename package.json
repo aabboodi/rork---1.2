@@ -41,6 +41,7 @@
     "eslint-plugin-react-hooks": "5.2.0",
     "eslint-plugin-react-native": "5.0.0",
     "eslint-plugin-security": "3.0.1",
+    "eventemitter3": "^5.0.1",
     "expo": "53.0.20",
     "expo-application": "6.1.5",
     "expo-av": "15.1.7",

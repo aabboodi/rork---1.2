@@ -1,24 +1,4 @@
-// Simple EventEmitter implementation for React Native compatibility
-class SimpleEventEmitter {
-  private listeners: { [event: string]: Function[] } = {};
-
-  on(event: string, listener: Function): void {
-    if (!this.listeners[event]) {
-      this.listeners[event] = [];
-    }
-    this.listeners[event].push(listener);
-  }
-
-  emit(event: string, ...args: any[]): void {
-    if (this.listeners[event]) {
-      this.listeners[event].forEach(listener => listener(...args));
-    }
-  }
-
-  removeAllListeners(): void {
-    this.listeners = {};
-  }
-}
+import { EventBus } from '../events/EventBus';
 
 interface SLOMetrics {
   latency: {
@@ -72,15 +52,14 @@ interface ComplianceCheck {
   nextCheck: number;
 }
 
-class ProductionMonitoringService extends SimpleEventEmitter {
+class ProductionMonitoringService {
   private metrics: SLOMetrics;
   private alerts: Alert[];
   private complianceChecks: ComplianceCheck[];
-  private monitoringInterval: NodeJS.Timeout | null = null;
+  private monitoringInterval: ReturnType<typeof setInterval> | null = null;
   private isMonitoring = false;
 
   constructor() {
-    super();
     this.metrics = this.initializeMetrics();
     this.alerts = [];
     this.complianceChecks = this.initializeComplianceChecks();
@@ -180,7 +159,7 @@ class ProductionMonitoringService extends SimpleEventEmitter {
       this.runComplianceChecks();
     }, 30000);
     
-    this.emit('monitoring_started');
+    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'healthy' });
   }
 
   stopMonitoring(): void {
@@ -193,7 +172,7 @@ class ProductionMonitoringService extends SimpleEventEmitter {
     }
     
     console.log('⏹️ Stopped production monitoring');
-    this.emit('monitoring_stopped');
+    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'degraded' });
   }
 
   private collectMetrics(): void {
@@ -222,7 +201,7 @@ class ProductionMonitoringService extends SimpleEventEmitter {
     // Simulate availability (usually high)
     this.metrics.availability.uptime = 99.5 + Math.random() * 0.5;
     
-    this.emit('metrics_collected', this.metrics);
+    EventBus.instance.emit('monitor:metric', { name: 'slo_metrics', value: this.metrics.latency.p95, tags: { type: 'latency' } });
   }
 
   private checkSLOs(): void {
@@ -316,7 +295,9 @@ class ProductionMonitoringService extends SimpleEventEmitter {
     // Add new alerts
     if (alerts.length > 0) {
       this.alerts.push(...alerts);
-      this.emit('alerts_generated', alerts);
+      alerts.forEach(alert => {
+        EventBus.instance.emit('security:alert', { level: alert.severity, message: alert.message, source: 'production_monitoring' });
+      });
       console.log(`🚨 Generated ${alerts.length} alerts`);
     }
   }
@@ -345,7 +326,7 @@ class ProductionMonitoringService extends SimpleEventEmitter {
           };
           
           this.alerts.push(alert);
-          this.emit('compliance_alert', alert);
+          EventBus.instance.emit('security:alert', { level: alert.severity, message: alert.message, source: 'compliance_check' });
           console.log(`⚠️ Compliance issue: ${check.name} - ${check.status}`);
         }
       }
@@ -368,7 +349,7 @@ class ProductionMonitoringService extends SimpleEventEmitter {
     const alert = this.alerts.find(a => a.id === alertId);
     if (alert) {
       alert.resolved = true;
-      this.emit('alert_resolved', alert);
+      EventBus.instance.emit('security:alert', { level: 'low', message: `Alert resolved: ${alertId}`, source: 'production_monitoring' });
       console.log(`✅ Resolved alert: ${alertId}`);
       return true;
     }
@@ -378,17 +359,17 @@ class ProductionMonitoringService extends SimpleEventEmitter {
   // Production hardening methods
   enableCircuitBreaker(): void {
     console.log('🔒 Circuit breaker enabled');
-    this.emit('circuit_breaker_enabled');
+    EventBus.instance.emit('system:health', { component: 'circuit_breaker', status: 'healthy' });
   }
 
   enableRateLimiting(requestsPerMinute: number): void {
     console.log(`🚦 Rate limiting enabled: ${requestsPerMinute} requests/minute`);
-    this.emit('rate_limiting_enabled', { limit: requestsPerMinute });
+    EventBus.instance.emit('system:health', { component: 'rate_limiter', status: 'healthy' });
   }
 
   enableHealthChecks(): void {
     console.log('❤️ Health checks enabled');
-    this.emit('health_checks_enabled');
+    EventBus.instance.emit('system:health', { component: 'health_checks', status: 'healthy' });
   }
 
   generateComplianceReport(): any {
@@ -402,7 +383,7 @@ class ProductionMonitoringService extends SimpleEventEmitter {
     };
     
     console.log('📊 Generated compliance report');
-    this.emit('compliance_report_generated', report);
+    EventBus.instance.emit('monitor:metric', { name: 'compliance_report', value: report.activeAlerts, tags: { type: 'compliance' } });
     return report;
   }
 
@@ -421,7 +402,6 @@ class ProductionMonitoringService extends SimpleEventEmitter {
   // Cleanup
   destroy(): void {
     this.stopMonitoring();
-    this.removeAllListeners();
     console.log('🧹 Production monitoring service destroyed');
   }
 }

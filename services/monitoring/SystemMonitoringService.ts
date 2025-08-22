@@ -106,7 +106,7 @@ class SystemMonitoringService {
   private activeAlerts: Alert[] = [];
   private serviceHealth: Map<string, ServiceHealth> = new Map();
   private performanceBaselines: Map<string, PerformanceBaseline> = new Map();
-  private monitoringInterval: NodeJS.Timeout | null = null;
+  private monitoringInterval: ReturnType<typeof setInterval> | null = null;
   private serviceMonitoring: boolean = false;
   
   // Service instances
