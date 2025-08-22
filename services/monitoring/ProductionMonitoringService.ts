@@ -53,6 +53,7 @@ interface ComplianceCheck {
 }
 
 class ProductionMonitoringService {
+  private static instance: ProductionMonitoringService;
   private metrics: SLOMetrics;
   private alerts: Alert[];
   private complianceChecks: ComplianceCheck[];
@@ -60,10 +61,17 @@ class ProductionMonitoringService {
   private isMonitoring = false;
   private readonly SOURCE = 'production_monitoring';
 
-  constructor() {
+  private constructor() {
     this.metrics = this.initializeMetrics();
     this.alerts = [];
     this.complianceChecks = this.initializeComplianceChecks();
+  }
+
+  static getInstance(): ProductionMonitoringService {
+    if (!ProductionMonitoringService.instance) {
+      ProductionMonitoringService.instance = new ProductionMonitoringService();
+    }
+    return ProductionMonitoringService.instance;
   }
 
   private initializeMetrics(): SLOMetrics {
@@ -160,7 +168,11 @@ class ProductionMonitoringService {
       this.runComplianceChecks();
     }, 30000);
     
-    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    try {
+      EventBus.instance.emit('system:health', { component: 'monitoring', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    } catch (error) {
+      console.warn('EventBus not ready for system:health event:', error);
+    }
   }
 
   stopMonitoring(): void {
@@ -173,7 +185,11 @@ class ProductionMonitoringService {
     }
     
     console.log('⏹️ Stopped production monitoring');
-    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'degraded', timestamp: Date.now() }, this.SOURCE);
+    try {
+      EventBus.instance.emit('system:health', { component: 'monitoring', status: 'degraded', timestamp: Date.now() }, this.SOURCE);
+    } catch (error) {
+      console.warn('EventBus not ready for system:health event:', error);
+    }
   }
 
   private collectMetrics(): void {
@@ -202,12 +218,16 @@ class ProductionMonitoringService {
     // Simulate availability (usually high)
     this.metrics.availability.uptime = 99.5 + Math.random() * 0.5;
     
-    EventBus.instance.emit('monitor:metric', { 
-      name: 'slo_metrics', 
-      value: this.metrics.latency.p95, 
-      tags: { type: 'latency' },
-      timestamp: Date.now()
-    }, this.SOURCE);
+    try {
+      EventBus.instance.emit('monitor:metric', { 
+        name: 'slo_metrics', 
+        value: this.metrics.latency.p95, 
+        tags: { type: 'latency' },
+        timestamp: Date.now()
+      }, this.SOURCE);
+    } catch (error) {
+      console.warn('EventBus not ready for monitor:metric event:', error);
+    }
   }
 
   private checkSLOs(): void {
@@ -302,12 +322,16 @@ class ProductionMonitoringService {
     if (alerts.length > 0) {
       this.alerts.push(...alerts);
       alerts.forEach(alert => {
-        EventBus.instance.emit('security:alert', { 
-          level: alert.severity, 
-          message: alert.message, 
-          source: 'production_monitoring',
-          timestamp: Date.now()
-        }, this.SOURCE);
+        try {
+          EventBus.instance.emit('security:alert', { 
+            level: alert.severity, 
+            message: alert.message, 
+            source: 'production_monitoring',
+            timestamp: Date.now()
+          }, this.SOURCE);
+        } catch (error) {
+          console.warn('EventBus not ready for security:alert event:', error);
+        }
       });
       console.log(`🚨 Generated ${alerts.length} alerts`);
     }
@@ -337,12 +361,16 @@ class ProductionMonitoringService {
           };
           
           this.alerts.push(alert);
-          EventBus.instance.emit('security:alert', { 
-            level: alert.severity, 
-            message: alert.message, 
-            source: 'compliance_check',
-            timestamp: Date.now()
-          }, this.SOURCE);
+          try {
+            EventBus.instance.emit('security:alert', { 
+              level: alert.severity, 
+              message: alert.message, 
+              source: 'compliance_check',
+              timestamp: Date.now()
+            }, this.SOURCE);
+          } catch (error) {
+            console.warn('EventBus not ready for security:alert event:', error);
+          }
           console.log(`⚠️ Compliance issue: ${check.name} - ${check.status}`);
         }
       }
@@ -365,12 +393,16 @@ class ProductionMonitoringService {
     const alert = this.alerts.find(a => a.id === alertId);
     if (alert) {
       alert.resolved = true;
-      EventBus.instance.emit('security:alert', { 
-        level: 'low', 
-        message: `Alert resolved: ${alertId}`, 
-        source: 'production_monitoring',
-        timestamp: Date.now()
-      }, this.SOURCE);
+      try {
+        EventBus.instance.emit('security:alert', { 
+          level: 'low', 
+          message: `Alert resolved: ${alertId}`, 
+          source: 'production_monitoring',
+          timestamp: Date.now()
+        }, this.SOURCE);
+      } catch (error) {
+        console.warn('EventBus not ready for security:alert event:', error);
+      }
       console.log(`✅ Resolved alert: ${alertId}`);
       return true;
     }
@@ -380,17 +412,29 @@ class ProductionMonitoringService {
   // Production hardening methods
   enableCircuitBreaker(): void {
     console.log('🔒 Circuit breaker enabled');
-    EventBus.instance.emit('system:health', { component: 'circuit_breaker', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    try {
+      EventBus.instance.emit('system:health', { component: 'circuit_breaker', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    } catch (error) {
+      console.warn('EventBus not ready for system:health event:', error);
+    }
   }
 
   enableRateLimiting(requestsPerMinute: number): void {
     console.log(`🚦 Rate limiting enabled: ${requestsPerMinute} requests/minute`);
-    EventBus.instance.emit('system:health', { component: 'rate_limiter', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    try {
+      EventBus.instance.emit('system:health', { component: 'rate_limiter', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    } catch (error) {
+      console.warn('EventBus not ready for system:health event:', error);
+    }
   }
 
   enableHealthChecks(): void {
     console.log('❤️ Health checks enabled');
-    EventBus.instance.emit('system:health', { component: 'health_checks', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    try {
+      EventBus.instance.emit('system:health', { component: 'health_checks', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
+    } catch (error) {
+      console.warn('EventBus not ready for system:health event:', error);
+    }
   }
 
   generateComplianceReport(): any {
@@ -404,12 +448,16 @@ class ProductionMonitoringService {
     };
     
     console.log('📊 Generated compliance report');
-    EventBus.instance.emit('monitor:metric', { 
-      name: 'compliance_report', 
-      value: report.activeAlerts, 
-      tags: { type: 'compliance' },
-      timestamp: Date.now()
-    }, this.SOURCE);
+    try {
+      EventBus.instance.emit('monitor:metric', { 
+        name: 'compliance_report', 
+        value: report.activeAlerts, 
+        tags: { type: 'compliance' },
+        timestamp: Date.now()
+      }, this.SOURCE);
+    } catch (error) {
+      console.warn('EventBus not ready for monitor:metric event:', error);
+    }
     return report;
   }
 
