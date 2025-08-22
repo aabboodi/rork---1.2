@@ -1,5 +1,26 @@
-import { EventEmitter } from 'events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Simple EventEmitter implementation for React Native compatibility
+class SimpleEventEmitter {
+  private listeners: { [event: string]: Function[] } = {};
+
+  on(event: string, listener: Function): void {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(listener);
+  }
+
+  emit(event: string, ...args: any[]): void {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(listener => listener(...args));
+    }
+  }
+
+  removeAllListeners(): void {
+    this.listeners = {};
+  }
+}
 
 export interface DataRetentionPolicy {
   id: string;
@@ -74,7 +95,7 @@ export interface ConsentRecord {
   legalBasis: string;
 }
 
-class RegulatoryComplianceService extends EventEmitter {
+class RegulatoryComplianceService extends SimpleEventEmitter {
   private retentionPolicies: Map<string, DataRetentionPolicy> = new Map();
   private transparencyReports: Map<string, TransparencyReport> = new Map();
   private userDataRequests: Map<string, UserDataRequest> = new Map();

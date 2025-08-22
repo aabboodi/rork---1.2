@@ -31,6 +31,7 @@ export interface ModelArtifact {
   url: string;
   sha256: string;
   signature: string; // BYTEA as base64 string
+  expires_at?: number; // Optional expiration timestamp
 }
 
 export interface EdgeTelemetry {
