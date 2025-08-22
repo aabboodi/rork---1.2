@@ -58,6 +58,7 @@ class ProductionMonitoringService {
   private complianceChecks: ComplianceCheck[];
   private monitoringInterval: ReturnType<typeof setInterval> | null = null;
   private isMonitoring = false;
+  private readonly SOURCE = 'production_monitoring';
 
   constructor() {
     this.metrics = this.initializeMetrics();
@@ -159,7 +160,7 @@ class ProductionMonitoringService {
       this.runComplianceChecks();
     }, 30000);
     
-    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'healthy' });
+    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
   }
 
   stopMonitoring(): void {
@@ -172,7 +173,7 @@ class ProductionMonitoringService {
     }
     
     console.log('⏹️ Stopped production monitoring');
-    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'degraded' });
+    EventBus.instance.emit('system:health', { component: 'monitoring', status: 'degraded', timestamp: Date.now() }, this.SOURCE);
   }
 
   private collectMetrics(): void {
@@ -201,7 +202,12 @@ class ProductionMonitoringService {
     // Simulate availability (usually high)
     this.metrics.availability.uptime = 99.5 + Math.random() * 0.5;
     
-    EventBus.instance.emit('monitor:metric', { name: 'slo_metrics', value: this.metrics.latency.p95, tags: { type: 'latency' } });
+    EventBus.instance.emit('monitor:metric', { 
+      name: 'slo_metrics', 
+      value: this.metrics.latency.p95, 
+      tags: { type: 'latency' },
+      timestamp: Date.now()
+    }, this.SOURCE);
   }
 
   private checkSLOs(): void {
@@ -296,7 +302,12 @@ class ProductionMonitoringService {
     if (alerts.length > 0) {
       this.alerts.push(...alerts);
       alerts.forEach(alert => {
-        EventBus.instance.emit('security:alert', { level: alert.severity, message: alert.message, source: 'production_monitoring' });
+        EventBus.instance.emit('security:alert', { 
+          level: alert.severity, 
+          message: alert.message, 
+          source: 'production_monitoring',
+          timestamp: Date.now()
+        }, this.SOURCE);
       });
       console.log(`🚨 Generated ${alerts.length} alerts`);
     }
@@ -326,7 +337,12 @@ class ProductionMonitoringService {
           };
           
           this.alerts.push(alert);
-          EventBus.instance.emit('security:alert', { level: alert.severity, message: alert.message, source: 'compliance_check' });
+          EventBus.instance.emit('security:alert', { 
+            level: alert.severity, 
+            message: alert.message, 
+            source: 'compliance_check',
+            timestamp: Date.now()
+          }, this.SOURCE);
           console.log(`⚠️ Compliance issue: ${check.name} - ${check.status}`);
         }
       }
@@ -349,7 +365,12 @@ class ProductionMonitoringService {
     const alert = this.alerts.find(a => a.id === alertId);
     if (alert) {
       alert.resolved = true;
-      EventBus.instance.emit('security:alert', { level: 'low', message: `Alert resolved: ${alertId}`, source: 'production_monitoring' });
+      EventBus.instance.emit('security:alert', { 
+        level: 'low', 
+        message: `Alert resolved: ${alertId}`, 
+        source: 'production_monitoring',
+        timestamp: Date.now()
+      }, this.SOURCE);
       console.log(`✅ Resolved alert: ${alertId}`);
       return true;
     }
@@ -359,17 +380,17 @@ class ProductionMonitoringService {
   // Production hardening methods
   enableCircuitBreaker(): void {
     console.log('🔒 Circuit breaker enabled');
-    EventBus.instance.emit('system:health', { component: 'circuit_breaker', status: 'healthy' });
+    EventBus.instance.emit('system:health', { component: 'circuit_breaker', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
   }
 
   enableRateLimiting(requestsPerMinute: number): void {
     console.log(`🚦 Rate limiting enabled: ${requestsPerMinute} requests/minute`);
-    EventBus.instance.emit('system:health', { component: 'rate_limiter', status: 'healthy' });
+    EventBus.instance.emit('system:health', { component: 'rate_limiter', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
   }
 
   enableHealthChecks(): void {
     console.log('❤️ Health checks enabled');
-    EventBus.instance.emit('system:health', { component: 'health_checks', status: 'healthy' });
+    EventBus.instance.emit('system:health', { component: 'health_checks', status: 'healthy', timestamp: Date.now() }, this.SOURCE);
   }
 
   generateComplianceReport(): any {
@@ -383,7 +404,12 @@ class ProductionMonitoringService {
     };
     
     console.log('📊 Generated compliance report');
-    EventBus.instance.emit('monitor:metric', { name: 'compliance_report', value: report.activeAlerts, tags: { type: 'compliance' } });
+    EventBus.instance.emit('monitor:metric', { 
+      name: 'compliance_report', 
+      value: report.activeAlerts, 
+      tags: { type: 'compliance' },
+      timestamp: Date.now()
+    }, this.SOURCE);
     return report;
   }
 
