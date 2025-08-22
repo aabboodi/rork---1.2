@@ -94,13 +94,56 @@ export default function RootLayout() {
     try {
       console.log('🚀 Initializing comprehensive security with UEBA and Behavior Analytics...');
       
-      // Phase 1: Initialize core security services
-      const securityManager = SecurityManager.getInstance();
-      const deviceSecurity = DeviceSecurityService.getInstance();
-      const screenProtection = ScreenProtectionService.getInstance();
-      const apiMiddleware = APISecurityMiddleware.getInstance();
-      const wafService = WAFService.getInstance();
-      const cspMiddleware = CSPMiddleware.getInstance();
+      // Phase 1: Initialize core security services with fallbacks
+      let securityManager: any;
+      try {
+        securityManager = SecurityManager.getInstance();
+        console.log('✅ SecurityManager initialized successfully');
+      } catch (error) {
+        console.error('💥 SecurityManager initialization failed:', error);
+        setSecurityBlocked(true);
+        return;
+      }
+      
+      let deviceSecurity: any;
+      try {
+        deviceSecurity = DeviceSecurityService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ DeviceSecurityService failed, using fallback');
+        deviceSecurity = null;
+      }
+      
+      let screenProtection: any;
+      try {
+        screenProtection = ScreenProtectionService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ ScreenProtectionService failed, using fallback');
+        screenProtection = null;
+      }
+      
+      let apiMiddleware: any;
+      try {
+        apiMiddleware = APISecurityMiddleware.getInstance();
+      } catch (error) {
+        console.warn('⚠️ APISecurityMiddleware failed, using fallback');
+        apiMiddleware = null;
+      }
+      
+      let wafService: any;
+      try {
+        wafService = WAFService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ WAFService failed, using fallback');
+        wafService = null;
+      }
+      
+      let cspMiddleware: any;
+      try {
+        cspMiddleware = CSPMiddleware.getInstance();
+      } catch (error) {
+        console.warn('⚠️ CSPMiddleware failed, using fallback');
+        cspMiddleware = null;
+      }
       
       // Pre-flight: sanitize secure storage to prevent insecure_storage alerts
       try {
@@ -109,58 +152,164 @@ export default function RootLayout() {
         console.warn('SecureStorage preflight cleanup failed', e);
       }
       
-      // Phase 2: Initialize monitoring and logging services
-      const systemMonitoring = SystemMonitoringService.getInstance();
-      const centralizedLogging = CentralizedLoggingService.getInstance();
+      // Phase 2: Initialize monitoring and logging services with fallbacks
+      let systemMonitoring: any = null;
+      try {
+        systemMonitoring = SystemMonitoringService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ SystemMonitoringService failed, continuing without it');
+      }
       
-      // Phase 3: Initialize incident response and SOC services
-      const incidentResponse = IncidentResponseService.getInstance();
-      const socService = SOCService.getInstance();
+      let centralizedLogging: any = null;
+      try {
+        centralizedLogging = CentralizedLoggingService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ CentralizedLoggingService failed, continuing without it');
+      }
       
-      // Phase 4: Initialize UEBA and Behavior Analytics services
-      const uebaService = UEBAService.getInstance();
-      const threatIntelligenceService = ThreatIntelligenceService.getInstance();
-      const behaviorAnalyticsService = BehaviorAnalyticsService.getInstance();
+      // Phase 3: Initialize incident response and SOC services with fallbacks
+      let incidentResponse: any = null;
+      try {
+        incidentResponse = IncidentResponseService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ IncidentResponseService failed, continuing without it');
+      }
       
-      // Phase 5: Initialize Security Notification Service
-      const securityNotificationService = SecurityNotificationService.getInstance();
+      let socService: any = null;
+      try {
+        socService = SOCService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ SOCService failed, continuing without it');
+      }
+      
+      // Phase 4: Initialize UEBA and Behavior Analytics services with fallbacks
+      let uebaService: any = null;
+      try {
+        uebaService = UEBAService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ UEBAService failed, continuing without it');
+      }
+      
+      let threatIntelligenceService: any = null;
+      try {
+        threatIntelligenceService = ThreatIntelligenceService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ ThreatIntelligenceService failed, continuing without it');
+      }
+      
+      let behaviorAnalyticsService: any = null;
+      try {
+        behaviorAnalyticsService = BehaviorAnalyticsService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ BehaviorAnalyticsService failed, continuing without it');
+      }
+      
+      // Phase 5: Initialize Security Notification Service with fallback
+      let securityNotificationService: any = null;
+      try {
+        securityNotificationService = SecurityNotificationService.getInstance();
+      } catch (error) {
+        console.warn('⚠️ SecurityNotificationService failed, continuing without it');
+      }
       
       console.log('📊 Initializing monitoring services...');
-      await systemMonitoring.startMonitoring();
-      await centralizedLogging.initialize();
+      if (systemMonitoring) {
+        try {
+          await systemMonitoring.startMonitoring();
+        } catch (error) {
+          console.warn('⚠️ SystemMonitoring start failed:', error);
+        }
+      }
+      
+      if (centralizedLogging) {
+        try {
+          await centralizedLogging.initialize();
+        } catch (error) {
+          console.warn('⚠️ CentralizedLogging init failed:', error);
+        }
+      }
       
       console.log('🚨 Initializing incident response services...');
-      await incidentResponse.initialize();
-      await socService.initialize();
+      if (incidentResponse) {
+        try {
+          await incidentResponse.initialize();
+        } catch (error) {
+          console.warn('⚠️ IncidentResponse init failed:', error);
+        }
+      }
+      
+      if (socService) {
+        try {
+          await socService.initialize();
+        } catch (error) {
+          console.warn('⚠️ SOCService init failed:', error);
+        }
+      }
       
       console.log('🧠 Initializing UEBA and Behavior Analytics services...');
-      await uebaService.initialize();
-      await threatIntelligenceService.initialize();
-      await behaviorAnalyticsService.initialize();
+      if (uebaService) {
+        try {
+          await uebaService.initialize();
+        } catch (error) {
+          console.warn('⚠️ UEBAService init failed:', error);
+        }
+      }
+      
+      if (threatIntelligenceService) {
+        try {
+          await threatIntelligenceService.initialize();
+        } catch (error) {
+          console.warn('⚠️ ThreatIntelligenceService init failed:', error);
+        }
+      }
+      
+      if (behaviorAnalyticsService) {
+        try {
+          await behaviorAnalyticsService.initialize();
+        } catch (error) {
+          console.warn('⚠️ BehaviorAnalyticsService init failed:', error);
+        }
+      }
       
       console.log('🔔 Initializing Security Notification Service...');
       // Security notification service is already initialized in constructor
       
       console.log('🔧 Initializing DevSecOps integration...');
-      await DevSecOpsIntegrationService.getInstance().initializeDevSecOps();
+      try {
+        await DevSecOpsIntegrationService.getInstance().initializeDevSecOps();
+      } catch (error) {
+        console.warn('⚠️ DevSecOpsIntegrationService init failed:', error);
+      }
       
-      // Perform initial security checks
-      const securityStatus = await securityManager.forceSecurityCheck();
+      // Perform initial security checks with fallback
+      let securityStatus: any = null;
+      try {
+        securityStatus = await securityManager.forceSecurityCheck();
+      } catch (error) {
+        console.warn('⚠️ Initial security check failed:', error);
+        // Continue with reduced security
+      }
       
       // Check for critical security threats that would block app usage
-      if (securityStatus.securityStatus.riskLevel === 'critical') {
+      if (securityStatus?.securityStatus?.riskLevel === 'critical') {
         console.error('🚨 CRITICAL SECURITY THREATS DETECTED ON APP START');
         setSecurityBlocked(true);
         
-        // Create critical incident
-        await incidentResponse.createIncident(
-          'Critical Security Threats on App Start',
-          'Critical security issues detected during application initialization',
-          'critical',
-          'system_compromise',
-          [],
-          ['application_core']
-        );
+        // Create critical incident if service is available
+        if (incidentResponse) {
+          try {
+            await incidentResponse.createIncident(
+              'Critical Security Threats on App Start',
+              'Critical security issues detected during application initialization',
+              'critical',
+              'system_compromise',
+              [],
+              ['application_core']
+            );
+          } catch (error) {
+            console.warn('⚠️ Failed to create incident:', error);
+          }
+        }
         
         Alert.alert(
           'Security Alert',
@@ -179,7 +328,13 @@ export default function RootLayout() {
       }
       
       // Enable screen protection globally with maximum settings
-      await screenProtection.forceEnableProtection();
+      if (screenProtection) {
+        try {
+          await screenProtection.forceEnableProtection();
+        } catch (error) {
+          console.warn('⚠️ Screen protection failed:', error);
+        }
+      }
       
       // Initialize Key Rotation Service and register keys
       console.log('🔑 Initializing Key Rotation Service...');
@@ -209,11 +364,17 @@ export default function RootLayout() {
       console.log('✅ Comprehensive security with UEBA and Behavior Analytics initialized successfully');
       
       // Log successful initialization
-      await centralizedLogging.logSecurity('info', 'app_initialization', 'Security services initialized successfully', {
-        services: ['SecurityManager', 'IncidentResponse', 'SOC', 'SystemMonitoring', 'CentralizedLogging', 'UEBA', 'BehaviorAnalytics', 'ThreatIntelligence', 'SecurityNotifications'],
-        securityLevel: securityStatus.securityStatus.riskLevel,
-        timestamp: Date.now()
-      });
+      if (centralizedLogging) {
+        try {
+          await centralizedLogging.logSecurity('info', 'app_initialization', 'Security services initialized successfully', {
+            services: ['SecurityManager', 'IncidentResponse', 'SOC', 'SystemMonitoring', 'CentralizedLogging', 'UEBA', 'BehaviorAnalytics', 'ThreatIntelligence', 'SecurityNotifications'],
+            securityLevel: securityStatus?.securityStatus?.riskLevel || 'unknown',
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          console.warn('⚠️ Failed to log initialization:', error);
+        }
+      }
       
       // Hide splash screen after security initialization
       await SplashScreen.hideAsync();
@@ -225,12 +386,14 @@ export default function RootLayout() {
       // Try to log the error if logging service is available
       try {
         const centralizedLogging = CentralizedLoggingService.getInstance();
-        await centralizedLogging.logSecurity('critical', 'app_initialization', 'Security initialization failed', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: Date.now()
-        });
+        if (centralizedLogging) {
+          await centralizedLogging.logSecurity('critical', 'app_initialization', 'Security initialization failed', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            timestamp: Date.now()
+          });
+        }
       } catch (loggingError) {
-        console.error('Failed to log initialization error:', loggingError);
+        console.warn('Failed to log initialization error:', loggingError);
       }
       
       Alert.alert(
