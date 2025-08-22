@@ -3,7 +3,7 @@ import { Animated, Platform, Easing } from 'react-native';
 // Ensure easing functions are properly defined
 const safeEasing = {
   quad: Easing.quad || Easing.linear,
-  back: () => Easing.back ? Easing.back() : Easing.linear,
+  back: Easing.back ? Easing.back(1.7) : Easing.linear,
   linear: Easing.linear
 };
 
@@ -36,7 +36,7 @@ export class MicroInteractions {
         toValue: 1.1,
         duration: 150,
         useNativeDriver: true,
-        easing: safeEasing.back(),
+        easing: safeEasing.back,
       }),
       Animated.timing(animatedValue, {
         toValue: 1,
@@ -158,7 +158,7 @@ export class MicroInteractions {
         duration: 400,
         delay,
         useNativeDriver: true,
-        easing: safeEasing.back(),
+        easing: safeEasing.back,
       }),
       Animated.timing(opacityValue, {
         toValue: 1,
