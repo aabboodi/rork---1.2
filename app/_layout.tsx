@@ -554,6 +554,43 @@ Incident ID: ${incident.id}`,
   const initializeWebCSP = async () => {
     try {
       if (typeof document !== 'undefined') {
+        // Check if app is running in an embedded frame
+        if (window.self !== window.top) {
+          console.error('🚨 SECURITY ALERT: App is running in an embedded frame - this is not allowed');
+          
+          // Try to break out of the frame
+          try {
+            window.top.location = window.self.location;
+          } catch (error) {
+            // If we can't break out, show an error
+            document.body.innerHTML = `
+              <div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: #ff4444;
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: Arial, sans-serif;
+                font-size: 24px;
+                text-align: center;
+                z-index: 999999;
+              ">
+                <div>
+                  <h1>Security Protection</h1>
+                  <p>This application cannot run in an embedded frame for security reasons.</p>
+                  <p>Please open it in a new window.</p>
+                </div>
+              </div>
+            `;
+            return;
+          }
+        }
+        
         // Set up CSP violation reporting
         document.addEventListener('securitypolicyviolation', handleCSPViolation);
         
@@ -562,7 +599,12 @@ Incident ID: ${incident.id}`,
         if (!existingCSP) {
           const cspMeta = document.createElement('meta');
           cspMeta.httpEquiv = 'Content-Security-Policy';
-          cspMeta.content = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://toolkit.rork.com;";
+          // Allow unsafe-eval for development (Metro HMR) but restrict in production
+          const isDevelopment = process.env.NODE_ENV === 'development';
+          const scriptSrc = isDevelopment 
+            ? "'self' 'unsafe-inline' 'unsafe-eval'" 
+            : "'self' 'unsafe-inline'";
+          cspMeta.content = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://toolkit.rork.com; frame-ancestors 'none';`;
           document.head.appendChild(cspMeta);
         }
         
@@ -664,10 +706,14 @@ Incident ID: ${incident.id}`,
   const handleAppStateChange = (nextAppState: string) => {
     try {
       const screenProtection = ScreenProtectionService.getInstance();
-      if (screenProtection && typeof screenProtection.handleAppStateChange === 'function') {
-        screenProtection.handleAppStateChange(nextAppState);
-      } else {
-        console.warn('ScreenProtectionService.handleAppStateChange not available');
+      if (screenProtection) {
+        // Use the safe app state handler method
+        const handler = screenProtection.getAppStateHandler();
+        if (handler && typeof handler === 'function') {
+          handler(nextAppState);
+        } else {
+          console.warn('ScreenProtectionService app state handler not available');
+        }
       }
       
       // Perform security check when app becomes active
