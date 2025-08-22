@@ -567,6 +567,11 @@ class ScreenProtectionService {
     }
   }
 
+  // Ensure handleAppStateChange is always available as a function
+  getAppStateHandler(): (nextAppState: string) => void {
+    return this.handleAppStateChange.bind(this);
+  }
+
   // Check if protection is active
   isProtectionEnabled(): boolean {
     return this.isProtectionActive;
