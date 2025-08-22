@@ -512,6 +512,40 @@ Incident ID: ${incident.id}`,
     }
   };
 
+  // Secure logout with proper cleanup and logging
+  const performSecureLogout = async (reason: string) => {
+    try {
+      console.log(`🔐 Performing secure logout. Reason: ${reason}`);
+      
+      const sessionManager = SessionManager.getInstance();
+      const deviceBinding = DeviceBindingService.getInstance();
+      const centralizedLogging = CentralizedLoggingService.getInstance();
+      
+      // Log logout event
+      await centralizedLogging.logSecurity('info', 'user_logout', 'Secure logout performed', {
+        reason,
+        timestamp: Date.now()
+      });
+      
+      // Clear all session data securely
+      await sessionManager.clearSession();
+      await deviceBinding.clearDeviceBinding();
+      
+      // Clear auth store
+      const { logout } = useAuthStore.getState();
+      logout();
+      
+      // Log security event
+      console.log(`✅ Secure logout completed. Reason: ${reason}`);
+      
+    } catch (error) {
+      console.error('💥 Error during secure logout:', error);
+      // Force logout even if cleanup fails
+      const { logout } = useAuthStore.getState();
+      logout();
+    }
+  };
+
   // Enhanced security check when app becomes active with incident response
   const performActiveSecurityCheck = async () => {
     try {
@@ -851,7 +885,7 @@ function RootLayoutNav() {
     }
   };
   
-  // Secure logout with proper cleanup and logging
+  // Secure logout with proper cleanup and logging (for RootLayoutNav)
   const performSecureLogout = async (reason: string) => {
     try {
       console.log(`🔐 Performing secure logout. Reason: ${reason}`);
