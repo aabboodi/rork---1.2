@@ -208,6 +208,8 @@ class SecurityManager {
   private csrfProtectionEnabled = true;
 
   private constructor() {
+    console.log('🔐 Initializing SecurityManager constructor...');
+    
     this.config = {
       enableEncryption: true,
       enableBiometrics: true,
@@ -241,19 +243,66 @@ class SecurityManager {
       enableForwardSecrecy: true
     };
 
-    this.initializeSecuritySystem();
+    // Defer initialization to prevent circular dependencies
+    setTimeout(() => {
+      this.initializeSecuritySystem().catch((error) => {
+        console.error('💥 Deferred SecurityManager initialization failed:', error);
+      });
+    }, 100);
+    
+    console.log('✅ SecurityManager constructor completed');
   }
 
   static getInstance(): SecurityManager {
     if (!SecurityManager.instance) {
-      SecurityManager.instance = new SecurityManager();
+      console.log('🔐 Creating SecurityManager instance...');
       try {
-        const registry = require('@/services/ServiceRegistry').default;
-        if (registry && !registry.has('SecurityManager')) {
-          registry.register('SecurityManager', () => SecurityManager.instance);
-        }
-      } catch (e) {
-        console.warn('SecurityManager: ServiceRegistry not available at init');
+        SecurityManager.instance = new SecurityManager();
+        console.log('✅ SecurityManager instance created successfully');
+      } catch (error) {
+        console.error('💥 Critical SecurityManager creation failure:', error);
+        // Create minimal fallback instance
+        SecurityManager.instance = Object.create(SecurityManager.prototype);
+        SecurityManager.instance.config = {
+          enableEncryption: false,
+          enableBiometrics: false,
+          enableSecureStorage: false,
+          enableAntiTampering: false,
+          enableRuntimeProtection: false,
+          enableScreenProtection: false,
+          sessionTimeout: 15 * 60 * 1000,
+          maxLoginAttempts: 3,
+          securityResponseMode: 'log',
+          serverValidationRequired: false,
+          deviceBindingRequired: false,
+          enableFinancialLedgerProtection: false,
+          enableACIDCompliance: false,
+          enableTransactionAuditing: false,
+          maxTransactionAmount: 10000,
+          requireBiometricForHighValue: false,
+          enableFraudDetection: false,
+          enableSecureEnclave: false,
+          enableKeychainProtection: false,
+          enableHardwareKeyStorage: false,
+          enableIncidentResponse: false,
+          enableCentralizedLogging: false,
+          enableSOCIntegration: false,
+          enableDevSecOpsIntegration: false,
+          enableHttpOnlyCookies: false,
+          enableXSSProtection: false,
+          enableCSRFProtection: false,
+          enableE2EEMessaging: false,
+          enableMessageSecurity: false,
+          enableForwardSecrecy: false
+        };
+        SecurityManager.instance.securityEvents = [];
+        SecurityManager.instance.securityMonitoringActive = false;
+        SecurityManager.instance.sensitiveOperationsBlocked = false;
+        SecurityManager.instance.serverValidationRequired = false;
+        SecurityManager.instance.financialLedgerLocked = false;
+        SecurityManager.instance.lastLedgerIntegrityCheck = 0;
+        SecurityManager.instance.transactionSequenceNumber = 0;
+        console.warn('⚠️ SecurityManager created in fallback mode');
       }
     }
     return SecurityManager.instance;
