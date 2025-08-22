@@ -136,6 +136,62 @@ jobs:
           echo "✅ No tunnel usage detected"
         fi
       
+    - name: Phase D - Node.js Import Prevention CI Gate
+      run: |
+        echo "🚀 Running Phase D CI Gate & Tests..."
+        chmod +x scripts/validate-phase-d-ci.sh
+        ./scripts/validate-phase-d-ci.sh
+      
+    - name: Enhanced Node.js Import Check with ripgrep
+      run: |
+        echo "🔍 Enhanced Node.js import detection..."
+        
+        # Install ripgrep if not available
+        if ! command -v rg &> /dev/null; then
+          echo "Installing ripgrep..."
+          curl -LO https://github.com/BurntSushi/ripgrep/releases/download/13.0.0/ripgrep_13.0.0_amd64.deb
+          sudo dpkg -i ripgrep_13.0.0_amd64.deb
+        fi
+        
+        # Define critical Node.js modules that break React Native
+        CRITICAL_MODULES=("events" "fs" "path" "crypto" "child_process" "net" "tls" "dns" "os")
+        FOUND_CRITICAL=false
+        
+        echo "Scanning for critical Node.js imports..."
+        for module in "${CRITICAL_MODULES[@]}"; do
+          if rg -n "from ['\"]${module}['\"]" --type ts --type js --type tsx --type jsx . 2>/dev/null; then
+            echo "❌ CRITICAL: Found Node.js import: ${module}"
+            FOUND_CRITICAL=true
+          fi
+          
+          if rg -n "require\(['\"]${module}['\"]\)" --type ts --type js --type tsx --type jsx . 2>/dev/null; then
+            echo "❌ CRITICAL: Found Node.js require: ${module}"
+            FOUND_CRITICAL=true
+          fi
+          
+          if rg -n "from ['\"]node:${module}['\"]" --type ts --type js --type tsx --type jsx . 2>/dev/null; then
+            echo "❌ CRITICAL: Found node: prefix import: ${module}"
+            FOUND_CRITICAL=true
+          fi
+        done
+        
+        if [ "$FOUND_CRITICAL" = true ]; then
+          echo ""
+          echo "💥 CRITICAL FAILURE: Node.js imports detected!"
+          echo "These imports will cause Metro bundler to fail."
+          echo ""
+          echo "Quick fixes:"
+          echo "• events → Use services/events/EventBus (eventemitter3)"
+          echo "• fs → Use expo-file-system"
+          echo "• crypto → Use expo-crypto"
+          echo "• path → Use string manipulation"
+          echo "• os → Use expo-device or Platform API"
+          echo ""
+          exit 1
+        else
+          echo "✅ No critical Node.js imports detected"
+        fi
+      
     - name: Verify secure identifiers
       run: |
         echo "Checking app identifiers..."
@@ -162,6 +218,63 @@ jobs:
           reports/
         retention-days: 30
         
+    - name: EventBus Implementation Validation
+      run: |
+        echo "🔍 Validating EventBus implementation..."
+        
+        if [ -f "services/events/EventBus.ts" ]; then
+          echo "✅ EventBus implementation found"
+          
+          # Check if it uses eventemitter3
+          if grep -q "eventemitter3" "services/events/EventBus.ts"; then
+            echo "✅ EventBus uses eventemitter3 (React Native compatible)"
+          else
+            echo "❌ EventBus doesn't use eventemitter3"
+            exit 1
+          fi
+          
+          # Check for TypeScript event mapping
+          if grep -q "EventMap" "services/events/EventBus.ts"; then
+            echo "✅ EventBus has proper TypeScript event mapping"
+          else
+            echo "⚠️ EventBus missing EventMap type definitions"
+          fi
+        else
+          echo "❌ CRITICAL: EventBus implementation not found!"
+          echo "Create services/events/EventBus.ts with eventemitter3"
+          exit 1
+        fi
+        
+        # Verify eventemitter3 dependency
+        if grep -q '"eventemitter3"' package.json; then
+          echo "✅ eventemitter3 dependency found in package.json"
+        else
+          echo "❌ CRITICAL: eventemitter3 dependency missing!"
+          echo "Run: npm install eventemitter3"
+          exit 1
+        fi
+      
+    - name: React Native Web Compatibility Check
+      run: |
+        echo "🌐 Checking React Native Web compatibility..."
+        
+        # Check for web-incompatible react-native-reanimated usage
+        if rg -n "layout=" --type ts --type tsx . 2>/dev/null | grep -v "Platform.OS !== 'web'"; then
+          echo "⚠️ WARNING: react-native-reanimated layout animations found"
+          echo "These may crash on web. Use Platform checks:"
+          echo "if (Platform.OS !== 'web') { /* animated component */ }"
+        fi
+        
+        # Check for Animated SVG components (crash on web)
+        if rg -n "Animated\.createAnimatedComponent.*Circle|Animated\.createAnimatedComponent.*Path" --type ts --type tsx . 2>/dev/null; then
+          echo "❌ CRITICAL: Animated SVG components found!"
+          echo "These crash on web with 'Indexed property setter is not supported' error"
+          echo "Use Platform checks to exclude from web builds"
+          exit 1
+        fi
+        
+        echo "✅ No obvious React Native Web compatibility issues"
+      
     - name: Generate security summary
       if: always()
       run: |
@@ -190,10 +303,17 @@ jobs:
         fi
         
         echo "" >> security-summary.md
+        echo "## Phase D - Node.js Import Prevention" >> security-summary.md
+        echo "- ✅ Automated CI gates implemented" >> security-summary.md
+        echo "- ✅ EventBus validation integrated" >> security-summary.md
+        echo "- ✅ React Native Web compatibility checks" >> security-summary.md
+        echo "- ✅ Enhanced ripgrep-based import detection" >> security-summary.md
+        echo "" >> security-summary.md
         echo "## Recommendations" >> security-summary.md
         echo "- Review and fix all critical and high severity issues" >> security-summary.md
         echo "- Update vulnerable dependencies" >> security-summary.md
         echo "- Refactor duplicated code blocks" >> security-summary.md
+        echo "- Ensure all Node.js imports use React Native alternatives" >> security-summary.md
         echo "- Implement additional security controls as needed" >> security-summary.md
         
         cat security-summary.md
