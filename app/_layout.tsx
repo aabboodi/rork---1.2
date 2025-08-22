@@ -553,42 +553,42 @@ Incident ID: ${incident.id}`,
   // Initialize web-specific CSP features
   const initializeWebCSP = async () => {
     try {
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined' && typeof window !== 'undefined') {
         // Check if app is running in an embedded frame
-        if (window.self !== window.top) {
-          console.error('🚨 SECURITY ALERT: App is running in an embedded frame - this is not allowed');
-          
-          // Try to break out of the frame
-          try {
-            window.top.location = window.self.location;
-          } catch (error) {
-            // If we can't break out, show an error
-            document.body.innerHTML = `
-              <div style="
+        try {
+          if (window.self !== window.top) {
+            console.warn('🚨 SECURITY ALERT: App is running in an embedded frame - this is not allowed');
+            
+            // Try to break out of the frame
+            try {
+              if (window.top && window.top.location) {
+                window.top.location = window.self.location;
+              }
+            } catch (frameError) {
+              // If we can't break out, show a warning but don't block the app
+              console.warn('Cannot break out of frame, continuing with limited functionality');
+              
+              // Add a warning banner instead of blocking
+              const warningBanner = document.createElement('div');
+              warningBanner.style.cssText = `
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
-                height: 100%;
-                background: #ff4444;
+                background: #ff9800;
                 color: white;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-family: Arial, sans-serif;
-                font-size: 24px;
                 text-align: center;
+                padding: 8px;
+                font-size: 14px;
                 z-index: 999999;
-              ">
-                <div>
-                  <h1>Security Protection</h1>
-                  <p>This application cannot run in an embedded frame for security reasons.</p>
-                  <p>Please open it in a new window.</p>
-                </div>
-              </div>
-            `;
-            return;
+                font-family: Arial, sans-serif;
+              `;
+              warningBanner.textContent = 'Security Warning: This app is running in an embedded frame';
+              document.body.appendChild(warningBanner);
+            }
           }
+        } catch (frameCheckError) {
+          console.warn('Frame check failed:', frameCheckError);
         }
         
         // Set up CSP violation reporting

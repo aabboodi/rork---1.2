@@ -557,7 +557,7 @@ class CryptoService {
   // CRITICAL: Generate secure ID for tokens and nonces
   async generateSecureId(): Promise<string> {
     try {
-      return await AdvancedCryptoUtils.generateSecureId();
+      return AdvancedCryptoUtils.generateSecureId();
     } catch (error) {
       console.error('Secure ID generation failed:', error);
       throw new Error('Failed to generate secure ID');

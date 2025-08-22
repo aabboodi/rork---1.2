@@ -25,6 +25,11 @@ export default function TabLayout() {
         const apiMiddleware = APISecurityMiddleware.getInstance();
         const wafService = WAFService.getInstance();
         const cspMiddleware = apiMiddleware.getCSPMiddleware();
+        
+        if (!cspMiddleware || typeof cspMiddleware.addRouteConfiguration !== 'function') {
+          console.warn('CSP middleware not available or not properly initialized');
+          return;
+        }
 
         // Add custom CSP configurations for tab routes
         await cspMiddleware.addRouteConfiguration({
