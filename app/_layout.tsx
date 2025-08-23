@@ -43,10 +43,8 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     ...FontAwesome.font,
   });
-  const [securityInitialized, setSecurityInitialized] = useState(false);
+  const [securityInitialized, setSecurityInitialized] = useState(true);
   const [securityBlocked, setSecurityBlocked] = useState(false);
-  const [incidentResponseInitialized, setIncidentResponseInitialized] = useState(false);
-  const [uebaInitialized, setUEBAInitialized] = useState(false);
   const { initializeTheme } = useThemeStore();
 
   useEffect(() => {
@@ -58,7 +56,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      initializeAppSecurity();
+      // Initialize security in background to avoid blocking UI
+      setTimeout(() => {
+        initializeAppSecurity();
+      }, 100);
     }
   }, [loaded]);
   
@@ -364,8 +365,6 @@ export default function RootLayout() {
       setupUEBAMonitoring(uebaService, behaviorAnalyticsService, threatIntelligenceService);
       
       setSecurityInitialized(true);
-      setIncidentResponseInitialized(true);
-      setUEBAInitialized(true);
       console.log('✅ Comprehensive security with UEBA and Behavior Analytics initialized successfully');
       
       // Log successful initialization
@@ -520,7 +519,7 @@ Incident ID: ${incident.id}`,
             console.error('UEBA monitoring error:', error);
           }
         }
-      }, 900000); // Every 15 minutes (reduced from 5 minutes)
+      }, 1800000); // Every 30 minutes to reduce CPU usage
 
       // Set up threat intelligence monitoring (reduced frequency for performance)
       setInterval(async () => {
@@ -569,7 +568,7 @@ Incident ID: ${incident.id}`,
             console.error('Threat intelligence monitoring error:', error);
           }
         }
-      }, 1800000); // Every 30 minutes (reduced from 10 minutes)
+      }, 3600000); // Every hour to reduce CPU usage
 
       console.log('🧠 UEBA and Behavior Analytics monitoring configured');
     } catch (error) {
@@ -952,8 +951,8 @@ Incident ID: ${incident.id}`,
     }
   };
 
-  // Don't render anything until fonts are loaded and security is initialized
-  if (!loaded || !securityInitialized || !incidentResponseInitialized || !uebaInitialized) {
+  // Don't render anything until fonts are loaded
+  if (!loaded) {
     return null;
   }
 
