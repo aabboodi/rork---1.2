@@ -255,7 +255,7 @@ const getSafeColors = (scheme?: ColorScheme): ThemeColors => {
 // Hook to safely get theme colors with fallback
 export const useThemeColors = () => {
   try {
-    const store = useThemeStore();
+    const store = useThemeStore.getState();
     // Always ensure we have valid colors
     if (!store || !store.colors || typeof store.colors !== 'object' || !store.colors.background) {
       console.warn('Theme colors not available, using safe fallback');
@@ -271,7 +271,7 @@ export const useThemeColors = () => {
 // Hook to safely get color scheme with fallback
 export const useColorScheme = () => {
   try {
-    const store = useThemeStore();
+    const store = useThemeStore.getState();
     if (!store || !store.colorScheme) {
       return getSystemColorScheme();
     }
