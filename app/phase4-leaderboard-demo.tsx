@@ -28,7 +28,7 @@ import { GamesLeaderboardService } from '@/services/GamesLeaderboardService';
 import { LeaderboardDashboard } from '@/components/LeaderboardDashboard';
 import { colors } from '@/constants/colors';
 
-export default function Phase4LeaderboardDemo() {
+function Phase4LeaderboardDemo() {
   const [gamesService] = useState(() => GamesService.getInstance());
   const [leaderboardService] = useState(() => GamesLeaderboardService.getInstance());
   const [isLoading, setIsLoading] = useState(true);
@@ -700,3 +700,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default Phase4LeaderboardDemo;
