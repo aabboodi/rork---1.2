@@ -14,6 +14,16 @@ export default function TabLayout() {
   const { colors } = useThemeStore();
   const t = translations[language];
 
+  // Fallback colors in case theme store is not initialized
+  const safeColors = colors || {
+    primary: '#0066CC',
+    textSecondary: '#6A6A6A',
+    border: '#D1D1D6',
+    background: '#FFFFFF',
+    shadow: 'rgba(0, 0, 0, 0.1)',
+    text: '#1A1A1A'
+  };
+
   useEffect(() => {
     // Initialize route-specific security for tabs
     initializeTabSecurity();
@@ -233,36 +243,36 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: safeColors.primary,
+        tabBarInactiveTintColor: safeColors.textSecondary,
         tabBarStyle: {
-          borderTopColor: colors.border,
-          backgroundColor: colors.background,
+          borderTopColor: safeColors.border,
+          backgroundColor: safeColors.background,
           paddingBottom: 8,
           paddingTop: 8,
           height: 60,
           elevation: 8,
-          shadowColor: colors.shadow,
+          shadowColor: safeColors.shadow,
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
           shadowRadius: 4,
         },
         headerStyle: {
-          backgroundColor: colors.background,
-          borderBottomColor: colors.border,
+          backgroundColor: safeColors.background,
+          borderBottomColor: safeColors.border,
           elevation: 4,
-          shadowColor: colors.shadow,
+          shadowColor: safeColors.shadow,
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.1,
           shadowRadius: 4,
         },
         headerTitleStyle: {
-          color: colors.text,
+          color: safeColors.text,
           fontWeight: '600',
           fontSize: 18,
         },
         headerRight: () => (
-          <SecurityNotificationBell size={20} color={colors.text} />
+          <SecurityNotificationBell size={20} color={safeColors.text} />
         ),
         tabBarLabelStyle: {
           fontSize: 12,
