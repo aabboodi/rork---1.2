@@ -935,7 +935,10 @@ class SecureStorage {
   async initializeWithCleanup(): Promise<void> {
     try {
       await this.ensureInitialized();
-      await this.cleanupCorruptedData();
+      // Skip aggressive cleanup in development to prevent false positives
+      if (!__DEV__) {
+        await this.cleanupCorruptedData();
+      }
       console.log('SecureStorage initialized with cleanup completed');
     } catch (error) {
       console.error('SecureStorage initialization with cleanup failed:', error);
