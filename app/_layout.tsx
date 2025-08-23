@@ -67,6 +67,7 @@ export default function RootLayout() {
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     let timeoutId: NodeJS.Timeout;
+    let rafId: number;
     
     const initializeEnhancedTheme = () => {
       try {
@@ -83,11 +84,14 @@ export default function RootLayout() {
       }
     };
     
-    // Use setTimeout to ensure this runs after component mount
-    timeoutId = setTimeout(initializeEnhancedTheme, 200); // Longer delay to ensure component is fully mounted
+    // Use requestAnimationFrame + setTimeout to ensure this runs after component mount and render
+    rafId = requestAnimationFrame(() => {
+      timeoutId = setTimeout(initializeEnhancedTheme, 300); // Longer delay to ensure component is fully mounted
+    });
     
     // Cleanup on unmount
     return () => {
+      cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
       if (cleanup && typeof cleanup === 'function') {
         try {

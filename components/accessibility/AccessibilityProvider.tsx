@@ -29,23 +29,26 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
   
   useEffect(() => {
     // Initialize accessibility services only (theme is initialized in _layout.tsx)
+    let timeoutId: NodeJS.Timeout | null = null;
+    let rafId: number | null = null;
+    
     const initializeServices = () => {
       try {
         console.log('🔍 Initializing Accessibility Service...');
         
         // Initialize accessibility only if not already initialized
         if (!isInitialized) {
-          // Use setTimeout to avoid state updates during render
-          const timeoutId = setTimeout(async () => {
-            try {
-              await initializeAccessibility();
-              console.log('✅ Accessibility Service initialized:', settings);
-            } catch (error) {
-              console.error('Failed to initialize accessibility services:', error);
-            }
-          }, 100); // Slightly longer delay to ensure component is mounted
-          
-          return () => clearTimeout(timeoutId);
+          // Use requestAnimationFrame + setTimeout to avoid state updates during render
+          rafId = requestAnimationFrame(() => {
+            timeoutId = setTimeout(async () => {
+              try {
+                await initializeAccessibility();
+                console.log('✅ Accessibility Service initialized:', settings);
+              } catch (error) {
+                console.error('Failed to initialize accessibility services:', error);
+              }
+            }, 150); // Longer delay to ensure component is fully mounted
+          });
         } else {
           console.log('✅ Accessibility Service already initialized:', settings);
         }
@@ -54,8 +57,16 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
       }
     };
     
-    const cleanup = initializeServices();
-    return cleanup;
+    initializeServices();
+    
+    return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [isInitialized, initializeAccessibility]);
   
   // Update status bar based on theme
