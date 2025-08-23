@@ -66,6 +66,7 @@ export default function RootLayout() {
   // Initialize enhanced theme system
   useEffect(() => {
     let cleanup: (() => void) | undefined;
+    let timeoutId: NodeJS.Timeout;
     
     const initializeEnhancedTheme = () => {
       try {
@@ -83,16 +84,20 @@ export default function RootLayout() {
     };
     
     // Use setTimeout to ensure this runs after component mount
-    const timeoutId = setTimeout(initializeEnhancedTheme, 0);
+    timeoutId = setTimeout(initializeEnhancedTheme, 200); // Longer delay to ensure component is fully mounted
     
     // Cleanup on unmount
     return () => {
       clearTimeout(timeoutId);
       if (cleanup && typeof cleanup === 'function') {
-        cleanup();
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('Theme cleanup error:', error);
+        }
       }
     };
-  }, [initializeTheme]);
+  }, []); // Remove initializeTheme dependency to prevent re-initialization
 
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
   const initializeAppSecurity = async () => {

@@ -36,14 +36,16 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
         // Initialize accessibility only if not already initialized
         if (!isInitialized) {
           // Use setTimeout to avoid state updates during render
-          setTimeout(async () => {
+          const timeoutId = setTimeout(async () => {
             try {
               await initializeAccessibility();
               console.log('✅ Accessibility Service initialized:', settings);
             } catch (error) {
               console.error('Failed to initialize accessibility services:', error);
             }
-          }, 0);
+          }, 100); // Slightly longer delay to ensure component is mounted
+          
+          return () => clearTimeout(timeoutId);
         } else {
           console.log('✅ Accessibility Service already initialized:', settings);
         }
@@ -52,8 +54,9 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
       }
     };
     
-    initializeServices();
-  }, [isInitialized, initializeAccessibility, settings]);
+    const cleanup = initializeServices();
+    return cleanup;
+  }, [isInitialized, initializeAccessibility]);
   
   // Update status bar based on theme
   useEffect(() => {
