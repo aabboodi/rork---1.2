@@ -461,12 +461,17 @@ Incident ID: ${incident.id}`,
     threatIntelligenceService: ThreatIntelligenceService
   ) => {
     try {
-      // Set up periodic behavior analysis
+      // Set up periodic behavior analysis (reduced frequency for performance)
       setInterval(async () => {
         try {
+          // Only run in production or when explicitly enabled
+          if (__DEV__ && !process.env.EXPO_PUBLIC_ENABLE_UEBA_DEV) {
+            return;
+          }
+          
           // Analyze current user behavior if authenticated
           const { isAuthenticated } = useAuthStore.getState();
-          if (isAuthenticated) {
+          if (isAuthenticated && behaviorAnalyticsService) {
             // Simulate user activity analysis
             const currentTime = Date.now();
             const mockUserActivity = {
@@ -489,65 +494,82 @@ Incident ID: ${incident.id}`,
               
               // Create incident for high-risk behavior
               const incidentResponse = IncidentResponseService.getInstance();
-              await incidentResponse.createIncident(
-                'High-Risk User Behavior Detected',
-                `User behavior analysis detected high risk: ${behaviorAnalysis.behaviorAnalysis.anomalyType}`,
-                'medium',
-                'unauthorized_access',
-                [{
-                  type: 'behavior_pattern',
-                  value: behaviorAnalysis.behaviorAnalysis.anomalyType,
-                  confidence: 'high',
-                  source: 'ueba_service',
-                  firstSeen: currentTime,
-                  lastSeen: currentTime,
-                  isMalicious: true
-                }],
-                ['user_behavior']
-              );
-            }
-          }
-        } catch (error) {
-          console.error('UEBA monitoring error:', error);
-        }
-      }, 300000); // Every 5 minutes
-
-      // Set up threat intelligence monitoring
-      setInterval(async () => {
-        try {
-          // Check for new threats
-          const recentThreats = await threatIntelligenceService.getRecentThreats(1); // Last hour
-          if (recentThreats.length > 0) {
-            console.log(`🎯 ${recentThreats.length} new threats detected in the last hour`);
-            
-            // Create SOC alert for new threats
-            const socService = SOCService.getInstance();
-            for (const threat of recentThreats) {
-              if (threat.severity === 'critical' || threat.severity === 'high') {
-                await socService.createAlert(
-                  `New ${threat.severity} Threat Detected`,
-                  `Threat Intelligence: ${threat.description}`,
-                  threat.severity,
-                  'threat_detection',
-                  'threat_intelligence',
+              if (incidentResponse) {
+                await incidentResponse.createIncident(
+                  'High-Risk User Behavior Detected',
+                  `User behavior analysis detected high risk: ${behaviorAnalysis.behaviorAnalysis.anomalyType}`,
+                  'medium',
+                  'unauthorized_access',
                   [{
-                    type: 'threat_indicator',
-                    value: threat.indicator,
-                    confidence: threat.confidence > 0.8 ? 'high' : 'medium',
-                    source: 'threat_intelligence',
-                    firstSeen: threat.timestamp,
-                    lastSeen: threat.timestamp,
+                    type: 'behavior_pattern',
+                    value: behaviorAnalysis.behaviorAnalysis.anomalyType,
+                    confidence: 'high',
+                    source: 'ueba_service',
+                    firstSeen: currentTime,
+                    lastSeen: currentTime,
                     isMalicious: true
                   }],
-                  ['threat_intelligence_system']
+                  ['user_behavior']
                 );
               }
             }
           }
         } catch (error) {
-          console.error('Threat intelligence monitoring error:', error);
+          // Silently ignore errors in development
+          if (!__DEV__) {
+            console.error('UEBA monitoring error:', error);
+          }
         }
-      }, 600000); // Every 10 minutes
+      }, 900000); // Every 15 minutes (reduced from 5 minutes)
+
+      // Set up threat intelligence monitoring (reduced frequency for performance)
+      setInterval(async () => {
+        try {
+          // Only run in production or when explicitly enabled
+          if (__DEV__ && !process.env.EXPO_PUBLIC_ENABLE_THREAT_INTEL_DEV) {
+            return;
+          }
+          
+          if (threatIntelligenceService) {
+            // Check for new threats
+            const recentThreats = await threatIntelligenceService.getRecentThreats(1); // Last hour
+            if (recentThreats.length > 0) {
+              console.log(`🎯 ${recentThreats.length} new threats detected in the last hour`);
+              
+              // Create SOC alert for new threats
+              const socService = SOCService.getInstance();
+              if (socService) {
+                for (const threat of recentThreats) {
+                  if (threat.severity === 'critical' || threat.severity === 'high') {
+                    await socService.createAlert(
+                      `New ${threat.severity} Threat Detected`,
+                      `Threat Intelligence: ${threat.description}`,
+                      threat.severity,
+                      'threat_detection',
+                      'threat_intelligence',
+                      [{
+                        type: 'threat_indicator',
+                        value: threat.indicator,
+                        confidence: threat.confidence > 0.8 ? 'high' : 'medium',
+                        source: 'threat_intelligence',
+                        firstSeen: threat.timestamp,
+                        lastSeen: threat.timestamp,
+                        isMalicious: true
+                      }],
+                      ['threat_intelligence_system']
+                    );
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          // Silently ignore errors in development
+          if (!__DEV__) {
+            console.error('Threat intelligence monitoring error:', error);
+          }
+        }
+      }, 1800000); // Every 30 minutes (reduced from 10 minutes)
 
       console.log('🧠 UEBA and Behavior Analytics monitoring configured');
     } catch (error) {

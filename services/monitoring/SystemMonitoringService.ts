@@ -108,6 +108,7 @@ class SystemMonitoringService {
   private performanceBaselines: Map<string, PerformanceBaseline> = new Map();
   private monitoringInterval: ReturnType<typeof setInterval> | null = null;
   private serviceMonitoring: boolean = false;
+  private isCollecting: boolean = false;
   
   // Service instances
   private securityManager: any;
@@ -150,13 +151,24 @@ class SystemMonitoringService {
 
     this.serviceMonitoring = true;
     
-    // Start periodic monitoring
+    // Start periodic monitoring with reduced frequency for performance
+    const monitoringFrequency = process.env.NODE_ENV === 'development' ? 120000 : 60000; // 2 minutes in dev, 1 minute in prod
     this.monitoringInterval = setInterval(async () => {
-      await this.collectMetrics();
-      await this.checkAlerts();
-      await this.updateServiceHealth();
-      await this.updatePerformanceBaselines();
-    }, 30000); // Every 30 seconds
+      try {
+        // Only run if not already running to prevent overlap
+        if (!this.isCollecting) {
+          this.isCollecting = true;
+          await this.collectMetrics();
+          await this.checkAlerts();
+          await this.updateServiceHealth();
+          await this.updatePerformanceBaselines();
+          this.isCollecting = false;
+        }
+      } catch (error) {
+        this.isCollecting = false;
+        console.warn('Monitoring cycle failed:', error);
+      }
+    }, monitoringFrequency);
 
     // Initial collection
     await this.collectMetrics();
