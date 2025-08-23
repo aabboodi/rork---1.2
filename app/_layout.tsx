@@ -66,12 +66,18 @@ export default function RootLayout() {
   // Initialize enhanced theme system
   useEffect(() => {
     let cleanup: (() => void) | undefined;
-    let timeoutId: NodeJS.Timeout;
-    let rafId: number;
+    let mounted = true;
     
-    const initializeEnhancedTheme = () => {
+    const initializeEnhancedTheme = async () => {
       try {
+        if (!mounted) return;
+        
         console.log('🎨 Initializing enhanced auto-adaptive theme system...');
+        
+        // Wait for component to be fully mounted
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        if (!mounted) return;
         
         // Initialize theme after component mount
         cleanup = initializeTheme();
@@ -84,15 +90,12 @@ export default function RootLayout() {
       }
     };
     
-    // Use requestAnimationFrame + setTimeout to ensure this runs after component mount and render
-    rafId = requestAnimationFrame(() => {
-      timeoutId = setTimeout(initializeEnhancedTheme, 300); // Longer delay to ensure component is fully mounted
-    });
+    // Start async initialization
+    initializeEnhancedTheme();
     
     // Cleanup on unmount
     return () => {
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
+      mounted = false;
       if (cleanup && typeof cleanup === 'function') {
         try {
           cleanup();
