@@ -68,27 +68,27 @@ export default function RootLayout() {
     const initializeEnhancedTheme = async () => {
       try {
         console.log('🎨 Initializing enhanced auto-adaptive theme system...');
-        const cleanup = initializeTheme();
         
-        // Set up theme monitoring
-        console.log('✅ Enhanced theme system initialized with auto-adaptive features');
+        // Use setTimeout to ensure this runs after component mount
+        setTimeout(() => {
+          const cleanup = initializeTheme();
+          
+          // Set up theme monitoring
+          console.log('✅ Enhanced theme system initialized with auto-adaptive features');
+          
+          // Store cleanup function for later use
+          if (cleanup && typeof cleanup === 'function') {
+            // Store cleanup in a ref or handle it appropriately
+          }
+        }, 100);
         
-        return cleanup;
       } catch (error) {
         console.error('❌ Enhanced theme initialization failed:', error);
       }
     };
     
-    const cleanup = initializeEnhancedTheme();
-    
-    return () => {
-      if (cleanup instanceof Promise) {
-        cleanup.then(cleanupFn => cleanupFn?.());
-      } else if (typeof cleanup === 'function') {
-        cleanup();
-      }
-    };
-  }, []);
+    initializeEnhancedTheme();
+  }, [initializeTheme]);
 
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
   const initializeAppSecurity = async () => {

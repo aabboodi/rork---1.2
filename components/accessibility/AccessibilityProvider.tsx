@@ -18,7 +18,7 @@ interface AccessibilityProviderProps {
 }
 
 export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ children }) => {
-  const { colorScheme, initializeTheme, checkAndUpdateTheme } = useThemeStore();
+  const { colorScheme } = useThemeStore();
   const { 
     settings, 
     initializeAccessibility, 
@@ -28,39 +28,24 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
   } = useAccessibilityStore();
   
   useEffect(() => {
-    // Initialize theme and accessibility services
+    // Initialize accessibility services only (theme is initialized in _layout.tsx)
     const initializeServices = async () => {
       try {
-        console.log('🎨 Initializing enhanced theme and accessibility services...');
+        console.log('🔍 Initializing Accessibility Service...');
         
-        // Initialize theme with auto-adaptive features
-        const themeCleanup = initializeTheme();
-        
-        // Initialize accessibility
+        // Initialize accessibility only if not already initialized
         if (!isInitialized) {
           await initializeAccessibility();
         }
         
-        // Start auto-adaptive theme checking
-        checkAndUpdateTheme();
-        
-        console.log('✅ Enhanced theme and accessibility services initialized');
-        return themeCleanup;
+        console.log('✅ Accessibility Service initialized:', settings);
       } catch (error) {
         console.error('Failed to initialize accessibility services:', error);
       }
     };
     
-    const cleanup = initializeServices();
-    
-    return () => {
-      if (cleanup instanceof Promise) {
-        cleanup.then(cleanupFn => cleanupFn?.());
-      } else if (typeof cleanup === 'function') {
-        cleanup();
-      }
-    };
-  }, []);
+    initializeServices();
+  }, [isInitialized, initializeAccessibility]);
   
   // Update status bar based on theme
   useEffect(() => {
