@@ -4,6 +4,7 @@ import { PolicyEngine } from './ai/PolicyEngine';
 import { GamesRegistryService, GameSearchParams, GameRegistryResponse } from './GamesRegistryService';
 import { GamesSessionService, GameSession, CreateSessionRequest, JoinSessionRequest, SessionResponse } from './GamesSessionService';
 import { GamesInviteService, GameInvite, CreateInviteRequest, InviteResponse, DeepLinkData } from './GamesInviteService';
+import { GamesUploadService, GameUploadRequest, GameUploadResponse, GameReviewStatus } from './GamesUploadService';
 
 export interface GameFeatureFlags {
   games: boolean;
@@ -45,6 +46,7 @@ export class GamesService {
   private registryService: GamesRegistryService;
   private sessionService: GamesSessionService;
   private inviteService: GamesInviteService;
+  private uploadService: GamesUploadService;
   private isInitialized = false;
   
   private readonly GAMES_CACHE_KEY = 'games_library_cache';
@@ -55,7 +57,7 @@ export class GamesService {
   private performanceMetrics = new Map<string, GamePerformanceMetrics>();
   private featureFlags: GameFeatureFlags = {
     games: true, // Enable for Phase 0 testing
-    uploadGames: false,
+    uploadGames: true, // Enable for Phase 3
     multiplayerGames: true, // Enable for Phase 2
     gameInvites: true, // Enable for Phase 2
     gameSharing: true // Enable for Phase 2
@@ -66,6 +68,7 @@ export class GamesService {
     this.registryService = GamesRegistryService.getInstance();
     this.sessionService = GamesSessionService.getInstance();
     this.inviteService = GamesInviteService.getInstance();
+    this.uploadService = GamesUploadService.getInstance();
   }
 
   static getInstance(): GamesService {
@@ -86,7 +89,8 @@ export class GamesService {
         this.policyEngine.initialize(),
         this.registryService.initialize(),
         this.sessionService.initialize(),
-        this.inviteService.initialize()
+        this.inviteService.initialize(),
+        this.uploadService.initialize()
       ]);
 
       // Load feature flags
@@ -670,5 +674,64 @@ export class GamesService {
    */
   getGameSRIHash(gameId: string): string {
     return this.registryService.getSRIHash(gameId);
+  }
+
+  /**
+   * Upload a new game (Phase 3)
+   */
+  async uploadGame(request: GameUploadRequest, userId: string): Promise<GameUploadResponse> {
+    if (!this.featureFlags.uploadGames) {
+      throw new Error('Game upload feature is disabled');
+    }
+
+    return await this.uploadService.uploadGame(request, userId);
+  }
+
+  /**
+   * Get upload status
+   */
+  async getUploadStatus(gameId: string): Promise<GameReviewStatus | null> {
+    if (!this.featureFlags.uploadGames) {
+      return null;
+    }
+
+    return await this.uploadService.getUploadStatus(gameId);
+  }
+
+  /**
+   * Get user uploads
+   */
+  async getUserUploads(userId: string): Promise<GameReviewStatus[]> {
+    if (!this.featureFlags.uploadGames) {
+      return [];
+    }
+
+    return await this.uploadService.getUserUploads(userId);
+  }
+
+  /**
+   * Update game version
+   */
+  async updateGameVersion(gameId: string, versionData: {
+    version: string;
+    changelog: string;
+    zipFile: GameUploadRequest['zipFile'];
+  }, userId: string): Promise<any> {
+    if (!this.featureFlags.uploadGames) {
+      throw new Error('Game upload feature is disabled');
+    }
+
+    return await this.uploadService.updateGameVersion(gameId, versionData, userId);
+  }
+
+  /**
+   * Get game versions
+   */
+  async getGameVersions(gameId: string): Promise<any[]> {
+    if (!this.featureFlags.uploadGames) {
+      return [];
+    }
+
+    return await this.uploadService.getGameVersions(gameId);
   }
 }

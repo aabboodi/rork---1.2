@@ -20,7 +20,9 @@ import { GameMetadata } from '@/components/WebViewSandbox';
 import { GameRegistryResponse } from '@/services/GamesRegistryService';
 import { GameSession, SessionResponse } from '@/services/GamesSessionService';
 import { GameInvite, InviteResponse } from '@/services/GamesInviteService';
+import { GameUploadResponse } from '@/services/GamesUploadService';
 import WebViewSandbox from '@/components/WebViewSandbox';
+import GameUploadModal from '@/components/GameUploadModal';
 import { Gamepad2, Plus, Search, Filter, AlertTriangle, X, Play, Users, Share, Link } from 'lucide-react-native';
 import AnimatedLoader from '@/components/AnimatedLoader';
 
@@ -50,6 +52,7 @@ export default function GamesTab() {
   const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
   const [showSessionOptions, setShowSessionOptions] = useState<boolean>(false);
   const [selectedGameForSession, setSelectedGameForSession] = useState<GameMetadata | null>(null);
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState<boolean>(false);
 
   const gamesService = GamesService.getInstance();
 
@@ -311,6 +314,25 @@ export default function GamesTab() {
     // Handle game-specific messages here
   }, []);
 
+  const handleUploadComplete = useCallback(async (response: GameUploadResponse) => {
+    console.log('🎮 Upload completed:', response);
+    
+    // Refresh games list to include newly uploaded game if approved
+    if (response.status === 'approved') {
+      await loadGames();
+    }
+    
+    // Show success message
+    Alert.alert(
+      'Upload Complete',
+      response.status === 'approved' 
+        ? 'Your game has been approved and is now available!'
+        : response.status === 'rejected'
+          ? 'Your game was rejected. Please check the feedback and try again.'
+          : 'Your game is under review. You\'ll be notified when the review is complete.'
+    );
+  }, [loadGames]);
+
   const categories = [
     { id: 'all', name: t.browseGames, icon: '🎮' },
     { id: 'puzzle', name: t.puzzle, icon: '🧩' },
@@ -509,6 +531,7 @@ export default function GamesTab() {
               {featureFlags.uploadGames && (
                 <TouchableOpacity
                   style={[styles.headerButton, { backgroundColor: colors.primary }]}
+                  onPress={() => setIsUploadModalVisible(true)}
                   testID="upload-game"
                 >
                   <Plus size={20} color={colors.background} />
@@ -637,6 +660,13 @@ export default function GamesTab() {
           </View>
         </SafeAreaView>
       </Modal>
+
+      {/* Upload Modal */}
+      <GameUploadModal
+        visible={isUploadModalVisible}
+        onClose={() => setIsUploadModalVisible(false)}
+        onUploadComplete={handleUploadComplete}
+      />
     </SafeAreaView>
   );
 }
