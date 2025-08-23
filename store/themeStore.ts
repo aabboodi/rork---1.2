@@ -264,12 +264,16 @@ export const useColorScheme = () => {
   return store?.colorScheme || getSystemColorScheme();
 };
 
+// Initialize with safe defaults immediately
+const initialColorScheme = getSystemColorScheme();
+const initialColors = getSafeColors(initialColorScheme);
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       mode: 'auto',
-      colorScheme: getSystemColorScheme(),
-      colors: getSafeColors(getSystemColorScheme()),
+      colorScheme: initialColorScheme,
+      colors: initialColors,
       adaptiveMode: 'system',
       timeBasedTheme: {
         enabled: false,
@@ -337,14 +341,21 @@ export const useThemeStore = create<ThemeState>()(
           let intervalId: any = null;
           
           // Use setTimeout to avoid state updates during render
-          setTimeout(() => {
+          const timeoutId = setTimeout(() => {
             try {
               const state = get();
               const { mode, isAutoAdaptive } = state;
               
               // Initialize theme based on current settings
               if (mode === 'auto' && isAutoAdaptive) {
-                get().checkAndUpdateTheme();
+                // Use setTimeout to avoid immediate state update
+                setTimeout(() => {
+                  try {
+                    get().checkAndUpdateTheme();
+                  } catch (error) {
+                    console.warn('Auto theme check error:', error);
+                  }
+                }, 100);
               } else if (mode === 'auto') {
                 const systemScheme = getSystemColorScheme();
                 set({
@@ -390,6 +401,7 @@ export const useThemeStore = create<ThemeState>()(
           
           return () => {
             try {
+              clearTimeout(timeoutId);
               if (subscription?.remove) {
                 subscription.remove();
               }
