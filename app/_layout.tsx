@@ -88,15 +88,17 @@ export default function RootLayout() {
           } catch (error) {
             console.error('❌ Enhanced theme initialization failed:', error);
           }
-        }, 1500); // Longer delay to ensure component is fully mounted
+        }, 100); // Shorter delay since we're using getState() now
         
       } catch (error) {
         console.error('❌ Enhanced theme initialization failed:', error);
       }
     };
     
-    // Start initialization
-    initializeEnhancedTheme();
+    // Start initialization only if loaded
+    if (loaded) {
+      initializeEnhancedTheme();
+    }
     
     // Cleanup on unmount
     return () => {
@@ -112,7 +114,7 @@ export default function RootLayout() {
         }
       }
     };
-  }, []); // Remove initializeTheme dependency to prevent re-initialization
+  }, [loaded, initializeTheme]); // Add loaded dependency
 
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
   const initializeAppSecurity = async () => {
