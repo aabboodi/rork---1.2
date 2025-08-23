@@ -252,6 +252,18 @@ const getSafeColors = (scheme?: ColorScheme): ThemeColors => {
   }
 };
 
+// Hook to safely get theme colors with fallback
+export const useThemeColors = () => {
+  const store = useThemeStore();
+  return store?.colors || getSafeColors();
+};
+
+// Hook to safely get color scheme with fallback
+export const useColorScheme = () => {
+  const store = useThemeStore();
+  return store?.colorScheme || getSystemColorScheme();
+};
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
@@ -308,19 +320,27 @@ export const useThemeStore = create<ThemeState>()(
       
       initializeTheme: () => {
         try {
-          // Ensure colors are always set first
+          // Ensure colors are always set first with safe fallback
           const currentScheme = get().colorScheme || getSystemColorScheme();
           const safeColors = getSafeColors(currentScheme);
           
+          // Immediately set safe colors to prevent undefined access
           set({
             colorScheme: currentScheme,
             colors: safeColors,
           });
           
+          console.log('🎨 Theme colors initialized:', { scheme: currentScheme, hasColors: !!safeColors.background });
+          
+          // Return cleanup function immediately to prevent state update during render
+          let subscription: any = null;
+          let intervalId: any = null;
+          
           // Use setTimeout to avoid state updates during render
           setTimeout(() => {
             try {
-              const { mode, isAutoAdaptive, adaptiveMode, timeBasedTheme } = get();
+              const state = get();
+              const { mode, isAutoAdaptive } = state;
               
               // Initialize theme based on current settings
               if (mode === 'auto' && isAutoAdaptive) {
@@ -332,38 +352,64 @@ export const useThemeStore = create<ThemeState>()(
                   colors: getSafeColors(systemScheme),
                 });
               }
+              
+              // Listen for system theme changes
+              subscription = Appearance.addChangeListener(({ colorScheme }) => {
+                try {
+                  const currentState = get();
+                  const { mode, isAutoAdaptive, adaptiveMode } = currentState;
+                  if (mode === 'auto' && (!isAutoAdaptive || adaptiveMode === 'system')) {
+                    const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
+                    set({
+                      colorScheme: newScheme,
+                      colors: getSafeColors(newScheme),
+                    });
+                  }
+                } catch (error) {
+                  console.warn('Theme change listener error:', error);
+                }
+              });
+              
+              // Set up periodic theme checking for auto-adaptive modes
+              intervalId = setInterval(() => {
+                try {
+                  const currentState = get();
+                  const { mode, isAutoAdaptive } = currentState;
+                  if (mode === 'auto' && isAutoAdaptive) {
+                    get().checkAndUpdateTheme();
+                  }
+                } catch (error) {
+                  console.warn('Periodic theme check error:', error);
+                }
+              }, 60000); // Check every minute
+              
             } catch (error) {
               console.warn('Theme initialization timeout error:', error);
             }
           }, 0);
+          
+          return () => {
+            try {
+              if (subscription?.remove) {
+                subscription.remove();
+              }
+              if (intervalId) {
+                clearInterval(intervalId);
+              }
+            } catch (error) {
+              console.warn('Theme cleanup error:', error);
+            }
+          };
         } catch (error) {
           console.warn('Theme initialization error:', error);
+          // Ensure we always have colors even on error
+          set({
+            colorScheme: getSystemColorScheme(),
+            colors: getSafeColors(),
+          });
+          // Return a no-op cleanup function on error
+          return () => {};
         }
-        
-        // Listen for system theme changes
-        const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-          const { mode, isAutoAdaptive, adaptiveMode } = get();
-          if (mode === 'auto' && (!isAutoAdaptive || adaptiveMode === 'system')) {
-            const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
-            set({
-              colorScheme: newScheme,
-              colors: getSafeColors(newScheme),
-            });
-          }
-        });
-        
-        // Set up periodic theme checking for auto-adaptive modes
-        const intervalId = setInterval(() => {
-          const { mode, isAutoAdaptive } = get();
-          if (mode === 'auto' && isAutoAdaptive) {
-            get().checkAndUpdateTheme();
-          }
-        }, 60000); // Check every minute
-        
-        return () => {
-          subscription?.remove();
-          clearInterval(intervalId);
-        };
       },
       
       setAdaptiveMode: (mode: AdaptiveMode) => {
