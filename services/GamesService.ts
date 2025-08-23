@@ -48,7 +48,7 @@ export class GamesService {
   private games = new Map<string, GameMetadata>();
   private performanceMetrics = new Map<string, GamePerformanceMetrics>();
   private featureFlags: GameFeatureFlags = {
-    games: false, // Default OFF in production
+    games: true, // Enable for Phase 0 testing
     uploadGames: false,
     multiplayerGames: false,
     gameInvites: false,

@@ -8,14 +8,17 @@ import {
   RefreshControl,
   Platform,
   SafeAreaView,
+  Modal,
+  Alert,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { useThemeStore } from '@/store/themeStore';
 import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
-import { GamesService, GameFeatureFlags } from '@/services/GamesService';
+import { GamesService, GameFeatureFlags, GamePerformanceMetrics } from '@/services/GamesService';
 import { GameMetadata } from '@/components/WebViewSandbox';
-import { Gamepad2, Plus, Search, Filter, AlertTriangle } from 'lucide-react-native';
+import WebViewSandbox from '@/components/WebViewSandbox';
+import { Gamepad2, Plus, Search, Filter, AlertTriangle, X, Play } from 'lucide-react-native';
 import AnimatedLoader from '@/components/AnimatedLoader';
 
 export default function GamesTab() {
@@ -35,6 +38,9 @@ export default function GamesTab() {
   });
   const [error, setError] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedGame, setSelectedGame] = useState<GameMetadata | null>(null);
+  const [isGameModalVisible, setIsGameModalVisible] = useState<boolean>(false);
+  const [gamePerformanceMetrics, setGamePerformanceMetrics] = useState<GamePerformanceMetrics[]>([]);
 
   const gamesService = GamesService.getInstance();
 
@@ -83,11 +89,96 @@ export default function GamesTab() {
     const initializeGames = async () => {
       setIsLoading(true);
       await loadGames();
+      
+      // Load performance metrics
+      const metrics = gamesService.getAllPerformanceMetrics();
+      setGamePerformanceMetrics(metrics);
+      
       setIsLoading(false);
     };
     
     initializeGames();
-  }, [loadGames]);
+  }, [loadGames, gamesService]);
+
+  const handlePlayGame = useCallback(async (game: GameMetadata) => {
+    try {
+      console.log(`🎮 Starting game: ${game.name}`);
+      
+      // Security check - validate game URL
+      if (!game.url || !game.url.startsWith('https://')) {
+        Alert.alert(
+          t.securityWarning,
+          'Invalid game URL. Only secure HTTPS games are allowed.'
+        );
+        return;
+      }
+      
+      // Record game launch metrics
+      await gamesService.recordPerformanceMetrics(game.id, {
+        gameId: game.id,
+        loadTime: 0,
+        crashCount: 0,
+        memoryUsage: 0,
+        lastPlayed: new Date().toISOString(),
+        playCount: 0
+      });
+      
+      setSelectedGame(game);
+      setIsGameModalVisible(true);
+      
+    } catch (error) {
+      console.error('❌ Failed to start game:', error);
+      Alert.alert(
+        t.error,
+        error instanceof Error ? error.message : 'Failed to start game'
+      );
+    }
+  }, [gamesService, t.securityWarning, t.error]);
+
+  const handleCloseGame = useCallback(() => {
+    console.log('🎮 Closing game');
+    setIsGameModalVisible(false);
+    setSelectedGame(null);
+  }, []);
+
+  const handleGameLoadStart = useCallback(() => {
+    console.log('🎮 Game load started');
+  }, []);
+
+  const handleGameLoadEnd = useCallback(async () => {
+    console.log('🎮 Game load completed');
+    if (selectedGame) {
+      // Update performance metrics
+      const metrics = gamesService.getAllPerformanceMetrics();
+      setGamePerformanceMetrics(metrics);
+    }
+  }, [selectedGame, gamesService]);
+
+  const handleGameError = useCallback(async (error: any) => {
+    console.error('❌ Game error:', error);
+    if (selectedGame) {
+      // Record crash
+      await gamesService.recordPerformanceMetrics(selectedGame.id, {
+        gameId: selectedGame.id,
+        loadTime: 0,
+        crashCount: 1,
+        memoryUsage: 0,
+        lastPlayed: new Date().toISOString(),
+        playCount: 0
+      });
+    }
+    
+    Alert.alert(
+      t.gameError,
+      'The game encountered an error and will be closed.'
+    );
+    handleCloseGame();
+  }, [selectedGame, gamesService, t.gameError, handleCloseGame]);
+
+  const handleGameMessage = useCallback((message: any) => {
+    console.log('📨 Game message received:', message);
+    // Handle game-specific messages here
+  }, []);
 
   const categories = [
     { id: 'all', name: t.browseGames, icon: '🎮' },
@@ -135,8 +226,10 @@ export default function GamesTab() {
         </Text>
         <TouchableOpacity
           style={[styles.playButton, { backgroundColor: colors.primary }]}
+          onPress={() => handlePlayGame(game)}
           testID={`play-game-${game.id}`}
         >
+          <Play size={16} color={colors.background} />
           <Text style={[styles.playButtonText, { color: colors.background }]}>
             {t.playGame}
           </Text>
@@ -318,6 +411,50 @@ export default function GamesTab() {
           </View>
         )}
       </ScrollView>
+
+      {/* Game Modal */}
+      <Modal
+        visible={isGameModalVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={handleCloseGame}
+        testID="game-modal"
+      >
+        <SafeAreaView style={[styles.gameModalContainer, { backgroundColor: colors.background }]}>
+          {/* Game Modal Header */}
+          <View style={[styles.gameModalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <View style={styles.gameModalHeaderContent}>
+              <View style={styles.gameModalInfo}>
+                <Gamepad2 size={20} color={colors.primary} />
+                <Text style={[styles.gameModalTitle, { color: colors.text }]} numberOfLines={1}>
+                  {selectedGame?.name || 'Game'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.closeButton, { backgroundColor: colors.error }]}
+                onPress={handleCloseGame}
+                testID="close-game-button"
+              >
+                <X size={20} color={colors.background} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Game Content */}
+          <View style={styles.gameModalContent}>
+            {selectedGame && (
+              <WebViewSandbox
+                game={selectedGame}
+                onLoadStart={handleGameLoadStart}
+                onLoadEnd={handleGameLoadEnd}
+                onError={handleGameError}
+                onMessage={handleGameMessage}
+                testId="game-webview"
+              />
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -434,9 +571,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   playButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
+    gap: 6,
   },
   playButtonText: {
     fontSize: 14,
@@ -485,5 +625,40 @@ const styles = StyleSheet.create({
   featureStatusText: {
     fontSize: 12,
     marginBottom: 4,
+  },
+  // Game Modal Styles
+  gameModalContainer: {
+    flex: 1,
+  },
+  gameModalHeader: {
+    borderBottomWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  gameModalHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  gameModalInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  gameModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gameModalContent: {
+    flex: 1,
   },
 });
