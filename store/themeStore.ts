@@ -307,28 +307,38 @@ export const useThemeStore = create<ThemeState>()(
       },
       
       initializeTheme: () => {
-        // Ensure colors are always set first
-        const currentScheme = get().colorScheme || getSystemColorScheme();
-        set({
-          colorScheme: currentScheme,
-          colors: getSafeColors(currentScheme),
-        });
-        
-        // Use setTimeout to avoid state updates during render
-        setTimeout(() => {
-          const { mode, isAutoAdaptive, adaptiveMode, timeBasedTheme } = get();
+        try {
+          // Ensure colors are always set first
+          const currentScheme = get().colorScheme || getSystemColorScheme();
+          const safeColors = getSafeColors(currentScheme);
           
-          // Initialize theme based on current settings
-          if (mode === 'auto' && isAutoAdaptive) {
-            get().checkAndUpdateTheme();
-          } else if (mode === 'auto') {
-            const systemScheme = getSystemColorScheme();
-            set({
-              colorScheme: systemScheme,
-              colors: getSafeColors(systemScheme),
-            });
-          }
-        }, 0);
+          set({
+            colorScheme: currentScheme,
+            colors: safeColors,
+          });
+          
+          // Use setTimeout to avoid state updates during render
+          setTimeout(() => {
+            try {
+              const { mode, isAutoAdaptive, adaptiveMode, timeBasedTheme } = get();
+              
+              // Initialize theme based on current settings
+              if (mode === 'auto' && isAutoAdaptive) {
+                get().checkAndUpdateTheme();
+              } else if (mode === 'auto') {
+                const systemScheme = getSystemColorScheme();
+                set({
+                  colorScheme: systemScheme,
+                  colors: getSafeColors(systemScheme),
+                });
+              }
+            } catch (error) {
+              console.warn('Theme initialization timeout error:', error);
+            }
+          }, 0);
+        } catch (error) {
+          console.warn('Theme initialization error:', error);
+        }
         
         // Listen for system theme changes
         const subscription = Appearance.addChangeListener(({ colorScheme }) => {
