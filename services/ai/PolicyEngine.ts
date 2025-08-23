@@ -254,6 +254,17 @@ export class PolicyEngine {
               type: 'redirect_cloud',
               message: 'Complex chat task redirected to cloud'
             }
+          },
+          {
+            id: 'games-validation-rule',
+            type: 'allow',
+            priority: 60,
+            condition: {
+              taskType: ['game_validation']
+            },
+            action: {
+              type: 'allow'
+            }
           }
         ]
       },
@@ -309,6 +320,22 @@ export class PolicyEngine {
    */
   getPolicy(id: string): Policy | undefined {
     return this.policies.get(id);
+  }
+
+  /**
+   * Check if feature is enabled via policy
+   */
+  isFeatureEnabled(feature: string): boolean {
+    // Default feature flags
+    const defaultFlags: Record<string, boolean> = {
+      'games': false, // Default OFF in production
+      'uploadGames': false,
+      'multiplayerGames': false,
+      'gameInvites': false,
+      'gameSharing': false
+    };
+
+    return defaultFlags[feature] || false;
   }
 
   // Private methods
@@ -404,6 +431,23 @@ export class PolicyEngine {
       return { matches: false, reason: 'Task type mismatch' };
     }
 
+    // Special handling for game validation
+    if (task.type === 'game_validation') {
+      const gameInput = task.input as any;
+      if (gameInput?.url) {
+        // Validate game URL format and security
+        try {
+          const url = new URL(gameInput.url);
+          if (url.protocol !== 'https:') {
+            return { matches: true, reason: 'Game URL must use HTTPS' };
+          }
+          // Additional game-specific validation can be added here
+        } catch {
+          return { matches: true, reason: 'Invalid game URL format' };
+        }
+      }
+    }
+
     // Input size check
     if (condition.inputSize) {
       const inputSize = this.getInputSize(task.input);
@@ -487,7 +531,7 @@ export class PolicyEngine {
         securityLevel: policy.securityLevel
       });
 
-      const contentHash = await Crypto.digestStringAsync(
+      await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         policyContent
       );

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { MessageCircle, Users, Wallet, User, BarChart3, Brain } from 'lucide-react-native';
+import { MessageCircle, Users, Wallet, User, BarChart3, Brain, Gamepad2 } from 'lucide-react-native';
 import SecurityNotificationBell from '@/components/SecurityNotificationBell';
 import { useThemeStore } from '@/store/themeStore';
 import { translations } from '@/constants/i18n';
@@ -195,6 +195,34 @@ export default function TabLayout() {
           riskLevel: 'high'
         });
 
+        await cspMiddleware.addRouteConfiguration({
+          route: '/tabs/games',
+          pattern: /^\/tabs\/games$/,
+          policy: {
+            'default-src': ["'self'"],
+            'script-src': ["'self'", "'nonce-{nonce}'"],
+            'style-src': ["'self'", "'nonce-{nonce}'", "'unsafe-inline'"],
+            'img-src': ["'self'", 'data:', 'https://games.rork.com', 'https://cdn.rork.com', 'https://secure-games.rork.com'],
+            'connect-src': ["'self'", 'https://toolkit.rork.com', 'https://games.rork.com', 'https://cdn.rork.com'],
+            'font-src': ["'self'"],
+            'object-src': ["'none'"],
+            'media-src': ["'self'", 'https://games.rork.com', 'https://cdn.rork.com'],
+            'frame-src': ['https://games.rork.com', 'https://cdn.rork.com', 'https://secure-games.rork.com'],
+            'child-src': ['https://games.rork.com', 'https://cdn.rork.com', 'https://secure-games.rork.com'],
+            'worker-src': ["'self'"],
+            'base-uri': ["'self'"],
+            'form-action': ["'self'"],
+            'frame-ancestors': ["'none'"],
+            'upgrade-insecure-requests': true,
+            'report-uri': ['/api/csp-report']
+          },
+          nonce: true,
+          reportOnly: false,
+          priority: 5,
+          description: 'Games tab with WebView sandbox for HTML5 games',
+          riskLevel: 'medium'
+        });
+
         console.log('Tab-specific CSP configurations initialized');
       }
     } catch (error) {
@@ -301,6 +329,16 @@ export default function TabLayout() {
           title: 'Edge AI',
           tabBarIcon: ({ color, size }) => (
             <Brain size={size} color={color} />
+          ),
+        }}
+      />
+      
+      <Tabs.Screen
+        name="games"
+        options={{
+          title: t.games,
+          tabBarIcon: ({ color, size }) => (
+            <Gamepad2 size={size} color={color} />
           ),
         }}
       />

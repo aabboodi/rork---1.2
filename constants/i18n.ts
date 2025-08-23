@@ -453,6 +453,32 @@ export const translations: Record<Language, {
   upcloud: string;
   contabo: string;
   ionos: string;
+  // Games translations
+  games: string;
+  miniGames: string;
+  onlineGames: string;
+  gameLibrary: string;
+  playGame: string;
+  uploadGame: string;
+  inviteFriends: string;
+  shareGame: string;
+  gameLoading: string;
+  gameError: string;
+  gameNotFound: string;
+  gameUnavailable: string;
+  noGamesAvailable: string;
+  browseGames: string;
+  featuredGames: string;
+  recentlyPlayed: string;
+  popularGames: string;
+  myGames: string;
+  gameCategories: string;
+  puzzle: string;
+  action: string;
+  strategy: string;
+  casual: string;
+  multiplayer: string;
+  singlePlayer: string;
 }> = {
   en: {
     welcome: 'Welcome',
@@ -907,6 +933,32 @@ export const translations: Record<Language, {
     upcloud: 'UpCloud',
     contabo: 'Contabo',
     ionos: 'IONOS',
+    // Games translations
+    games: 'Games',
+    miniGames: 'Mini Games',
+    onlineGames: 'Online Games',
+    gameLibrary: 'Game Library',
+    playGame: 'Play Game',
+    uploadGame: 'Upload Game',
+    inviteFriends: 'Invite Friends',
+    shareGame: 'Share Game',
+    gameLoading: 'Loading game...',
+    gameError: 'Game failed to load',
+    gameNotFound: 'Game not found',
+    gameUnavailable: 'Game unavailable',
+    noGamesAvailable: 'No games available',
+    browseGames: 'Browse Games',
+    featuredGames: 'Featured Games',
+    recentlyPlayed: 'Recently Played',
+    popularGames: 'Popular Games',
+    myGames: 'My Games',
+    gameCategories: 'Categories',
+    puzzle: 'Puzzle',
+    action: 'Action',
+    strategy: 'Strategy',
+    casual: 'Casual',
+    multiplayer: 'Multiplayer',
+    singlePlayer: 'Single Player',
   },
   ar: {
     welcome: 'مرحباً',
@@ -1361,5 +1413,31 @@ export const translations: Record<Language, {
     upcloud: 'أب كلاود',
     contabo: 'كونتابو',
     ionos: 'أيونوس',
+    // Games translations
+    games: 'الألعاب',
+    miniGames: 'الألعاب المصغرة',
+    onlineGames: 'الألعاب الأونلاين',
+    gameLibrary: 'مكتبة الألعاب',
+    playGame: 'العب',
+    uploadGame: 'رفع لعبة',
+    inviteFriends: 'دعوة الأصدقاء',
+    shareGame: 'مشاركة اللعبة',
+    gameLoading: 'جاري تحميل اللعبة...',
+    gameError: 'فشل في تحميل اللعبة',
+    gameNotFound: 'اللعبة غير موجودة',
+    gameUnavailable: 'اللعبة غير متاحة',
+    noGamesAvailable: 'لا توجد ألعاب متاحة',
+    browseGames: 'تصفح الألعاب',
+    featuredGames: 'الألعاب المميزة',
+    recentlyPlayed: 'تم لعبها مؤخراً',
+    popularGames: 'الألعاب الشائعة',
+    myGames: 'ألعابي',
+    gameCategories: 'الفئات',
+    puzzle: 'ألغاز',
+    action: 'أكشن',
+    strategy: 'استراتيجية',
+    casual: 'عادية',
+    multiplayer: 'متعدد اللاعبين',
+    singlePlayer: 'لاعب واحد',
   },
 };
