@@ -2,8 +2,26 @@ import { Animated, Platform, Easing } from 'react-native';
 
 // Ensure easing functions are properly defined with web compatibility
 const safeEasing = {
-  quad: Platform.OS === 'web' ? Easing.out(Easing.quad) : (Easing.quad || Easing.linear),
-  back: Platform.OS === 'web' ? Easing.out(Easing.cubic) : (Easing.back ? Easing.back(1.7) : Easing.linear),
+  quad: (() => {
+    try {
+      return Platform.OS === 'web' ? 
+        (Easing.out && Easing.quad ? Easing.out(Easing.quad) : Easing.linear) : 
+        (Easing.quad || Easing.linear);
+    } catch (error) {
+      console.warn('Easing.quad not available, using linear:', error);
+      return Easing.linear;
+    }
+  })(),
+  back: (() => {
+    try {
+      return Platform.OS === 'web' ? 
+        (Easing.out && Easing.cubic ? Easing.out(Easing.cubic) : Easing.linear) : 
+        (Easing.back ? Easing.back(1.7) : Easing.linear);
+    } catch (error) {
+      console.warn('Easing.back not available, using linear:', error);
+      return Easing.linear;
+    }
+  })(),
   linear: Easing.linear
 };
 
