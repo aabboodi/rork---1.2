@@ -22,9 +22,29 @@ export default function TabLayout() {
   const initializeTabSecurity = async () => {
     try {
       if (Platform.OS === 'web') {
-        const apiMiddleware = APISecurityMiddleware.getInstance();
-        const wafService = WAFService.getInstance();
-        const cspMiddleware = apiMiddleware.getCSPMiddleware();
+        // Initialize security services with proper error handling
+        let apiMiddleware: any = null;
+        let wafService: any = null;
+        let cspMiddleware: any = null;
+        
+        try {
+          apiMiddleware = APISecurityMiddleware.getInstance();
+        } catch (error) {
+          console.warn('APISecurityMiddleware not available:', error);
+          return;
+        }
+        
+        try {
+          wafService = WAFService.getInstance();
+        } catch (error) {
+          console.warn('WAFService not available:', error);
+        }
+        
+        try {
+          cspMiddleware = apiMiddleware?.getCSPMiddleware?.();
+        } catch (error) {
+          console.warn('CSP middleware not available:', error);
+        }
         
         if (!cspMiddleware || typeof cspMiddleware.addRouteConfiguration !== 'function') {
           console.warn('CSP middleware not available or not properly initialized');

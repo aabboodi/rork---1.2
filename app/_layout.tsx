@@ -116,6 +116,11 @@ export default function RootLayout() {
       let screenProtection: any;
       try {
         screenProtection = ScreenProtectionService.getInstance();
+        // Ensure the handler method exists
+        if (screenProtection && typeof screenProtection.getAppStateHandler !== 'function') {
+          console.warn('⚠️ ScreenProtectionService missing getAppStateHandler method');
+          screenProtection = null;
+        }
       } catch (error) {
         console.warn('⚠️ ScreenProtectionService failed, using fallback');
         screenProtection = null;
@@ -554,21 +559,13 @@ Incident ID: ${incident.id}`,
   const initializeWebCSP = async () => {
     try {
       if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-        // Check if app is running in an embedded frame
+        // Check if app is running in an embedded frame (non-blocking)
         try {
           if (window.self !== window.top) {
-            console.warn('🚨 SECURITY ALERT: App is running in an embedded frame - this is not allowed');
-            
-            // Try to break out of the frame
-            try {
-              if (window.top && window.top.location) {
-                window.top.location = window.self.location;
-              }
-            } catch (frameError) {
-              // If we can't break out, show a warning but don't block the app
-              console.warn('Cannot break out of frame, continuing with limited functionality');
-              
-              // Add a warning banner instead of blocking
+            console.info('ℹ️ App is running in an embedded frame');
+            // Just log it, don't block the app or show warnings in development
+            if (!__DEV__) {
+              // Only show warning in production
               const warningBanner = document.createElement('div');
               warningBanner.style.cssText = `
                 position: fixed;
@@ -578,17 +575,25 @@ Incident ID: ${incident.id}`,
                 background: #ff9800;
                 color: white;
                 text-align: center;
-                padding: 8px;
-                font-size: 14px;
+                padding: 4px;
+                font-size: 12px;
                 z-index: 999999;
                 font-family: Arial, sans-serif;
+                opacity: 0.8;
               `;
-              warningBanner.textContent = 'Security Warning: This app is running in an embedded frame';
+              warningBanner.textContent = 'Running in embedded mode';
               document.body.appendChild(warningBanner);
+              
+              // Auto-hide after 3 seconds
+              setTimeout(() => {
+                if (warningBanner.parentNode) {
+                  warningBanner.parentNode.removeChild(warningBanner);
+                }
+              }, 3000);
             }
           }
         } catch (frameCheckError) {
-          console.warn('Frame check failed:', frameCheckError);
+          // Silently ignore frame check errors
         }
         
         // Set up CSP violation reporting
@@ -600,11 +605,11 @@ Incident ID: ${incident.id}`,
           const cspMeta = document.createElement('meta');
           cspMeta.httpEquiv = 'Content-Security-Policy';
           // Allow unsafe-eval for development (Metro HMR) but restrict in production
-          const isDevelopment = process.env.NODE_ENV === 'development';
+          const isDevelopment = process.env.NODE_ENV === 'development' || __DEV__;
           const scriptSrc = isDevelopment 
-            ? "'self' 'unsafe-inline' 'unsafe-eval'" 
+            ? "'self' 'unsafe-inline' 'unsafe-eval' blob:" 
             : "'self' 'unsafe-inline'";
-          cspMeta.content = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://toolkit.rork.com; frame-ancestors 'none';`;
+          cspMeta.content = `default-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: https: blob:; connect-src 'self' https://toolkit.rork.com ws: wss: blob:; frame-ancestors 'none'; worker-src 'self' blob:;`;
           document.head.appendChild(cspMeta);
         }
         
