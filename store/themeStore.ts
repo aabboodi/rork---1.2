@@ -254,14 +254,32 @@ const getSafeColors = (scheme?: ColorScheme): ThemeColors => {
 
 // Hook to safely get theme colors with fallback
 export const useThemeColors = () => {
-  const store = useThemeStore();
-  return store?.colors || getSafeColors();
+  try {
+    const store = useThemeStore();
+    // Always ensure we have valid colors
+    if (!store || !store.colors || !store.colors.background) {
+      console.warn('Theme colors not available, using safe fallback');
+      return getSafeColors();
+    }
+    return store.colors;
+  } catch (error) {
+    console.warn('Error accessing theme colors, using fallback:', error);
+    return getSafeColors();
+  }
 };
 
 // Hook to safely get color scheme with fallback
 export const useColorScheme = () => {
-  const store = useThemeStore();
-  return store?.colorScheme || getSystemColorScheme();
+  try {
+    const store = useThemeStore();
+    if (!store || !store.colorScheme) {
+      return getSystemColorScheme();
+    }
+    return store.colorScheme;
+  } catch (error) {
+    console.warn('Error accessing color scheme, using fallback:', error);
+    return getSystemColorScheme();
+  }
 };
 
 // Initialize with safe defaults immediately
@@ -339,69 +357,76 @@ export const useThemeStore = create<ThemeState>()(
           // Return cleanup function immediately to prevent state update during render
           let subscription: any = null;
           let intervalId: any = null;
+          let timeoutId: any = null;
           
-          // Use setTimeout to avoid state updates during render
-          const timeoutId = setTimeout(() => {
-            try {
-              const state = get();
-              const { mode, isAutoAdaptive } = state;
-              
-              // Initialize theme based on current settings
-              if (mode === 'auto' && isAutoAdaptive) {
-                // Use setTimeout to avoid immediate state update
-                setTimeout(() => {
+          // Use requestAnimationFrame to defer initialization to next frame
+          const rafId = requestAnimationFrame(() => {
+            // Use setTimeout to avoid state updates during render
+            timeoutId = setTimeout(() => {
+              try {
+                const state = get();
+                const { mode, isAutoAdaptive } = state;
+                
+                // Initialize theme based on current settings
+                if (mode === 'auto' && isAutoAdaptive) {
+                  // Use another setTimeout to avoid immediate state update
+                  setTimeout(() => {
+                    try {
+                      get().checkAndUpdateTheme();
+                    } catch (error) {
+                      console.warn('Auto theme check error:', error);
+                    }
+                  }, 200);
+                } else if (mode === 'auto') {
+                  const systemScheme = getSystemColorScheme();
+                  set({
+                    colorScheme: systemScheme,
+                    colors: getSafeColors(systemScheme),
+                  });
+                }
+                
+                // Listen for system theme changes
+                subscription = Appearance.addChangeListener(({ colorScheme }) => {
                   try {
-                    get().checkAndUpdateTheme();
+                    const currentState = get();
+                    const { mode, isAutoAdaptive, adaptiveMode } = currentState;
+                    if (mode === 'auto' && (!isAutoAdaptive || adaptiveMode === 'system')) {
+                      const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
+                      set({
+                        colorScheme: newScheme,
+                        colors: getSafeColors(newScheme),
+                      });
+                    }
                   } catch (error) {
-                    console.warn('Auto theme check error:', error);
+                    console.warn('Theme change listener error:', error);
                   }
-                }, 100);
-              } else if (mode === 'auto') {
-                const systemScheme = getSystemColorScheme();
-                set({
-                  colorScheme: systemScheme,
-                  colors: getSafeColors(systemScheme),
                 });
+                
+                // Set up periodic theme checking for auto-adaptive modes
+                intervalId = setInterval(() => {
+                  try {
+                    const currentState = get();
+                    const { mode, isAutoAdaptive } = currentState;
+                    if (mode === 'auto' && isAutoAdaptive) {
+                      get().checkAndUpdateTheme();
+                    }
+                  } catch (error) {
+                    console.warn('Periodic theme check error:', error);
+                  }
+                }, 60000); // Check every minute
+                
+              } catch (error) {
+                console.warn('Theme initialization timeout error:', error);
               }
-              
-              // Listen for system theme changes
-              subscription = Appearance.addChangeListener(({ colorScheme }) => {
-                try {
-                  const currentState = get();
-                  const { mode, isAutoAdaptive, adaptiveMode } = currentState;
-                  if (mode === 'auto' && (!isAutoAdaptive || adaptiveMode === 'system')) {
-                    const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
-                    set({
-                      colorScheme: newScheme,
-                      colors: getSafeColors(newScheme),
-                    });
-                  }
-                } catch (error) {
-                  console.warn('Theme change listener error:', error);
-                }
-              });
-              
-              // Set up periodic theme checking for auto-adaptive modes
-              intervalId = setInterval(() => {
-                try {
-                  const currentState = get();
-                  const { mode, isAutoAdaptive } = currentState;
-                  if (mode === 'auto' && isAutoAdaptive) {
-                    get().checkAndUpdateTheme();
-                  }
-                } catch (error) {
-                  console.warn('Periodic theme check error:', error);
-                }
-              }, 60000); // Check every minute
-              
-            } catch (error) {
-              console.warn('Theme initialization timeout error:', error);
-            }
-          }, 0);
+            }, 100);
+          });
           
           return () => {
             try {
-              clearTimeout(timeoutId);
+              cancelAnimationFrame(rafId);
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+              }
               if (subscription?.remove) {
                 subscription.remove();
               }
