@@ -5,6 +5,7 @@ import { GamesRegistryService, GameSearchParams, GameRegistryResponse } from './
 import { GamesSessionService, GameSession, CreateSessionRequest, JoinSessionRequest, SessionResponse } from './GamesSessionService';
 import { GamesInviteService, GameInvite, CreateInviteRequest, InviteResponse, DeepLinkData } from './GamesInviteService';
 import { GamesUploadService, GameUploadRequest, GameUploadResponse, GameReviewStatus } from './GamesUploadService';
+import { GamesLeaderboardService, ScoreSubmissionRequest, ScoreSubmissionResponse, Leaderboard, GameScore } from './GamesLeaderboardService';
 
 export interface GameFeatureFlags {
   games: boolean;
@@ -12,6 +13,8 @@ export interface GameFeatureFlags {
   multiplayerGames: boolean;
   gameInvites: boolean;
   gameSharing: boolean;
+  leaderboards: boolean;
+  antiCheat: boolean;
 }
 
 export interface GameCategory {
@@ -47,6 +50,7 @@ export class GamesService {
   private sessionService: GamesSessionService;
   private inviteService: GamesInviteService;
   private uploadService: GamesUploadService;
+  private leaderboardService: GamesLeaderboardService;
   private isInitialized = false;
   
   private readonly GAMES_CACHE_KEY = 'games_library_cache';
@@ -60,7 +64,9 @@ export class GamesService {
     uploadGames: true, // Enable for Phase 3
     multiplayerGames: true, // Enable for Phase 2
     gameInvites: true, // Enable for Phase 2
-    gameSharing: true // Enable for Phase 2
+    gameSharing: true, // Enable for Phase 2
+    leaderboards: true, // Enable for Phase 4
+    antiCheat: true // Enable for Phase 4
   };
 
   private constructor() {
@@ -69,6 +75,7 @@ export class GamesService {
     this.sessionService = GamesSessionService.getInstance();
     this.inviteService = GamesInviteService.getInstance();
     this.uploadService = GamesUploadService.getInstance();
+    this.leaderboardService = GamesLeaderboardService.getInstance();
   }
 
   static getInstance(): GamesService {
@@ -90,7 +97,8 @@ export class GamesService {
         this.registryService.initialize(),
         this.sessionService.initialize(),
         this.inviteService.initialize(),
-        this.uploadService.initialize()
+        this.uploadService.initialize(),
+        this.leaderboardService.initialize()
       ]);
 
       // Load feature flags
@@ -733,5 +741,225 @@ export class GamesService {
     }
 
     return await this.uploadService.getGameVersions(gameId);
+  }
+
+  // Phase 4: Leaderboard and Anti-Cheat Methods
+
+  /**
+   * Submit a game score with anti-cheat validation
+   */
+  async submitGameScore(request: ScoreSubmissionRequest, userId: string, userName: string): Promise<ScoreSubmissionResponse> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      throw new Error('Games feature is disabled');
+    }
+
+    try {
+      console.log(`🎯 Submitting score for game ${request.gameId}: ${request.score}`);
+      
+      // Verify game exists
+      const game = await this.getGame(request.gameId);
+      if (!game) {
+        throw new Error('Game not found');
+      }
+
+      // Submit score through leaderboard service
+      const response = await this.leaderboardService.submitScore(request, userId, userName);
+      
+      // Record performance metrics
+      if (response.success) {
+        await this.recordPerformanceMetrics(request.gameId, {
+          lastPlayed: new Date().toISOString(),
+          playCount: 1
+        });
+      }
+
+      return response;
+
+    } catch (error) {
+      console.error('❌ Game score submission failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get leaderboard for a game
+   */
+  async getGameLeaderboard(gameId: string, period: 'daily' | 'weekly' | 'monthly' | 'all-time' = 'all-time', limit: number = 50): Promise<Leaderboard> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      throw new Error('Games feature is disabled');
+    }
+
+    return await this.leaderboardService.getLeaderboard(gameId, period, limit);
+  }
+
+  /**
+   * Get user's rank in a game
+   */
+  async getUserGameRank(gameId: string, userId: string, period: 'daily' | 'weekly' | 'monthly' | 'all-time' = 'all-time'): Promise<number | null> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      return null;
+    }
+
+    return await this.leaderboardService.getUserRank(gameId, userId, period);
+  }
+
+  /**
+   * Get user's best score for a game
+   */
+  async getUserBestGameScore(gameId: string, userId: string): Promise<GameScore | null> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      return null;
+    }
+
+    return await this.leaderboardService.getUserBestScore(gameId, userId);
+  }
+
+  /**
+   * Get user's score history for a game
+   */
+  async getUserGameScoreHistory(gameId: string, userId: string, limit: number = 20): Promise<GameScore[]> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      return [];
+    }
+
+    return await this.leaderboardService.getUserScoreHistory(gameId, userId, limit);
+  }
+
+  /**
+   * Get flagged scores for review (admin only)
+   */
+  async getFlaggedGameScores(gameId?: string, limit: number = 50): Promise<GameScore[]> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      return [];
+    }
+
+    return await this.leaderboardService.getFlaggedScores(gameId, limit);
+  }
+
+  /**
+   * Flag a score for manual review (admin only)
+   */
+  async flagGameScore(scoreId: string, reason: string, reviewerId: string): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      throw new Error('Games feature is disabled');
+    }
+
+    return await this.leaderboardService.flagScore(scoreId, reason, reviewerId);
+  }
+
+  /**
+   * Approve a flagged score (admin only)
+   */
+  async approveGameScore(scoreId: string, reviewerId: string): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      throw new Error('Games feature is disabled');
+    }
+
+    return await this.leaderboardService.approveScore(scoreId, reviewerId);
+  }
+
+  /**
+   * Reject a flagged score (admin only)
+   */
+  async rejectGameScore(scoreId: string, reason: string, reviewerId: string): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      throw new Error('Games feature is disabled');
+    }
+
+    return await this.leaderboardService.rejectScore(scoreId, reason, reviewerId);
+  }
+
+  /**
+   * Get anomaly detection statistics for a game (admin only)
+   */
+  async getGameAnomalyStats(gameId: string): Promise<{
+    totalScores: number;
+    flaggedScores: number;
+    rejectedScores: number;
+    averageScore: number;
+    standardDeviation: number;
+  }> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      throw new Error('Games feature is disabled');
+    }
+
+    return await this.leaderboardService.getAnomalyStats(gameId);
+  }
+
+  /**
+   * Get comprehensive game statistics
+   */
+  async getGameStats(gameId: string): Promise<{
+    performance: GamePerformanceMetrics | null;
+    anomalies: any;
+    leaderboard: Leaderboard;
+    totalPlayers: number;
+  }> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.featureFlags.games) {
+      throw new Error('Games feature is disabled');
+    }
+
+    try {
+      const [performance, anomalies, leaderboard] = await Promise.all([
+        Promise.resolve(this.getPerformanceMetrics(gameId)),
+        this.leaderboardService.getAnomalyStats(gameId),
+        this.leaderboardService.getLeaderboard(gameId, 'all-time', 100)
+      ]);
+
+      return {
+        performance,
+        anomalies,
+        leaderboard,
+        totalPlayers: leaderboard.totalEntries
+      };
+
+    } catch (error) {
+      console.error(`❌ Failed to get game stats for ${gameId}:`, error);
+      throw error;
+    }
   }
 }
