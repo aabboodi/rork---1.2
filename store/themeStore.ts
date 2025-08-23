@@ -242,12 +242,22 @@ const getAdaptiveTheme = async (mode: AdaptiveMode, timeConfig: TimeBasedTheme):
   }
 };
 
+// Create a safe getter for colors that always returns valid colors
+const getSafeColors = (scheme?: ColorScheme): ThemeColors => {
+  try {
+    return getColorsForScheme(scheme || getSystemColorScheme());
+  } catch (error) {
+    console.warn('Failed to get colors, using light theme fallback:', error);
+    return lightColors;
+  }
+};
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       mode: 'auto',
       colorScheme: getSystemColorScheme(),
-      colors: getColorsForScheme(getSystemColorScheme()),
+      colors: getSafeColors(getSystemColorScheme()),
       adaptiveMode: 'system',
       timeBasedTheme: {
         enabled: false,
@@ -262,7 +272,7 @@ export const useThemeStore = create<ThemeState>()(
         set({
           mode,
           colorScheme: newColorScheme,
-          colors: getColorsForScheme(newColorScheme),
+          colors: getSafeColors(newColorScheme),
         });
       },
       
@@ -272,19 +282,19 @@ export const useThemeStore = create<ThemeState>()(
           set({
             mode: 'light',
             colorScheme: 'light',
-            colors: getColorsForScheme('light'),
+            colors: getSafeColors('light'),
           });
         } else if (mode === 'light') {
           set({
             mode: 'dark',
             colorScheme: 'dark',
-            colors: getColorsForScheme('dark'),
+            colors: getSafeColors('dark'),
           });
         } else {
           set({
             mode: 'auto',
             colorScheme: getSystemColorScheme(),
-            colors: getColorsForScheme(getSystemColorScheme()),
+            colors: getSafeColors(getSystemColorScheme()),
           });
         }
       },
@@ -292,23 +302,33 @@ export const useThemeStore = create<ThemeState>()(
       updateColorScheme: (scheme: ColorScheme) => {
         set({
           colorScheme: scheme,
-          colors: getColorsForScheme(scheme),
+          colors: getSafeColors(scheme),
         });
       },
       
       initializeTheme: () => {
-        const { mode, isAutoAdaptive, adaptiveMode, timeBasedTheme } = get();
+        // Ensure colors are always set first
+        const currentScheme = get().colorScheme || getSystemColorScheme();
+        set({
+          colorScheme: currentScheme,
+          colors: getSafeColors(currentScheme),
+        });
         
-        // Initialize theme based on current settings
-        if (mode === 'auto' && isAutoAdaptive) {
-          get().checkAndUpdateTheme();
-        } else if (mode === 'auto') {
-          const systemScheme = getSystemColorScheme();
-          set({
-            colorScheme: systemScheme,
-            colors: getColorsForScheme(systemScheme),
-          });
-        }
+        // Use setTimeout to avoid state updates during render
+        setTimeout(() => {
+          const { mode, isAutoAdaptive, adaptiveMode, timeBasedTheme } = get();
+          
+          // Initialize theme based on current settings
+          if (mode === 'auto' && isAutoAdaptive) {
+            get().checkAndUpdateTheme();
+          } else if (mode === 'auto') {
+            const systemScheme = getSystemColorScheme();
+            set({
+              colorScheme: systemScheme,
+              colors: getSafeColors(systemScheme),
+            });
+          }
+        }, 0);
         
         // Listen for system theme changes
         const subscription = Appearance.addChangeListener(({ colorScheme }) => {
@@ -317,7 +337,7 @@ export const useThemeStore = create<ThemeState>()(
             const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
             set({
               colorScheme: newScheme,
-              colors: getColorsForScheme(newScheme),
+              colors: getSafeColors(newScheme),
             });
           }
         });
@@ -370,7 +390,7 @@ export const useThemeStore = create<ThemeState>()(
             const systemScheme = getSystemColorScheme();
             set({
               colorScheme: systemScheme,
-              colors: getColorsForScheme(systemScheme),
+              colors: getSafeColors(systemScheme),
             });
           }
         }
@@ -392,7 +412,7 @@ export const useThemeStore = create<ThemeState>()(
           if (recommendedScheme !== currentScheme) {
             set({
               colorScheme: recommendedScheme,
-              colors: getColorsForScheme(recommendedScheme),
+              colors: getSafeColors(recommendedScheme),
               lastSystemCheck: now
             });
             
@@ -406,7 +426,7 @@ export const useThemeStore = create<ThemeState>()(
           const systemScheme = getSystemColorScheme();
           set({
             colorScheme: systemScheme,
-            colors: getColorsForScheme(systemScheme),
+            colors: getSafeColors(systemScheme),
             lastSystemCheck: now
           });
         }
