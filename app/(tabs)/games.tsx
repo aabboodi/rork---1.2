@@ -18,8 +18,10 @@ import { useAuthStore } from '@/store/authStore';
 import { GamesService, GameFeatureFlags, GamePerformanceMetrics } from '@/services/GamesService';
 import { GameMetadata } from '@/components/WebViewSandbox';
 import { GameRegistryResponse } from '@/services/GamesRegistryService';
+import { GameSession, SessionResponse } from '@/services/GamesSessionService';
+import { GameInvite, InviteResponse } from '@/services/GamesInviteService';
 import WebViewSandbox from '@/components/WebViewSandbox';
-import { Gamepad2, Plus, Search, Filter, AlertTriangle, X, Play } from 'lucide-react-native';
+import { Gamepad2, Plus, Search, Filter, AlertTriangle, X, Play, Users, Share, Link } from 'lucide-react-native';
 import AnimatedLoader from '@/components/AnimatedLoader';
 
 export default function GamesTab() {
@@ -43,6 +45,11 @@ export default function GamesTab() {
   const [selectedGame, setSelectedGame] = useState<GameMetadata | null>(null);
   const [isGameModalVisible, setIsGameModalVisible] = useState<boolean>(false);
   const [gamePerformanceMetrics, setGamePerformanceMetrics] = useState<GamePerformanceMetrics[]>([]);
+  const [currentSession, setCurrentSession] = useState<GameSession | null>(null);
+  const [userSessions, setUserSessions] = useState<GameSession[]>([]);
+  const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
+  const [showSessionOptions, setShowSessionOptions] = useState<boolean>(false);
+  const [selectedGameForSession, setSelectedGameForSession] = useState<GameMetadata | null>(null);
 
   const gamesService = GamesService.getInstance();
 
@@ -105,7 +112,7 @@ export default function GamesTab() {
     initializeGames();
   }, [loadGames, gamesService]);
 
-  const handlePlayGame = useCallback(async (game: GameMetadata) => {
+  const handlePlayGame = useCallback(async (game: GameMetadata, sessionId?: string) => {
     try {
       console.log(`🎮 Starting game: ${game.name}`);
       
@@ -128,6 +135,12 @@ export default function GamesTab() {
         playCount: 0
       });
       
+      // If sessionId provided, join that session
+      if (sessionId) {
+        const session = await gamesService.sessionService.getSession(sessionId);
+        setCurrentSession(session);
+      }
+      
       setSelectedGame(game);
       setIsGameModalVisible(true);
       
@@ -140,11 +153,124 @@ export default function GamesTab() {
     }
   }, [gamesService, t.securityWarning, t.error]);
 
-  const handleCloseGame = useCallback(() => {
+  const handleCreateSession = useCallback(async (game: GameMetadata) => {
+    if (!featureFlags.multiplayerGames) {
+      Alert.alert('Feature Disabled', 'Multiplayer games are not enabled.');
+      return;
+    }
+
+    try {
+      setIsCreatingSession(true);
+      
+      // Mock user ID - in real app, get from auth
+      const userId = 'user_123';
+      const userName = 'Player 1';
+      
+      // Create session
+      const sessionResponse = await gamesService.createGameSession(game.id, userId, {
+        maxPlayers: 4
+      });
+      
+      console.log(`🎮 Created session: ${sessionResponse.session.roomCode}`);
+      
+      // Create invite
+      const inviteResponse = await gamesService.createGameInvite(
+        sessionResponse.session.id,
+        userId,
+        userName,
+        'private'
+      );
+      
+      console.log(`🔗 Created invite: ${inviteResponse.deepLink}`);
+      
+      // Show session info
+      Alert.alert(
+        'Session Created!',
+        `Room Code: ${sessionResponse.session.roomCode}\n\nShare this link with friends:\n${inviteResponse.deepLink}`,
+        [
+          { text: 'Copy Link', onPress: () => {
+            // In real app, copy to clipboard
+            console.log('📋 Copied invite link to clipboard');
+          }},
+          { text: 'Start Game', onPress: () => handlePlayGame(game, sessionResponse.session.id) }
+        ]
+      );
+      
+      // Update user sessions
+      const sessions = await gamesService.getUserGameSessions(userId);
+      setUserSessions(sessions);
+      
+    } catch (error) {
+      console.error('❌ Failed to create session:', error);
+      Alert.alert(
+        'Session Creation Failed',
+        error instanceof Error ? error.message : 'Failed to create game session'
+      );
+    } finally {
+      setIsCreatingSession(false);
+    }
+  }, [featureFlags.multiplayerGames, gamesService, handlePlayGame]);
+
+  const handleJoinByRoomCode = useCallback(async () => {
+    if (!featureFlags.multiplayerGames) {
+      Alert.alert('Feature Disabled', 'Multiplayer games are not enabled.');
+      return;
+    }
+
+    Alert.prompt(
+      'Join Game',
+      'Enter room code:',
+      async (roomCode) => {
+        if (!roomCode) return;
+        
+        try {
+          const session = await gamesService.getSessionByRoomCode(roomCode.toUpperCase());
+          if (!session) {
+            Alert.alert('Room Not Found', 'Invalid room code or session has expired.');
+            return;
+          }
+          
+          const userId = 'user_123'; // Mock user ID
+          const sessionResponse = await gamesService.joinGameSession(session.id, userId);
+          
+          const game = await gamesService.getGame(session.gameId);
+          if (game) {
+            Alert.alert(
+              'Joined Session!',
+              `Joined ${session.hostUserId}'s game: ${game.name}`,
+              [{ text: 'Start Game', onPress: () => handlePlayGame(game, session.id) }]
+            );
+          }
+          
+        } catch (error) {
+          console.error('❌ Failed to join session:', error);
+          Alert.alert(
+            'Join Failed',
+            error instanceof Error ? error.message : 'Failed to join game session'
+          );
+        }
+      }
+    );
+  }, [featureFlags.multiplayerGames, gamesService, handlePlayGame]);
+
+  const handleCloseGame = useCallback(async () => {
     console.log('🎮 Closing game');
+    
+    // Leave session if in one
+    if (currentSession) {
+      try {
+        const userId = 'user_123'; // Mock user ID
+        await gamesService.leaveGameSession(currentSession.id, userId);
+        console.log(`👋 Left session: ${currentSession.roomCode}`);
+      } catch (error) {
+        console.error('❌ Failed to leave session:', error);
+      }
+    }
+    
     setIsGameModalVisible(false);
     setSelectedGame(null);
-  }, []);
+    setCurrentSession(null);
+  }, [currentSession, gamesService]);
 
   const handleGameLoadStart = useCallback(() => {
     console.log('🎮 Game load started');
@@ -229,16 +355,29 @@ export default function GamesTab() {
         <Text style={[styles.gameSize, { color: colors.textSecondary }]}>
           {game.size ? `${(game.size / 1024 / 1024).toFixed(1)}MB` : 'Unknown size'}
         </Text>
-        <TouchableOpacity
-          style={[styles.playButton, { backgroundColor: colors.primary }]}
-          onPress={() => handlePlayGame(game)}
-          testID={`play-game-${game.id}`}
-        >
-          <Play size={16} color={colors.background} />
-          <Text style={[styles.playButtonText, { color: colors.background }]}>
-            {t.playGame}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.gameActions}>
+          <TouchableOpacity
+            style={[styles.playButton, { backgroundColor: colors.primary }]}
+            onPress={() => handlePlayGame(game)}
+            testID={`play-game-${game.id}`}
+          >
+            <Play size={16} color={colors.background} />
+            <Text style={[styles.playButtonText, { color: colors.background }]}>
+              Play
+            </Text>
+          </TouchableOpacity>
+          
+          {featureFlags.multiplayerGames && (
+            <TouchableOpacity
+              style={[styles.sessionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => handleCreateSession(game)}
+              disabled={isCreatingSession}
+              testID={`create-session-${game.id}`}
+            >
+              <Users size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -358,6 +497,15 @@ export default function GamesTab() {
               >
                 <Filter size={20} color={colors.text} />
               </TouchableOpacity>
+              {featureFlags.multiplayerGames && (
+                <TouchableOpacity
+                  style={[styles.headerButton, { backgroundColor: colors.surface }]}
+                  onPress={handleJoinByRoomCode}
+                  testID="join-room"
+                >
+                  <Link size={20} color={colors.text} />
+                </TouchableOpacity>
+              )}
               {featureFlags.uploadGames && (
                 <TouchableOpacity
                   style={[styles.headerButton, { backgroundColor: colors.primary }]}
@@ -427,7 +575,13 @@ export default function GamesTab() {
               Upload: {featureFlags.uploadGames ? '✅ Enabled' : '❌ Disabled'}
             </Text>
             <Text style={[styles.featureStatusText, { color: colors.textSecondary }]}>
+              Multiplayer: {featureFlags.multiplayerGames ? '✅ Enabled' : '❌ Disabled'}
+            </Text>
+            <Text style={[styles.featureStatusText, { color: colors.textSecondary }]}>
               Invites: {featureFlags.gameInvites ? '✅ Enabled' : '❌ Disabled'}
+            </Text>
+            <Text style={[styles.featureStatusText, { color: colors.textSecondary }]}>
+              Sharing: {featureFlags.gameSharing ? '✅ Enabled' : '❌ Disabled'}
             </Text>
           </View>
         )}
@@ -447,9 +601,16 @@ export default function GamesTab() {
             <View style={styles.gameModalHeaderContent}>
               <View style={styles.gameModalInfo}>
                 <Gamepad2 size={20} color={colors.primary} />
-                <Text style={[styles.gameModalTitle, { color: colors.text }]} numberOfLines={1}>
-                  {selectedGame?.name || 'Game'}
-                </Text>
+                <View style={styles.gameModalTitleContainer}>
+                  <Text style={[styles.gameModalTitle, { color: colors.text }]} numberOfLines={1}>
+                    {selectedGame?.name || 'Game'}
+                  </Text>
+                  {currentSession && (
+                    <Text style={[styles.gameModalSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                      Room: {currentSession.roomCode} • {currentSession.currentPlayers.length}/{currentSession.maxPlayers} players
+                    </Text>
+                  )}
+                </View>
               </View>
               <TouchableOpacity
                 style={[styles.closeButton, { backgroundColor: colors.error }]}
@@ -588,6 +749,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  gameActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   gameSize: {
     fontSize: 12,
   },
@@ -598,6 +764,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     gap: 6,
+  },
+  sessionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   playButtonText: {
     fontSize: 14,
@@ -666,6 +840,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     gap: 8,
+  },
+  gameModalTitleContainer: {
+    flex: 1,
+  },
+  gameModalSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
   },
   gameModalTitle: {
     fontSize: 18,

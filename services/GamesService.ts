@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GameMetadata } from '@/components/WebViewSandbox';
 import { PolicyEngine } from './ai/PolicyEngine';
 import { GamesRegistryService, GameSearchParams, GameRegistryResponse } from './GamesRegistryService';
+import { GamesSessionService, GameSession, CreateSessionRequest, JoinSessionRequest, SessionResponse } from './GamesSessionService';
+import { GamesInviteService, GameInvite, CreateInviteRequest, InviteResponse, DeepLinkData } from './GamesInviteService';
 
 export interface GameFeatureFlags {
   games: boolean;
@@ -41,6 +43,8 @@ export class GamesService {
   private static instance: GamesService;
   private policyEngine: PolicyEngine;
   private registryService: GamesRegistryService;
+  private sessionService: GamesSessionService;
+  private inviteService: GamesInviteService;
   private isInitialized = false;
   
   private readonly GAMES_CACHE_KEY = 'games_library_cache';
@@ -52,14 +56,16 @@ export class GamesService {
   private featureFlags: GameFeatureFlags = {
     games: true, // Enable for Phase 0 testing
     uploadGames: false,
-    multiplayerGames: false,
-    gameInvites: false,
-    gameSharing: false
+    multiplayerGames: true, // Enable for Phase 2
+    gameInvites: true, // Enable for Phase 2
+    gameSharing: true // Enable for Phase 2
   };
 
   private constructor() {
     this.policyEngine = new PolicyEngine();
     this.registryService = GamesRegistryService.getInstance();
+    this.sessionService = GamesSessionService.getInstance();
+    this.inviteService = GamesInviteService.getInstance();
   }
 
   static getInstance(): GamesService {
@@ -75,10 +81,12 @@ export class GamesService {
     try {
       console.log('🎮 Initializing Games Service...');
 
-      // Initialize policy engine and registry service
+      // Initialize all services
       await Promise.all([
         this.policyEngine.initialize(),
-        this.registryService.initialize()
+        this.registryService.initialize(),
+        this.sessionService.initialize(),
+        this.inviteService.initialize()
       ]);
 
       // Load feature flags
@@ -372,11 +380,11 @@ export class GamesService {
   }
 
   /**
-   * Generate game invite link
+   * Create a game session
    */
-  async generateInviteLink(gameId: string, userId: string): Promise<string> {
-    if (!this.featureFlags.gameInvites) {
-      throw new Error('Game invites feature is disabled');
+  async createGameSession(gameId: string, hostUserId: string, options?: { maxPlayers?: number; settings?: Record<string, any> }): Promise<SessionResponse> {
+    if (!this.featureFlags.multiplayerGames) {
+      throw new Error('Multiplayer games feature is disabled');
     }
 
     const game = await this.getGame(gameId);
@@ -384,12 +392,136 @@ export class GamesService {
       throw new Error('Game not found');
     }
 
-    // Generate secure invite token
-    const inviteToken = `${gameId}-${userId}-${Date.now()}`;
-    const inviteLink = `https://app.rork.com/games/invite/${inviteToken}`;
+    const request: CreateSessionRequest = {
+      gameId,
+      gameVersion: game.version,
+      maxPlayers: options?.maxPlayers || 4,
+      settings: options?.settings
+    };
 
-    console.log('🔗 Game invite link generated:', inviteLink);
-    return inviteLink;
+    return await this.sessionService.createSession(request, hostUserId);
+  }
+
+  /**
+   * Join a game session
+   */
+  async joinGameSession(sessionId: string, userId: string): Promise<SessionResponse> {
+    if (!this.featureFlags.multiplayerGames) {
+      throw new Error('Multiplayer games feature is disabled');
+    }
+
+    const request: JoinSessionRequest = {
+      sessionId,
+      userId
+    };
+
+    return await this.sessionService.joinSession(request);
+  }
+
+  /**
+   * Leave a game session
+   */
+  async leaveGameSession(sessionId: string, userId: string): Promise<void> {
+    return await this.sessionService.leaveSession(sessionId, userId);
+  }
+
+  /**
+   * Get user's active game sessions
+   */
+  async getUserGameSessions(userId: string): Promise<GameSession[]> {
+    return await this.sessionService.getUserSessions(userId);
+  }
+
+  /**
+   * Create game invite
+   */
+  async createGameInvite(sessionId: string, hostUserId: string, hostName: string, scope: 'private' | 'followers' | 'public' = 'private', customMessage?: string): Promise<InviteResponse> {
+    if (!this.featureFlags.gameInvites) {
+      throw new Error('Game invites feature is disabled');
+    }
+
+    // Get session info
+    const session = await this.sessionService.getSession(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    // Get game info
+    const game = await this.getGame(session.gameId);
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
+    const request: CreateInviteRequest = {
+      sessionId,
+      scope,
+      customMessage
+    };
+
+    const gameData = {
+      id: game.id,
+      name: game.name,
+      maxPlayers: session.maxPlayers,
+      currentPlayers: session.currentPlayers.length
+    };
+
+    return await this.inviteService.createInvite(request, hostUserId, hostName, gameData);
+  }
+
+  /**
+   * Handle deep link for game invite
+   */
+  async handleGameInviteDeepLink(url: string, userId: string): Promise<{ session: GameSession; game: GameMetadata } | null> {
+    try {
+      const deepLinkData = this.inviteService.parseDeepLink(url);
+      if (!deepLinkData || deepLinkData.type !== 'game_invite') {
+        return null;
+      }
+
+      // Get invite
+      const invite = await this.inviteService.getInvite(deepLinkData.inviteId);
+      if (!invite) {
+        throw new Error('Invite not found or expired');
+      }
+
+      // Join session
+      const sessionResponse = await this.joinGameSession(deepLinkData.sessionId, userId);
+      
+      // Get game info
+      const game = await this.getGame(deepLinkData.gameId);
+      if (!game) {
+        throw new Error('Game not found');
+      }
+
+      console.log(`🎮 User ${userId} joined session via invite: ${deepLinkData.sessionId}`);
+      
+      return {
+        session: sessionResponse.session,
+        game
+      };
+
+    } catch (error) {
+      console.error('❌ Failed to handle game invite deep link:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate share text for game invite
+   */
+  generateGameInviteShareText(invite: GameInvite, platform: 'chat' | 'social' | 'generic' = 'generic'): string {
+    if (!this.featureFlags.gameSharing) {
+      throw new Error('Game sharing feature is disabled');
+    }
+
+    return this.inviteService.generateShareTextForPlatform(invite, platform);
+  }
+
+  /**
+   * Get session by room code
+   */
+  async getSessionByRoomCode(roomCode: string): Promise<GameSession | null> {
+    return await this.sessionService.getSessionByRoomCode(roomCode);
   }
 
   // Private methods
