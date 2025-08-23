@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GameMetadata } from '@/components/WebViewSandbox';
 import { PolicyEngine } from './ai/PolicyEngine';
+import { GamesRegistryService, GameSearchParams, GameRegistryResponse } from './GamesRegistryService';
 
 export interface GameFeatureFlags {
   games: boolean;
@@ -39,6 +40,7 @@ export interface GamePerformanceMetrics {
 export class GamesService {
   private static instance: GamesService;
   private policyEngine: PolicyEngine;
+  private registryService: GamesRegistryService;
   private isInitialized = false;
   
   private readonly GAMES_CACHE_KEY = 'games_library_cache';
@@ -57,6 +59,7 @@ export class GamesService {
 
   private constructor() {
     this.policyEngine = new PolicyEngine();
+    this.registryService = GamesRegistryService.getInstance();
   }
 
   static getInstance(): GamesService {
@@ -72,8 +75,11 @@ export class GamesService {
     try {
       console.log('🎮 Initializing Games Service...');
 
-      // Initialize policy engine first
-      await this.policyEngine.initialize();
+      // Initialize policy engine and registry service
+      await Promise.all([
+        this.policyEngine.initialize(),
+        this.registryService.initialize()
+      ]);
 
       // Load feature flags
       await this.loadFeatureFlags();
@@ -91,10 +97,8 @@ export class GamesService {
         this.loadCachedPerformanceMetrics()
       ]);
 
-      // Load default games if none cached
-      if (this.games.size === 0) {
-        await this.loadDefaultGames();
-      }
+      // Load games from registry service
+      await this.syncWithRegistry();
 
       this.isInitialized = true;
       console.log('✅ Games Service initialized');
@@ -134,18 +138,56 @@ export class GamesService {
   }
 
   /**
-   * Get all available games
+   * Get all available games with search and pagination
    */
-  async getGames(): Promise<GameMetadata[]> {
+  async getGames(params: GameSearchParams = {}): Promise<GameRegistryResponse> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     if (!this.featureFlags.games) {
-      return [];
+      return {
+        games: [],
+        total: 0,
+        page: 1,
+        hasMore: false
+      };
     }
 
-    return Array.from(this.games.values());
+    try {
+      // Get games from registry service
+      const response = await this.registryService.getGames(params);
+      
+      // Update local cache with registry games
+      response.games.forEach(game => {
+        this.games.set(game.id, game);
+      });
+      
+      await this.saveGamesCache();
+      
+      console.log(`🎮 Retrieved ${response.games.length} games from registry`);
+      return response;
+      
+    } catch (error) {
+      console.error('❌ Failed to get games from registry:', error);
+      
+      // Fallback to cached games
+      const cachedGames = Array.from(this.games.values());
+      return {
+        games: cachedGames,
+        total: cachedGames.length,
+        page: 1,
+        hasMore: false
+      };
+    }
+  }
+
+  /**
+   * Get all available games (legacy method for backward compatibility)
+   */
+  async getAllGames(): Promise<GameMetadata[]> {
+    const response = await this.getGames({ limit: 100 });
+    return response.games;
   }
 
   /**
@@ -157,7 +199,7 @@ export class GamesService {
   }
 
   /**
-   * Get game by ID
+   * Get game by ID with secure URL
    */
   async getGame(gameId: string): Promise<GameMetadata | null> {
     if (!this.isInitialized) {
@@ -168,7 +210,26 @@ export class GamesService {
       return null;
     }
 
-    return this.games.get(gameId) || null;
+    try {
+      // Get secure game from registry service
+      const secureGame = await this.registryService.getGame(gameId);
+      
+      if (secureGame) {
+        // Update local cache
+        this.games.set(gameId, secureGame);
+        await this.saveGamesCache();
+        
+        console.log(`🔐 Retrieved secure game: ${secureGame.name}`);
+        return secureGame;
+      }
+      
+      // Fallback to cached game
+      return this.games.get(gameId) || null;
+      
+    } catch (error) {
+      console.error(`❌ Failed to get secure game ${gameId}:`, error);
+      return this.games.get(gameId) || null;
+    }
   }
 
   /**
@@ -394,54 +455,88 @@ export class GamesService {
     }
   }
 
-  private async loadDefaultGames(): Promise<void> {
-    const defaultGames: GameMetadata[] = [
+  /**
+   * Sync local cache with registry service
+   */
+  private async syncWithRegistry(): Promise<void> {
+    try {
+      console.log('🔄 Syncing games with registry service...');
+      
+      // Get latest games from registry
+      const response = await this.registryService.getGames({ limit: 50 });
+      
+      // Update local cache
+      this.games.clear();
+      response.games.forEach(game => {
+        this.games.set(game.id, game);
+      });
+      
+      await this.saveGamesCache();
+      console.log(`✅ Synced ${response.games.length} games with registry`);
+      
+    } catch (error) {
+      console.warn('⚠️ Failed to sync with registry, using cached games:', error);
+      
+      // Load cached games as fallback
+      await this.loadCachedGames();
+      
+      // If still no games, load minimal defaults
+      if (this.games.size === 0) {
+        await this.loadMinimalDefaults();
+      }
+    }
+  }
+
+  /**
+   * Load minimal default games for offline/fallback scenarios
+   */
+  private async loadMinimalDefaults(): Promise<void> {
+    const minimalGames: GameMetadata[] = [
       {
-        id: 'demo-puzzle-1',
-        name: 'Block Puzzle',
-        url: 'https://games.rork.com/puzzle/blocks',
-        category: 'puzzle',
-        thumbnail: 'https://cdn.rork.com/games/thumbnails/blocks.jpg',
-        description: 'Classic block puzzle game',
+        id: 'offline-demo-1',
+        name: 'Demo Game',
+        url: 'https://games.rork.com/demo/offline',
+        category: 'demo',
+        description: 'Offline demo game',
         version: '1.0.0',
         developer: 'Rork Games',
-        rating: 4.5,
-        size: 2048000, // 2MB
-        lastUpdated: '2024-01-15'
-      },
-      {
-        id: 'demo-action-1',
-        name: 'Space Runner',
-        url: 'https://games.rork.com/action/space-runner',
-        category: 'action',
-        thumbnail: 'https://cdn.rork.com/games/thumbnails/space-runner.jpg',
-        description: 'Fast-paced space adventure',
-        version: '1.2.0',
-        developer: 'Rork Games',
-        rating: 4.2,
-        size: 5120000, // 5MB
-        lastUpdated: '2024-01-20'
-      },
-      {
-        id: 'demo-casual-1',
-        name: 'Color Match',
-        url: 'https://games.rork.com/casual/color-match',
-        category: 'casual',
-        thumbnail: 'https://cdn.rork.com/games/thumbnails/color-match.jpg',
-        description: 'Relaxing color matching game',
-        version: '1.1.0',
-        developer: 'Rork Games',
-        rating: 4.7,
-        size: 1024000, // 1MB
-        lastUpdated: '2024-01-10'
+        rating: 4.0,
+        size: 1024000,
+        lastUpdated: '2024-01-01'
       }
     ];
 
-    defaultGames.forEach(game => {
+    minimalGames.forEach(game => {
       this.games.set(game.id, game);
     });
 
     await this.saveGamesCache();
-    console.log('🎮 Loaded default games');
+    console.log('🎮 Loaded minimal default games');
+  }
+
+  /**
+   * Validate game integrity using registry service
+   */
+  async validateGameIntegrity(gameId: string, checksum: string): Promise<boolean> {
+    try {
+      return await this.registryService.validateGameIntegrity(gameId, checksum);
+    } catch (error) {
+      console.error(`❌ Game integrity validation failed for ${gameId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get CSP policy for game
+   */
+  getGameCSPPolicy(gameId: string): string {
+    return this.registryService.getCSPPolicy(gameId);
+  }
+
+  /**
+   * Get SRI hash for game
+   */
+  getGameSRIHash(gameId: string): string {
+    return this.registryService.getSRIHash(gameId);
   }
 }

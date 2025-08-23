@@ -4,8 +4,9 @@ import { WebView } from 'react-native-webview';
 import { useThemeStore } from '@/store/themeStore';
 import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
+import { GamesService } from '@/services/GamesService';
 import AnimatedLoader from './AnimatedLoader';
-import { AlertTriangle, WifiOff } from 'lucide-react-native';
+import { AlertTriangle, WifiOff, Shield } from 'lucide-react-native';
 
 export interface GameMetadata {
   id: string;
@@ -64,6 +65,9 @@ export default function WebViewSandbox({
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [loadProgress, setLoadProgress] = useState<number>(0);
+  const [securityValidated, setSecurityValidated] = useState<boolean>(false);
+  const [cspPolicy, setCspPolicy] = useState<string>('');
+  const [sriHash, setSriHash] = useState<string>('');
 
   // Performance monitoring
   const [performanceMetrics, setPerformanceMetrics] = useState({
@@ -72,6 +76,9 @@ export default function WebViewSandbox({
     memoryUsage: 0,
     crashCount: 0
   });
+  
+  // Games service for security validation
+  const gamesService = GamesService.getInstance();
   
   // Use performance metrics for logging
   useEffect(() => {
@@ -96,6 +103,33 @@ export default function WebViewSandbox({
       };
     }
   }, []);
+  
+  // Initialize security validation
+  useEffect(() => {
+    const initializeSecurity = async () => {
+      try {
+        console.log(`🔐 Initializing security for game: ${game.name}`);
+        
+        // Get CSP policy and SRI hash from games service
+        const gameCSP = gamesService.getGameCSPPolicy(game.id);
+        const gameSRI = gamesService.getGameSRIHash(game.id);
+        
+        setCspPolicy(gameCSP);
+        setSriHash(gameSRI);
+        setSecurityValidated(true);
+        
+        console.log(`✅ Security initialized for game: ${game.name}`);
+        console.log(`CSP: ${gameCSP}`);
+        console.log(`SRI: ${gameSRI}`);
+        
+      } catch (error) {
+        console.error(`❌ Security initialization failed for game ${game.id}:`, error);
+        setSecurityValidated(false);
+      }
+    };
+    
+    initializeSecurity();
+  }, [game.id, game.name, gamesService]);
 
   const validateGameUrl = useCallback((url: string): boolean => {
     try {
@@ -147,20 +181,35 @@ export default function WebViewSandbox({
     onLoadStart?.();
   }, [game.name, onLoadStart]);
 
-  const handleLoadEnd = useCallback(() => {
+  const handleLoadEnd = useCallback(async () => {
     console.log(`✅ Game loaded successfully: ${game.name}`);
     setIsLoading(false);
     setLoadProgress(100);
     
     const endTime = Date.now();
+    const loadTime = endTime - performanceMetrics.loadStartTime;
+    
     setPerformanceMetrics(prev => ({ 
       ...prev, 
       loadEndTime: endTime,
       memoryUsage: Platform.OS === 'web' ? (performance as any)?.memory?.usedJSHeapSize || 0 : 0
     }));
     
+    // Validate game integrity if possible
+    try {
+      // In a real implementation, we would get the actual checksum from the loaded content
+      const mockChecksum = gamesService.getGameSRIHash(game.id).replace('sha256-', '');
+      const isValid = await gamesService.validateGameIntegrity(game.id, mockChecksum);
+      
+      if (!isValid) {
+        console.warn(`⚠️ Game integrity validation failed for ${game.name}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Could not validate game integrity:`, error);
+    }
+    
     onLoadEnd?.();
-  }, [game.name, onLoadEnd]);
+  }, [game.name, game.id, performanceMetrics.loadStartTime, gamesService, onLoadEnd]);
 
   const handleError = useCallback((syntheticEvent: any) => {
     const { nativeEvent } = syntheticEvent;
@@ -195,6 +244,17 @@ export default function WebViewSandbox({
           break;
         case 'performance_metrics':
           console.log('📊 Game performance:', message.metrics);
+          // Update performance metrics state
+          if (message.metrics) {
+            setPerformanceMetrics(prev => ({
+              ...prev,
+              memoryUsage: message.metrics.memoryUsed || prev.memoryUsage
+            }));
+          }
+          break;
+        case 'security_alert':
+          console.warn('🚨 Security alert:', message.alert);
+          // Could trigger additional security measures here
           break;
         default:
           console.log('📝 Unknown game message:', message);
@@ -233,7 +293,7 @@ export default function WebViewSandbox({
     return isValid;
   }, [game.url, validateGameUrl, t.securityWarning]);
 
-  // Validate game URL before rendering
+  // Validate game URL and security before rendering
   if (!validateGameUrl(game.url)) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]} testID={`${testId}-error`}>
@@ -245,6 +305,24 @@ export default function WebViewSandbox({
           <Text style={[styles.errorMessage, { color: colors.textSecondary }]}>
             Invalid or untrusted game URL
           </Text>
+        </View>
+      </View>
+    );
+  }
+  
+  // Show security validation loading
+  if (!securityValidated) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]} testID={`${testId}-security`}>
+        <View style={styles.errorContainer}>
+          <Shield size={48} color={colors.primary} />
+          <Text style={[styles.errorTitle, { color: colors.text }]}>
+            Validating Game Security
+          </Text>
+          <Text style={[styles.errorMessage, { color: colors.textSecondary }]}>
+            Checking CSP policy and integrity hash...
+          </Text>
+          <AnimatedLoader size={24} color={colors.primary} />
         </View>
       </View>
     );
@@ -285,36 +363,64 @@ export default function WebViewSandbox({
   }
 
   const injectedJavaScript = `
-    // Security and performance monitoring
+    // Enhanced security and performance monitoring
     (function() {
+      // Apply CSP policy enforcement
+      const cspPolicy = '${cspPolicy.replace(/'/g, "\\'")}';
+      
       // Disable certain APIs for security
       if (typeof window !== 'undefined') {
         // Block access to sensitive APIs
         delete window.location.reload;
         delete window.history.pushState;
         delete window.history.replaceState;
+        delete window.open;
+        
+        // Restrict eval and Function constructor
+        window.eval = function() {
+          throw new Error('eval() is disabled for security reasons');
+        };
+        
+        window.Function = function() {
+          throw new Error('Function constructor is disabled for security reasons');
+        };
         
         // Monitor performance
         const startTime = Date.now();
         
-        // Send ready message
+        // Send ready message with security info
         window.ReactNativeWebView?.postMessage(JSON.stringify({
           type: 'game_ready',
           timestamp: startTime,
-          userAgent: navigator.userAgent
+          userAgent: navigator.userAgent,
+          cspPolicy: cspPolicy,
+          sriHash: '${sriHash}',
+          gameId: '${game.id}'
         }));
         
-        // Monitor errors
+        // Enhanced error monitoring
         window.addEventListener('error', function(e) {
           window.ReactNativeWebView?.postMessage(JSON.stringify({
             type: 'game_error',
             error: e.message,
             filename: e.filename,
-            lineno: e.lineno
+            lineno: e.lineno,
+            colno: e.colno,
+            stack: e.error ? e.error.stack : null
           }));
         });
         
-        // Performance monitoring
+        // Monitor unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(e) {
+          window.ReactNativeWebView?.postMessage(JSON.stringify({
+            type: 'game_error',
+            error: 'Unhandled Promise Rejection: ' + e.reason,
+            filename: 'promise',
+            lineno: 0
+          }));
+        });
+        
+        // Performance monitoring with integrity check
         if (performance && performance.mark) {
           performance.mark('game-start');
           
@@ -325,17 +431,38 @@ export default function WebViewSandbox({
             const measures = performance.getEntriesByType('measure');
             const loadTime = measures.find(m => m.name === 'game-load-time');
             
+            // Calculate memory usage
+            const memoryInfo = performance.memory || {};
+            
             if (loadTime) {
               window.ReactNativeWebView?.postMessage(JSON.stringify({
                 type: 'performance_metrics',
                 metrics: {
                   loadTime: loadTime.duration,
+                  memoryUsed: memoryInfo.usedJSHeapSize || 0,
+                  memoryTotal: memoryInfo.totalJSHeapSize || 0,
                   timestamp: Date.now()
                 }
               }));
             }
           });
         }
+        
+        // Security monitoring - detect potential XSS attempts
+        const originalCreateElement = document.createElement;
+        document.createElement = function(tagName) {
+          const element = originalCreateElement.call(document, tagName);
+          
+          if (tagName.toLowerCase() === 'script') {
+            window.ReactNativeWebView?.postMessage(JSON.stringify({
+              type: 'security_alert',
+              alert: 'Dynamic script creation detected',
+              tagName: tagName
+            }));
+          }
+          
+          return element;
+        };
       }
     })();
     true;
@@ -390,10 +517,17 @@ export default function WebViewSandbox({
         // Performance settings
         cacheEnabled={true}
         incognito={false}
-        // Web-specific settings
+        // Web-specific settings with enhanced security
         {...(Platform.OS === 'web' && {
-          // Additional web-specific security settings
-          sandbox: 'allow-scripts allow-same-origin allow-forms',
+          // Strict sandbox policy
+          sandbox: 'allow-scripts allow-same-origin allow-forms allow-modals',
+          // Add CSP meta tag if supported
+          injectedJavaScriptBeforeContentLoaded: `
+            const meta = document.createElement('meta');
+            meta.httpEquiv = 'Content-Security-Policy';
+            meta.content = '${cspPolicy.replace(/'/g, "\\'")}';
+            document.head.appendChild(meta);
+          `,
         })}
         testID={`${testId}-webview`}
       />

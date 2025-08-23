@@ -17,6 +17,7 @@ import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
 import { GamesService, GameFeatureFlags, GamePerformanceMetrics } from '@/services/GamesService';
 import { GameMetadata } from '@/components/WebViewSandbox';
+import { GameRegistryResponse } from '@/services/GamesRegistryService';
 import WebViewSandbox from '@/components/WebViewSandbox';
 import { Gamepad2, Plus, Search, Filter, AlertTriangle, X, Play } from 'lucide-react-native';
 import AnimatedLoader from '@/components/AnimatedLoader';
@@ -29,6 +30,7 @@ export default function GamesTab() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [games, setGames] = useState<GameMetadata[]>([]);
+  const [gamesResponse, setGamesResponse] = useState<GameRegistryResponse | null>(null);
   const [featureFlags, setFeatureFlags] = useState<GameFeatureFlags>({
     games: false,
     uploadGames: false,
@@ -62,16 +64,19 @@ export default function GamesTab() {
         return;
       }
       
-      // Load games
-      const allGames = await gamesService.getGames();
+      // Load games from registry with search/filter params
+      const searchParams = {
+        category: selectedCategory === 'all' ? undefined : selectedCategory,
+        limit: 20,
+        sortBy: 'rating' as const,
+        sortOrder: 'desc' as const
+      };
       
-      // Filter by category if selected
-      const filteredGames = selectedCategory === 'all' 
-        ? allGames 
-        : allGames.filter(game => game.category === selectedCategory);
+      const response = await gamesService.getGames(searchParams);
+      setGamesResponse(response);
+      setGames(response.games);
       
-      setGames(filteredGames);
-      console.log(`🎮 Loaded ${filteredGames.length} games`);
+      console.log(`🎮 Loaded ${response.games.length} games from registry`);
       
     } catch (err) {
       console.error('❌ Failed to load games:', err);
@@ -390,6 +395,22 @@ export default function GamesTab() {
         ) : (
           <View style={styles.gamesGrid}>
             {games.map(renderGameCard)}
+            
+            {/* Load More Button */}
+            {gamesResponse?.hasMore && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => {
+                  // TODO: Implement load more functionality in Phase 2
+                  console.log('Load more games...');
+                }}
+                testID="load-more-games"
+              >
+                <Text style={[styles.loadMoreText, { color: colors.text }]}>
+                  Load More Games ({gamesResponse.total - games.length} remaining)
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -660,5 +681,16 @@ const styles = StyleSheet.create({
   },
   gameModalContent: {
     flex: 1,
+  },
+  loadMoreButton: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
