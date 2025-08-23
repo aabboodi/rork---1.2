@@ -357,18 +357,17 @@ export const useThemeStore = create<ThemeState>()(
           // Return cleanup function immediately to prevent state update during render
           let subscription: any = null;
           let intervalId: any = null;
+          let timeoutId: any = null;
           
           // Defer all async operations to avoid state updates during render
-          const initAsync = async () => {
+          timeoutId = setTimeout(() => {
             try {
-              await new Promise(resolve => setTimeout(resolve, 500)); // Wait for component mount
-              
               const state = get();
               const { mode, isAutoAdaptive } = state;
               
               // Initialize theme based on current settings
               if (mode === 'auto' && isAutoAdaptive) {
-                await get().checkAndUpdateTheme();
+                get().checkAndUpdateTheme();
               } else if (mode === 'auto') {
                 const systemScheme = getSystemColorScheme();
                 set({
@@ -410,13 +409,13 @@ export const useThemeStore = create<ThemeState>()(
             } catch (error) {
               console.warn('Async theme initialization error:', error);
             }
-          };
-          
-          // Start async initialization without blocking
-          initAsync();
+          }, 1000); // Delay to ensure component is mounted
           
           return () => {
             try {
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+              }
               if (subscription?.remove) {
                 subscription.remove();
               }
@@ -480,15 +479,15 @@ export const useThemeStore = create<ThemeState>()(
       },
       
       checkAndUpdateTheme: async () => {
-        const { mode, isAutoAdaptive, adaptiveMode, timeBasedTheme, lastSystemCheck } = get();
-        
-        if (mode !== 'auto' || !isAutoAdaptive) return;
-        
-        // Throttle checks to avoid excessive updates
-        const now = Date.now();
-        if (now - lastSystemCheck < 30000) return; // 30 seconds throttle
-        
         try {
+          const { mode, isAutoAdaptive, adaptiveMode, timeBasedTheme, lastSystemCheck } = get();
+          
+          if (mode !== 'auto' || !isAutoAdaptive) return;
+          
+          // Throttle checks to avoid excessive updates
+          const now = Date.now();
+          if (now - lastSystemCheck < 30000) return; // 30 seconds throttle
+          
           const recommendedScheme = await getAdaptiveTheme(adaptiveMode, timeBasedTheme);
           const { colorScheme: currentScheme } = get();
           
@@ -507,6 +506,7 @@ export const useThemeStore = create<ThemeState>()(
           console.error('Auto-adaptive theme update failed:', error);
           // Fall back to system theme on error
           const systemScheme = getSystemColorScheme();
+          const now = Date.now();
           set({
             colorScheme: systemScheme,
             colors: getSafeColors(systemScheme),
