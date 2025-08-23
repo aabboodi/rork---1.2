@@ -30,7 +30,6 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
   useEffect(() => {
     // Initialize accessibility services only (theme is initialized in _layout.tsx)
     let timeoutId: NodeJS.Timeout | null = null;
-    let rafId: number | null = null;
     
     const initializeServices = () => {
       try {
@@ -38,17 +37,15 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
         
         // Initialize accessibility only if not already initialized
         if (!isInitialized) {
-          // Use requestAnimationFrame + setTimeout to avoid state updates during render
-          rafId = requestAnimationFrame(() => {
-            timeoutId = setTimeout(async () => {
-              try {
-                await initializeAccessibility();
-                console.log('✅ Accessibility Service initialized:', settings);
-              } catch (error) {
-                console.error('Failed to initialize accessibility services:', error);
-              }
-            }, 150); // Longer delay to ensure component is fully mounted
-          });
+          // Use setTimeout to avoid state updates during render
+          timeoutId = setTimeout(async () => {
+            try {
+              await initializeAccessibility();
+              console.log('✅ Accessibility Service initialized:', settings);
+            } catch (error) {
+              console.error('Failed to initialize accessibility services:', error);
+            }
+          }, 200); // Delay to ensure component is fully mounted
         } else {
           console.log('✅ Accessibility Service already initialized:', settings);
         }
@@ -60,9 +57,6 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
     initializeServices();
     
     return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
       }
