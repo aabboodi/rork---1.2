@@ -65,33 +65,29 @@ export default function RootLayout() {
   
   // Initialize enhanced theme system
   useEffect(() => {
-    const initializeEnhancedTheme = async () => {
+    let cleanup: (() => void) | undefined;
+    
+    const initializeEnhancedTheme = () => {
       try {
         console.log('🎨 Initializing enhanced auto-adaptive theme system...');
         
         // Initialize theme after component mount
-        const cleanup = initializeTheme();
+        cleanup = initializeTheme();
         
         // Set up theme monitoring
         console.log('✅ Enhanced theme system initialized with auto-adaptive features');
         
-        // Return cleanup function
-        return cleanup;
-        
       } catch (error) {
         console.error('❌ Enhanced theme initialization failed:', error);
-        return undefined;
       }
     };
     
-    let cleanup: (() => void) | undefined;
-    
-    initializeEnhancedTheme().then((cleanupFn) => {
-      cleanup = cleanupFn;
-    });
+    // Use setTimeout to ensure this runs after component mount
+    const timeoutId = setTimeout(initializeEnhancedTheme, 0);
     
     // Cleanup on unmount
     return () => {
+      clearTimeout(timeoutId);
       if (cleanup && typeof cleanup === 'function') {
         cleanup();
       }

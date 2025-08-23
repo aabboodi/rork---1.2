@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { StatusBar, Platform } from 'react-native';
-import { useThemeStore } from '@/store/themeStore';
+import { useColorScheme } from '@/store/themeStore';
 import { useAccessibilityStore } from '@/services/accessibility/AccessibilityService';
 
 interface AccessibilityContextType {
@@ -18,7 +18,7 @@ interface AccessibilityProviderProps {
 }
 
 export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ children }) => {
-  const { colorScheme } = useThemeStore();
+  const colorScheme = useColorScheme();
   const { 
     settings, 
     initializeAccessibility, 
@@ -29,23 +29,31 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
   
   useEffect(() => {
     // Initialize accessibility services only (theme is initialized in _layout.tsx)
-    const initializeServices = async () => {
+    const initializeServices = () => {
       try {
         console.log('🔍 Initializing Accessibility Service...');
         
         // Initialize accessibility only if not already initialized
         if (!isInitialized) {
-          await initializeAccessibility();
+          // Use setTimeout to avoid state updates during render
+          setTimeout(async () => {
+            try {
+              await initializeAccessibility();
+              console.log('✅ Accessibility Service initialized:', settings);
+            } catch (error) {
+              console.error('Failed to initialize accessibility services:', error);
+            }
+          }, 0);
+        } else {
+          console.log('✅ Accessibility Service already initialized:', settings);
         }
-        
-        console.log('✅ Accessibility Service initialized:', settings);
       } catch (error) {
         console.error('Failed to initialize accessibility services:', error);
       }
     };
     
     initializeServices();
-  }, [isInitialized, initializeAccessibility]);
+  }, [isInitialized, initializeAccessibility, settings]);
   
   // Update status bar based on theme
   useEffect(() => {

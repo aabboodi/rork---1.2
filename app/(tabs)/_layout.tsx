@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { MessageCircle, Users, Wallet, User, BarChart3, Brain, Gamepad2 } from 'lucide-react-native';
 import SecurityNotificationBell from '@/components/SecurityNotificationBell';
-import { useThemeStore } from '@/store/themeStore';
+import { useThemeColors } from '@/store/themeStore';
 import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
 import { APISecurityMiddleware } from '@/services/security/APISecurityMiddleware';
@@ -11,18 +11,8 @@ import { WAFService } from '@/services/security/WAFService';
 
 export default function TabLayout() {
   const { language } = useAuthStore();
-  const { colors } = useThemeStore();
+  const colors = useThemeColors();
   const t = translations[language];
-
-  // Fallback colors in case theme store is not initialized
-  const safeColors = colors || {
-    primary: '#0066CC',
-    textSecondary: '#6A6A6A',
-    border: '#D1D1D6',
-    background: '#FFFFFF',
-    shadow: 'rgba(0, 0, 0, 0.1)',
-    text: '#1A1A1A'
-  };
 
   useEffect(() => {
     // Initialize route-specific security for tabs
@@ -243,36 +233,36 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: safeColors.primary,
-        tabBarInactiveTintColor: safeColors.textSecondary,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
-          borderTopColor: safeColors.border,
-          backgroundColor: safeColors.background,
+          borderTopColor: colors.border,
+          backgroundColor: colors.background,
           paddingBottom: 8,
           paddingTop: 8,
           height: 60,
           elevation: 8,
-          shadowColor: safeColors.shadow,
+          shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
           shadowRadius: 4,
         },
         headerStyle: {
-          backgroundColor: safeColors.background,
-          borderBottomColor: safeColors.border,
+          backgroundColor: colors.background,
+          borderBottomColor: colors.border,
           elevation: 4,
-          shadowColor: safeColors.shadow,
+          shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.1,
           shadowRadius: 4,
         },
         headerTitleStyle: {
-          color: safeColors.text,
+          color: colors.text,
           fontWeight: '600',
           fontSize: 18,
         },
         headerRight: () => (
-          <SecurityNotificationBell size={20} color={safeColors.text} />
+          <SecurityNotificationBell size={20} color={colors.text} />
         ),
         tabBarLabelStyle: {
           fontSize: 12,
