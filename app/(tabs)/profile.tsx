@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Crown,
   Accessibility,
-  FileText
+  FileText,
+  Bot
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -149,6 +150,13 @@ export default function ProfileScreen() {
             />
           )}
 
+          <ProfileOption
+            icon={Bot}
+            title="AI Personalization"
+            onPress={() => router.push('/settings/personalization')}
+            iconColor={colors.primary}
+          />
+          
           <ProfileOption
             icon={Accessibility}
             title="إمكانية الوصول"
