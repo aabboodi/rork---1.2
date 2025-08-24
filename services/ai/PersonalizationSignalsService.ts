@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import SecurityGuardrailsService from './SecurityGuardrailsService';
 
 export interface SocialSignal {
   id: string;
@@ -44,8 +45,11 @@ class PersonalizationSignalsService {
   private readonly ENCRYPTION_KEY = 'personalization_encryption_key';
   private readonly EMA_ALPHA = 0.1; // Exponential Moving Average factor
   private readonly TOPIC_DECAY_DAYS = 30; // Topic decay period
+  private securityGuardrails: SecurityGuardrailsService;
 
-  private constructor() {}
+  private constructor() {
+    this.securityGuardrails = SecurityGuardrailsService.getInstance();
+  }
 
   static getInstance(): PersonalizationSignalsService {
     if (!PersonalizationSignalsService.instance) {
@@ -57,6 +61,12 @@ class PersonalizationSignalsService {
   // Record social interaction signals
   async recordSocialSignal(signal: Omit<SocialSignal, 'id' | 'timestamp'>): Promise<void> {
     try {
+      // Enforce privacy-by-default: anonymize signals before storage
+      const privacyCheck = await this.securityGuardrails.enforcePrivacyByDefault(signal, 'store');
+      if (!privacyCheck.allowed) {
+        console.warn('Privacy violation prevented:', privacyCheck.reason);
+        return;
+      }
       const fullSignal: SocialSignal = {
         ...signal,
         id: `signal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -68,6 +78,7 @@ class PersonalizationSignalsService {
       const updatedSignals = [...existingSignals, fullSignal]
         .slice(-this.MAX_SIGNALS); // Keep only recent signals
 
+      // Use sanitized data for storage
       await this.storeEncrypted(this.STORAGE_KEY, updatedSignals);
       
       // Store in per-slot database
@@ -85,6 +96,14 @@ class PersonalizationSignalsService {
   // Record geo-temporal signals (anonymized)
   async recordGeoTemporalSignal(activityType: GeoTemporalSignal['activityType'], sessionDuration: number): Promise<void> {
     try {
+      // NO-WALLET RULE: Block wallet activity tracking
+      if (activityType === 'wallet') {
+        const walletAllowed = await this.securityGuardrails.enforceNoWalletRule('/personalization/signals', 'GeoTemporalSignal');
+        if (!walletAllowed) {
+          console.error('🚫 Wallet activity tracking blocked by security guardrails');
+          return;
+        }
+      }
       // Get anonymized location (city level only)
       const cityLevel = await this.getAnonymizedLocation();
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -346,13 +365,20 @@ class PersonalizationSignalsService {
 
   // Private helper methods
   private async storeEncrypted(key: string, data: any): Promise<void> {
-    const jsonData = JSON.stringify(data);
+    // Enforce privacy-by-default and encrypted storage
+    const privacyCheck = await this.securityGuardrails.enforcePrivacyByDefault(data, 'store');
+    if (!privacyCheck.allowed) {
+      throw new Error(`Storage blocked: ${privacyCheck.reason}`);
+    }
+    
+    const dataToStore = privacyCheck.sanitizedData || data;
+    const jsonData = JSON.stringify(dataToStore);
     
     if (Platform.OS === 'web') {
       // Use AsyncStorage for web (less secure but functional)
       await AsyncStorage.setItem(key, jsonData);
     } else {
-      // Use SecureStore for native platforms
+      // Use SecureStore for native platforms (encrypted storage)
       await SecureStore.setItemAsync(key, jsonData);
     }
   }

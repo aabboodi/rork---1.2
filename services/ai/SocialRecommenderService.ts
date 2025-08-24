@@ -1,6 +1,7 @@
 import PersonalizationSignalsService, { SocialSignal, TrendData } from './PersonalizationSignalsService';
 import PersonalizationSettingsService from './PersonalizationSettingsService';
 import DataLayoutService from './DataLayoutService';
+import SecurityGuardrailsService from './SecurityGuardrailsService';
 
 export interface ContentItem {
   id: string;
@@ -58,6 +59,7 @@ class SocialRecommenderService {
   private signalsService: PersonalizationSignalsService;
   private settingsService: PersonalizationSettingsService;
   private dataLayoutService: DataLayoutService;
+  private securityGuardrails: SecurityGuardrailsService;
   private banditState: BanditState;
   private modelWeights: number[] = [];
   private isInitialized = false;
@@ -66,6 +68,7 @@ class SocialRecommenderService {
     this.signalsService = PersonalizationSignalsService.getInstance();
     this.settingsService = PersonalizationSettingsService.getInstance();
     this.dataLayoutService = DataLayoutService.getInstance();
+    this.securityGuardrails = SecurityGuardrailsService.getInstance();
     this.banditState = {
       epsilon: 0.1,
       counts: {},
@@ -90,6 +93,9 @@ class SocialRecommenderService {
       console.log('🤖 Initializing Social Recommender...');
       const startTime = Date.now();
 
+      // Initialize security guardrails first
+      await this.securityGuardrails.initialize();
+
       // Load bandit state
       await this.loadBanditState();
       
@@ -97,6 +103,17 @@ class SocialRecommenderService {
       await this.initializeModel();
       
       const initTime = Date.now() - startTime;
+      
+      // Enforce resource limits
+      const resourceCheck = await this.securityGuardrails.enforceResourceLimits('initialization', {
+        latencyMs: initTime,
+        memoryMB: 15 // Estimated memory usage
+      });
+      
+      if (!resourceCheck.allowed) {
+        throw new Error(`Initialization failed: ${resourceCheck.reason}`);
+      }
+      
       console.log(`✅ Social Recommender initialized in ${initTime}ms`);
       
       this.isInitialized = true;
@@ -124,6 +141,14 @@ class SocialRecommenderService {
         return await this.getFallbackRecommendations(slot, limit);
       }
 
+      // NO-WALLET RULE: Block any wallet-related recommendations
+      if (slot.toLowerCase().includes('wallet') || slot.toLowerCase().includes('financial')) {
+        const walletAllowed = await this.securityGuardrails.enforceNoWalletRule(`/recommendations/${slot}`, 'SocialRecommender');
+        if (!walletAllowed) {
+          return [];
+        }
+      }
+
       // Step 1: Get server pre-ranked content (50-100 items)
       const preRankedContent = await this.getServerPreRankedContent(slot);
       
@@ -143,9 +168,15 @@ class SocialRecommenderService {
       
       const processingTime = Date.now() - startTime;
       
-      // Ensure we meet performance constraints
-      if (processingTime > this.MAX_LATENCY_MS) {
-        console.warn(`⚠️ Recommendation latency exceeded: ${processingTime}ms > ${this.MAX_LATENCY_MS}ms`);
+      // Enforce resource limits
+      const resourceCheck = await this.securityGuardrails.enforceResourceLimits('recommendation_generation', {
+        latencyMs: processingTime,
+        memoryMB: 20 // Estimated memory usage
+      });
+      
+      if (!resourceCheck.allowed) {
+        console.warn(`Resource limits exceeded: ${resourceCheck.reason}`);
+        return await this.getFallbackRecommendations(slot, limit);
       }
       
       console.log(`🎯 Generated ${finalRanking.length} recommendations for ${slot} in ${processingTime}ms`);
@@ -514,6 +545,14 @@ class SocialRecommenderService {
   private async initializeModel(): Promise<void> {
     // Initialize lightweight model weights (mock implementation)
     this.modelWeights = new Array(20).fill(0).map(() => Math.random() * 0.1);
+    
+    // Verify model integrity
+    const modelData = JSON.stringify(this.modelWeights);
+    const integrityValid = await this.securityGuardrails.verifyIntegrity('model', modelData);
+    
+    if (!integrityValid) {
+      throw new Error('Model integrity verification failed');
+    }
   }
 
   private async loadBanditState(): Promise<void> {
