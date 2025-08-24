@@ -6,8 +6,10 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { I18nManager, Alert, AppState, Platform } from "react-native";
 import { useAuthStore } from "@/store/authStore";
-import { useThemeStore } from "@/store/themeStore";
+import { useThemeStore, useThemeColors } from "@/store/themeStore";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
+import React from 'react';
+import { View } from 'react-native';
 import SecurityManager from "@/services/security/SecurityManager";
 import DeviceSecurityService from "@/services/security/DeviceSecurityService";
 import ScreenProtectionService from "@/services/security/ScreenProtectionService";
@@ -39,6 +41,22 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+// Theme Provider Component to ensure theme is always available
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const colors = useThemeColors();
+  
+  // Ensure colors are available before rendering children
+  if (!colors || !colors.background) {
+    return null; // Don't render until theme is ready
+  }
+  
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {children}
+    </View>
+  );
+}
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     ...FontAwesome.font,
@@ -46,6 +64,15 @@ export default function RootLayout() {
   const [securityInitialized, setSecurityInitialized] = useState(true);
   const [securityBlocked, setSecurityBlocked] = useState(false);
   const { initializeTheme } = useThemeStore();
+  
+  // Initialize theme immediately when store is available
+  useEffect(() => {
+    try {
+      initializeTheme();
+    } catch (error) {
+      console.warn('Early theme initialization failed:', error);
+    }
+  }, [initializeTheme]);
 
   useEffect(() => {
     if (error) {
@@ -63,49 +90,27 @@ export default function RootLayout() {
     }
   }, [loaded]);
   
-  // Initialize enhanced theme system
+  // Initialize enhanced theme system synchronously
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     let mounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
     
-    const initializeEnhancedTheme = async () => {
+    if (loaded && mounted) {
       try {
-        if (!mounted || !loaded) return;
-        
         console.log('🎨 Initializing enhanced auto-adaptive theme system...');
         
-        // Use setTimeout to avoid state updates during render
-        timeoutId = setTimeout(() => {
-          try {
-            if (!mounted) return;
-            
-            // Initialize theme after component mount
-            cleanup = initializeTheme();
-            
-            // Set up theme monitoring
-            console.log('✅ Enhanced theme system initialized with auto-adaptive features');
-          } catch (error) {
-            console.error('❌ Enhanced theme initialization failed:', error);
-          }
-        }, 150); // Slightly longer delay to ensure everything is mounted
+        // Initialize theme synchronously to ensure colors are available immediately
+        cleanup = initializeTheme();
         
+        console.log('✅ Enhanced theme system initialized with auto-adaptive features');
       } catch (error) {
         console.error('❌ Enhanced theme initialization failed:', error);
       }
-    };
-    
-    // Start initialization only if loaded
-    if (loaded) {
-      initializeEnhancedTheme();
     }
     
     // Cleanup on unmount
     return () => {
       mounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
       if (cleanup && typeof cleanup === 'function') {
         try {
           cleanup();
@@ -114,7 +119,7 @@ export default function RootLayout() {
         }
       }
     };
-  }, [loaded, initializeTheme]); // Add loaded dependency
+  }, [loaded, initializeTheme]);
 
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
   const initializeAppSecurity = async () => {
@@ -988,11 +993,13 @@ Incident ID: ${incident.id}`,
   }
 
   return (
-    <AccessibilityProvider>
-      <ErrorBoundary>
-        <RootLayoutNav />
-      </ErrorBoundary>
-    </AccessibilityProvider>
+    <ThemeProvider>
+      <AccessibilityProvider>
+        <ErrorBoundary>
+          <RootLayoutNav />
+        </ErrorBoundary>
+      </AccessibilityProvider>
+    </ThemeProvider>
   );
 }
 
