@@ -1,19 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TextInput,
   Alert,
-  TouchableOpacity,
-  Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import {
   FileText,
-  Upload,
   Trash2,
   Save,
   AlertCircle,
@@ -26,32 +22,33 @@ import { useSafeThemeColors } from '@/store/themeStore';
 import { AccessibleText } from '@/components/accessibility/AccessibleText';
 import { AccessibleButton } from '@/components/accessibility/AccessibleButton';
 import { AccessibleCard } from '@/components/accessibility/AccessibleCard';
+import TrainingService from '@/services/chat/ai-reply/training';
 
 const MAX_WORDS = 10000;
 
 export default function TrainingDataScreen() {
-  const router = useRouter();
   const colors = useSafeThemeColors();
   const [trainingText, setTrainingText] = useState('');
   const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [analysis, setAnalysis] = useState<any>(null);
+  
+  const trainingService = TrainingService.getInstance();
 
-  useEffect(() => {
-    loadTrainingData();
-  }, []);
-
-  useEffect(() => {
-    const words = trainingText.trim().split(/\s+/).filter(word => word.length > 0);
-    setWordCount(words.length);
-  }, [trainingText]);
-
-  const loadTrainingData = async () => {
+  const loadTrainingData = useCallback(async () => {
     try {
       setLoading(true);
-      const storedData = await SecureStore.getItemAsync('ai_agent_training_data');
-      if (storedData) {
-        setTrainingText(storedData);
+      const trainingData = await trainingService.getTrainingData();
+      if (trainingData) {
+        setTrainingText(trainingData.content);
+        setWordCount(trainingData.wordCount);
+        
+        // Analyze existing text
+        if (trainingData.content) {
+          const textAnalysis = await trainingService.analyzeText(trainingData.content);
+          setAnalysis(textAnalysis);
+        }
       }
     } catch (error) {
       console.error('Failed to load training data:', error);
@@ -59,7 +56,18 @@ export default function TrainingDataScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [trainingService]);
+
+  useEffect(() => {
+    loadTrainingData();
+  }, [loadTrainingData]);
+
+  useEffect(() => {
+    const words = trainingText.trim().split(/\s+/).filter(word => word.length > 0);
+    setWordCount(words.length);
+  }, [trainingText]);
+
+
 
   const saveTrainingData = async () => {
     if (wordCount > MAX_WORDS) {
@@ -69,21 +77,27 @@ export default function TrainingDataScreen() {
 
     try {
       setSaving(true);
-      await SecureStore.setItemAsync('ai_agent_training_data', trainingText);
+      const trainingData = await trainingService.saveTrainingData(trainingText);
       
       // Update settings with new word count
       const settingsData = await SecureStore.getItemAsync('ai_agent_settings');
       if (settingsData) {
         const settings = JSON.parse(settingsData);
-        settings.trainingDataLength = wordCount;
+        settings.trainingDataLength = trainingData.wordCount;
         settings.lastTrainingUpdate = new Date().toISOString();
         await SecureStore.setItemAsync('ai_agent_settings', JSON.stringify(settings));
       }
 
-      Alert.alert('تم الحفظ', 'تم حفظ بيانات التدريب بنجاح');
+      // Update analysis
+      if (trainingData.extractedFeatures) {
+        const textAnalysis = await trainingService.analyzeText(trainingText);
+        setAnalysis(textAnalysis);
+      }
+
+      Alert.alert('تم الحفظ', 'تم حفظ بيانات التدريب بنجاح وتحليل الأسلوب');
     } catch (error) {
       console.error('Failed to save training data:', error);
-      Alert.alert('خطأ', 'فشل في حفظ بيانات التدريب');
+      Alert.alert('خطأ', error.message || 'فشل في حفظ بيانات التدريب');
     } finally {
       setSaving(false);
     }
@@ -98,9 +112,16 @@ export default function TrainingDataScreen() {
         {
           text: 'حذف',
           style: 'destructive',
-          onPress: () => {
-            setTrainingText('');
-            setWordCount(0);
+          onPress: async () => {
+            try {
+              await trainingService.clearTrainingData();
+              setTrainingText('');
+              setWordCount(0);
+              setAnalysis(null);
+              Alert.alert('تم الحذف', 'تم حذف جميع بيانات التدريب');
+            } catch {
+              Alert.alert('خطأ', 'فشل في حذف بيانات التدريب');
+            }
           },
         },
       ]
@@ -248,6 +269,84 @@ export default function TrainingDataScreen() {
           />
         </View>
 
+        {/* Analysis Results */}
+        {analysis && (
+          <AccessibleCard variant="default" padding="large" style={styles.analysisCard}>
+            <View style={styles.analysisHeader}>
+              <CheckCircle size={20} color={colors.success} />
+              <AccessibleText variant="body" weight="medium" style={styles.analysisTitle}>
+                تحليل الأسلوب
+              </AccessibleText>
+            </View>
+            <View style={styles.analysisGrid}>
+              <View style={styles.analysisItem}>
+                <AccessibleText variant="caption" color="secondary">النبرة</AccessibleText>
+                <AccessibleText variant="body" weight="medium">
+                  {analysis.tone === 'formal' ? 'رسمي' :
+                   analysis.tone === 'casual' ? 'عادي' :
+                   analysis.tone === 'friendly' ? 'ودود' :
+                   analysis.tone === 'professional' ? 'مهني' : 'مرح'}
+                </AccessibleText>
+              </View>
+              <View style={styles.analysisItem}>
+                <AccessibleText variant="caption" color="secondary">الطول</AccessibleText>
+                <AccessibleText variant="body" weight="medium">
+                  {analysis.length === 'short' ? 'قصير' :
+                   analysis.length === 'medium' ? 'متوسط' : 'طويل'}
+                </AccessibleText>
+              </View>
+              <View style={styles.analysisItem}>
+                <AccessibleText variant="caption" color="secondary">علامات الترقيم</AccessibleText>
+                <AccessibleText variant="body" weight="medium">
+                  {analysis.punctuation === 'minimal' ? 'قليل' :
+                   analysis.punctuation === 'standard' ? 'عادي' : 'تعبيري'}
+                </AccessibleText>
+              </View>
+              <View style={styles.analysisItem}>
+                <AccessibleText variant="caption" color="secondary">الرموز التعبيرية</AccessibleText>
+                <AccessibleText variant="body" weight="medium">
+                  {analysis.emoji === 'none' ? 'لا يوجد' :
+                   analysis.emoji === 'occasional' ? 'أحياناً' : 'كثيراً'}
+                </AccessibleText>
+              </View>
+              <View style={styles.analysisItem}>
+                <AccessibleText variant="caption" color="secondary">سهولة القراءة</AccessibleText>
+                <AccessibleText variant="body" weight="medium">
+                  {analysis.readability === 'easy' ? 'سهل' :
+                   analysis.readability === 'medium' ? 'متوسط' : 'معقد'}
+                </AccessibleText>
+              </View>
+              <View style={styles.analysisItem}>
+                <AccessibleText variant="caption" color="secondary">المفردات</AccessibleText>
+                <AccessibleText variant="body" weight="medium">
+                  {analysis.vocabulary} كلمة فريدة
+                </AccessibleText>
+              </View>
+            </View>
+            {analysis.patterns.length > 0 && (
+              <View style={styles.patternsSection}>
+                <AccessibleText variant="caption" color="secondary" style={styles.patternsTitle}>
+                  الأنماط المكتشفة:
+                </AccessibleText>
+                <View style={styles.patternsTags}>
+                  {analysis.patterns.map((pattern: string, index: number) => (
+                    <View key={index} style={[styles.patternTag, { backgroundColor: colors.primary + '20' }]}>
+                      <AccessibleText variant="caption" color="primary">
+                        {pattern === 'opinion_starter' ? 'بادئ رأي' :
+                         pattern === 'topic_changer' ? 'مغير موضوع' :
+                         pattern === 'contrasting' ? 'متناقض' :
+                         pattern === 'sequential' ? 'متسلسل' :
+                         pattern === 'causal' ? 'سببي' :
+                         pattern === 'exemplifying' ? 'توضيحي' : pattern}
+                      </AccessibleText>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </AccessibleCard>
+        )}
+
         {/* Security Notice */}
         <AccessibleCard variant="outlined" padding="large" style={styles.securityNotice}>
           <View style={styles.securityHeader}>
@@ -383,5 +482,47 @@ const styles = StyleSheet.create({
   },
   securityPoint: {
     lineHeight: 18,
+  },
+  analysisCard: {
+    marginBottom: 20,
+  },
+  analysisHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  analysisTitle: {
+    marginLeft: 8,
+  },
+  analysisGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  analysisItem: {
+    width: '48%',
+    padding: 12,
+    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  patternsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(156, 163, 175, 0.2)',
+  },
+  patternsTitle: {
+    marginBottom: 8,
+  },
+  patternsTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  patternTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
 });
