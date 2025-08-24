@@ -30,38 +30,47 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
   useEffect(() => {
     // Initialize accessibility services only (theme is initialized in _layout.tsx)
     let timeoutId: NodeJS.Timeout | null = null;
+    let mounted = true;
     
-    const initializeServices = () => {
+    const initializeServices = async () => {
       try {
         console.log('🔍 Initializing Accessibility Service...');
         
         // Initialize accessibility only if not already initialized
-        if (!isInitialized) {
+        if (!isInitialized && mounted) {
           // Use setTimeout to avoid state updates during render
           timeoutId = setTimeout(async () => {
             try {
+              if (!mounted) return;
               await initializeAccessibility();
-              console.log('✅ Accessibility Service initialized:', settings);
+              if (mounted) {
+                console.log('✅ Accessibility Service initialized:', settings);
+              }
             } catch (error) {
-              console.error('Failed to initialize accessibility services:', error);
+              if (mounted) {
+                console.error('Failed to initialize accessibility services:', error);
+              }
             }
           }, 200); // Delay to ensure component is fully mounted
-        } else {
+        } else if (isInitialized) {
           console.log('✅ Accessibility Service already initialized:', settings);
         }
       } catch (error) {
-        console.error('Failed to initialize accessibility services:', error);
+        if (mounted) {
+          console.error('Failed to initialize accessibility services:', error);
+        }
       }
     };
     
     initializeServices();
     
     return () => {
+      mounted = false;
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
       }
     };
-  }, [isInitialized, initializeAccessibility]);
+  }, [isInitialized, initializeAccessibility, settings]);
   
   // Update status bar based on theme
   useEffect(() => {

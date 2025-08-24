@@ -69,9 +69,9 @@ export default function RootLayout() {
     let mounted = true;
     let timeoutId: NodeJS.Timeout | null = null;
     
-    const initializeEnhancedTheme = () => {
+    const initializeEnhancedTheme = async () => {
       try {
-        if (!mounted) return;
+        if (!mounted || !loaded) return;
         
         console.log('🎨 Initializing enhanced auto-adaptive theme system...');
         
@@ -88,7 +88,7 @@ export default function RootLayout() {
           } catch (error) {
             console.error('❌ Enhanced theme initialization failed:', error);
           }
-        }, 100); // Shorter delay since we're using getState() now
+        }, 150); // Slightly longer delay to ensure everything is mounted
         
       } catch (error) {
         console.error('❌ Enhanced theme initialization failed:', error);
