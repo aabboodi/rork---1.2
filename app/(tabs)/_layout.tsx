@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { MessageCircle, Users, Wallet, User, BarChart3, Brain, Gamepad2 } from 'lucide-react-native';
 import SecurityNotificationBell from '@/components/SecurityNotificationBell';
-import { useThemeColors } from '@/store/themeStore';
+import { useSafeThemeColors } from '@/store/themeStore';
 import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
 import { APISecurityMiddleware } from '@/services/security/APISecurityMiddleware';
@@ -11,24 +11,11 @@ import { WAFService } from '@/services/security/WAFService';
 
 export default function TabLayout() {
   const { language } = useAuthStore();
-  const colors = useThemeColors();
+  const colors = useSafeThemeColors();
   const t = translations[language];
   
-  // Memoize colors to prevent unnecessary re-renders
-  const safeColors = useMemo(() => {
-    if (!colors || typeof colors !== 'object') {
-      console.warn('Colors not available, using fallback');
-      return {
-        primary: '#0066CC',
-        textSecondary: '#4A4A4A',
-        border: '#D1D1D6',
-        background: '#FFFFFF',
-        text: '#1A1A1A',
-        shadow: 'rgba(0, 0, 0, 0.1)'
-      };
-    }
-    return colors;
-  }, [colors]);
+  // Colors are now guaranteed to be safe from useSafeThemeColors
+  const safeColors = useMemo(() => colors, [colors]);
 
   useEffect(() => {
     // Initialize route-specific security for tabs

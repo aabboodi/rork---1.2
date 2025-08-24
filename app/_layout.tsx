@@ -6,7 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { I18nManager, Alert, AppState, Platform } from "react-native";
 import { useAuthStore } from "@/store/authStore";
-import { useThemeStore, useThemeColors } from "@/store/themeStore";
+import { useThemeStore, useSafeThemeColors } from "@/store/themeStore";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
 import React from 'react';
 import { View } from 'react-native';
@@ -43,13 +43,9 @@ SplashScreen.preventAutoHideAsync();
 
 // Theme Provider Component to ensure theme is always available
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const colors = useThemeColors();
+  const colors = useSafeThemeColors();
   
-  // Ensure colors are available before rendering children
-  if (!colors || !colors.background) {
-    return null; // Don't render until theme is ready
-  }
-  
+  // Colors are now guaranteed to be safe, no need to check
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {children}
@@ -67,11 +63,21 @@ export default function RootLayout() {
   
   // Initialize theme immediately when store is available
   useEffect(() => {
-    try {
-      initializeTheme();
-    } catch (error) {
-      console.warn('Early theme initialization failed:', error);
-    }
+    let mounted = true;
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        try {
+          initializeTheme();
+        } catch (error) {
+          console.warn('Early theme initialization failed:', error);
+        }
+      }
+    }, 0);
+    
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [initializeTheme]);
 
   useEffect(() => {
