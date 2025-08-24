@@ -152,8 +152,8 @@ export default function ProfileScreen() {
 
           <ProfileOption
             icon={Bot}
-            title="AI Personalization"
-            onPress={() => router.push('/settings/personalization')}
+            title="الذكاء الاصطناعي للمحادثات"
+            onPress={() => router.push('/settings/ai-agent')}
             iconColor={colors.primary}
           />
           
