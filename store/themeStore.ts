@@ -257,7 +257,7 @@ export const useThemeColors = () => {
   try {
     const store = useThemeStore.getState();
     // Always ensure we have valid colors
-    if (!store || !store.colors || typeof store.colors !== 'object' || !store.colors.background) {
+    if (!store || !store.colors || typeof store.colors !== 'object' || !store.colors?.background) {
       console.warn('Theme colors not available, using safe fallback');
       return getSafeColors();
     }
@@ -285,6 +285,15 @@ export const useColorScheme = () => {
 // Initialize with safe defaults immediately
 const initialColorScheme = getSystemColorScheme();
 const initialColors = getSafeColors(initialColorScheme);
+
+// Ensure colors are always valid
+const ensureValidColors = (colors: any): ThemeColors => {
+  if (!colors || typeof colors !== 'object' || !colors.background) {
+    console.warn('Invalid colors detected, using safe fallback');
+    return getSafeColors();
+  }
+  return colors;
+};
 
 export const useThemeStore = create<ThemeState>()(
   persist(
@@ -343,16 +352,20 @@ export const useThemeStore = create<ThemeState>()(
       initializeTheme: () => {
         try {
           // Ensure colors are always set first with safe fallback
-          const currentScheme = get().colorScheme || getSystemColorScheme();
+          const currentState = get();
+          const currentScheme = currentState.colorScheme || getSystemColorScheme();
           const safeColors = getSafeColors(currentScheme);
           
-          // Immediately set safe colors to prevent undefined access
-          set({
-            colorScheme: currentScheme,
-            colors: safeColors,
-          });
-          
-          console.log('🎨 Theme colors initialized:', { scheme: currentScheme, hasColors: !!safeColors?.background });
+          // Only update if colors are actually missing or invalid
+          if (!currentState.colors || typeof currentState.colors !== 'object' || !currentState.colors?.background) {
+            set({
+              colorScheme: currentScheme,
+              colors: safeColors,
+            });
+            console.log('🎨 Theme colors initialized:', { scheme: currentScheme, hasColors: !!safeColors?.background });
+          } else {
+            console.log('🎨 Theme colors already valid:', { scheme: currentScheme, hasColors: !!currentState.colors?.background });
+          }
           
           // Return cleanup function immediately to prevent state update during render
           let subscription: any = null;
@@ -370,10 +383,14 @@ export const useThemeStore = create<ThemeState>()(
                 get().checkAndUpdateTheme();
               } else if (mode === 'auto') {
                 const systemScheme = getSystemColorScheme();
-                set({
-                  colorScheme: systemScheme,
-                  colors: getSafeColors(systemScheme),
-                });
+                const currentColors = get().colors;
+                // Only update if scheme actually changed
+                if (get().colorScheme !== systemScheme) {
+                  set({
+                    colorScheme: systemScheme,
+                    colors: getSafeColors(systemScheme),
+                  });
+                }
               }
               
               // Listen for system theme changes
@@ -383,10 +400,13 @@ export const useThemeStore = create<ThemeState>()(
                   const { mode, isAutoAdaptive, adaptiveMode } = currentState;
                   if (mode === 'auto' && (!isAutoAdaptive || adaptiveMode === 'system')) {
                     const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
-                    set({
-                      colorScheme: newScheme,
-                      colors: getSafeColors(newScheme),
-                    });
+                    // Only update if scheme actually changed
+                    if (currentState.colorScheme !== newScheme) {
+                      set({
+                        colorScheme: newScheme,
+                        colors: getSafeColors(newScheme),
+                      });
+                    }
                   }
                 } catch (error) {
                   console.warn('Theme change listener error:', error);
@@ -409,7 +429,7 @@ export const useThemeStore = create<ThemeState>()(
             } catch (error) {
               console.warn('Async theme initialization error:', error);
             }
-          }, 1000); // Delay to ensure component is mounted
+          }, 100); // Shorter delay since we're being more careful about updates
           
           return () => {
             try {
@@ -429,9 +449,11 @@ export const useThemeStore = create<ThemeState>()(
         } catch (error) {
           console.warn('Theme initialization error:', error);
           // Ensure we always have colors even on error
+          const fallbackScheme = getSystemColorScheme();
+          const fallbackColors = getSafeColors(fallbackScheme);
           set({
-            colorScheme: getSystemColorScheme(),
-            colors: getSafeColors(),
+            colorScheme: fallbackScheme,
+            colors: fallbackColors,
           });
           // Return a no-op cleanup function on error
           return () => {};

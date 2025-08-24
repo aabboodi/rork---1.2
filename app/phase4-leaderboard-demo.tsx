@@ -28,7 +28,7 @@ import { GamesLeaderboardService } from '@/services/GamesLeaderboardService';
 import { LeaderboardDashboard } from '@/components/LeaderboardDashboard';
 import { colors } from '@/constants/colors';
 
-export default function Phase4LeaderboardDemo() {
+function Phase4LeaderboardDemo() {
   const [gamesService] = useState(() => GamesService.getInstance());
   const [leaderboardService] = useState(() => GamesLeaderboardService.getInstance());
   const [isLoading, setIsLoading] = useState(true);
@@ -431,6 +431,9 @@ export default function Phase4LeaderboardDemo() {
     </ScrollView>
   );
 }
+
+// Add the missing default export
+export default Phase4LeaderboardDemo;
 
 const styles = StyleSheet.create({
   container: {
