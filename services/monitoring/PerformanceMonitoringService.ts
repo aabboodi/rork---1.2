@@ -138,6 +138,33 @@ class PerformanceMonitoringService {
   // Performance baselines
   private baselines: Map<string, number> = new Map();
   private anomalyThreshold: number = 2.0; // Standard deviations
+  
+  // Acceptance criteria tracking
+  private acceptanceCriteria: {
+    performance: {
+      localRankingLatency: { threshold: number; current: number; passing: boolean };
+      videoFPSDrops: { threshold: number; current: number; passing: boolean };
+    };
+    privacy: {
+      rawTextTransmissions: { threshold: number; current: number; passing: boolean };
+      policyCompliance: { threshold: number; current: number; passing: boolean };
+    };
+    walletProtection: {
+      aiWalletAccess: { threshold: number; current: number; passing: boolean };
+    };
+  } = {
+    performance: {
+      localRankingLatency: { threshold: 300, current: 0, passing: true },
+      videoFPSDrops: { threshold: 0.02, current: 0, passing: true },
+    },
+    privacy: {
+      rawTextTransmissions: { threshold: 0, current: 0, passing: true },
+      policyCompliance: { threshold: 0.99, current: 1, passing: true },
+    },
+    walletProtection: {
+      aiWalletAccess: { threshold: 0, current: 0, passing: true },
+    },
+  };
 
   private constructor() {
     this.systemMonitoring = SystemMonitoringService.getInstance();
@@ -280,6 +307,9 @@ class PerformanceMonitoringService {
       const systemMetrics = this.systemMonitoring.getLatestMetrics();
       
       if (!systemMetrics) return;
+      
+      // Update acceptance criteria tracking
+      await this.updateAcceptanceCriteria(systemMetrics, timestamp);
 
       // Convert system metrics to performance metrics
       const performanceMetrics: PerformanceMetric[] = [
@@ -841,6 +871,142 @@ class PerformanceMonitoringService {
     }
 
     return recommendations;
+  }
+
+  // ===== ACCEPTANCE CRITERIA TRACKING =====
+  
+  private async updateAcceptanceCriteria(systemMetrics: any, timestamp: number): Promise<void> {
+    try {
+      // Performance: Local ranking latency ≤150–300ms
+      const recentRankingMetrics = this.getRecentMetrics('local_ranking_latency', 5 * 60 * 1000);
+      if (recentRankingMetrics.length > 0) {
+        const p95Latency = this.calculatePercentile(recentRankingMetrics.map(m => m.value), 95);
+        this.acceptanceCriteria.performance.localRankingLatency.current = p95Latency;
+        this.acceptanceCriteria.performance.localRankingLatency.passing = p95Latency <= 300;
+      }
+      
+      // Performance: No FPS drops in video
+      const recentVideoMetrics = this.getRecentMetrics('video_fps_drops', 5 * 60 * 1000);
+      if (recentVideoMetrics.length > 0) {
+        const fpsDropRate = recentVideoMetrics.reduce((sum, m) => sum + m.value, 0) / recentVideoMetrics.length;
+        this.acceptanceCriteria.performance.videoFPSDrops.current = fpsDropRate;
+        this.acceptanceCriteria.performance.videoFPSDrops.passing = fpsDropRate < 0.02;
+      }
+      
+      // Privacy: Zero raw text transmission
+      const recentPrivacyMetrics = this.getRecentMetrics('privacy_violations', 10 * 60 * 1000);
+      if (recentPrivacyMetrics.length > 0) {
+        const violationRate = recentPrivacyMetrics.reduce((sum, m) => sum + m.value, 0) / recentPrivacyMetrics.length;
+        this.acceptanceCriteria.privacy.rawTextTransmissions.current = violationRate;
+        this.acceptanceCriteria.privacy.rawTextTransmissions.passing = violationRate === 0;
+      }
+      
+      // Privacy: Policy compliance
+      const recentPolicyMetrics = this.getRecentMetrics('policy_compliance', 10 * 60 * 1000);
+      if (recentPolicyMetrics.length > 0) {
+        const complianceRate = recentPolicyMetrics.reduce((sum, m) => sum + m.value, 0) / recentPolicyMetrics.length;
+        this.acceptanceCriteria.privacy.policyCompliance.current = complianceRate;
+        this.acceptanceCriteria.privacy.policyCompliance.passing = complianceRate > 0.99;
+      }
+      
+      // Wallet Protection: AI wallet access attempts
+      const recentWalletMetrics = this.getRecentMetrics('wallet_access_attempts', 10 * 60 * 1000);
+      if (recentWalletMetrics.length > 0) {
+        const accessAttemptRate = recentWalletMetrics.reduce((sum, m) => sum + m.value, 0) / recentWalletMetrics.length;
+        this.acceptanceCriteria.walletProtection.aiWalletAccess.current = accessAttemptRate;
+        this.acceptanceCriteria.walletProtection.aiWalletAccess.passing = accessAttemptRate === 0;
+      }
+      
+      // Log acceptance criteria status
+      const overallPassing = this.isAcceptanceCriteriaPassing();
+      if (!overallPassing) {
+        console.warn('⚠️ Acceptance criteria not met:', this.getFailingCriteria());
+      }
+      
+    } catch (error) {
+      console.error('Failed to update acceptance criteria:', error);
+    }
+  }
+  
+  private calculatePercentile(values: number[], percentile: number): number {
+    if (values.length === 0) return 0;
+    
+    const sorted = values.sort((a, b) => a - b);
+    const index = Math.ceil((percentile / 100) * sorted.length) - 1;
+    return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
+  }
+  
+  private isAcceptanceCriteriaPassing(): boolean {
+    return (
+      this.acceptanceCriteria.performance.localRankingLatency.passing &&
+      this.acceptanceCriteria.performance.videoFPSDrops.passing &&
+      this.acceptanceCriteria.privacy.rawTextTransmissions.passing &&
+      this.acceptanceCriteria.privacy.policyCompliance.passing &&
+      this.acceptanceCriteria.walletProtection.aiWalletAccess.passing
+    );
+  }
+  
+  private getFailingCriteria(): string[] {
+    const failing: string[] = [];
+    
+    if (!this.acceptanceCriteria.performance.localRankingLatency.passing) {
+      failing.push(`Local ranking latency: ${this.acceptanceCriteria.performance.localRankingLatency.current}ms > ${this.acceptanceCriteria.performance.localRankingLatency.threshold}ms`);
+    }
+    
+    if (!this.acceptanceCriteria.performance.videoFPSDrops.passing) {
+      failing.push(`Video FPS drops: ${(this.acceptanceCriteria.performance.videoFPSDrops.current * 100).toFixed(2)}% > ${(this.acceptanceCriteria.performance.videoFPSDrops.threshold * 100).toFixed(2)}%`);
+    }
+    
+    if (!this.acceptanceCriteria.privacy.rawTextTransmissions.passing) {
+      failing.push(`Raw text transmissions: ${this.acceptanceCriteria.privacy.rawTextTransmissions.current} > ${this.acceptanceCriteria.privacy.rawTextTransmissions.threshold}`);
+    }
+    
+    if (!this.acceptanceCriteria.privacy.policyCompliance.passing) {
+      failing.push(`Policy compliance: ${(this.acceptanceCriteria.privacy.policyCompliance.current * 100).toFixed(2)}% < ${(this.acceptanceCriteria.privacy.policyCompliance.threshold * 100).toFixed(2)}%`);
+    }
+    
+    if (!this.acceptanceCriteria.walletProtection.aiWalletAccess.passing) {
+      failing.push(`AI wallet access attempts: ${this.acceptanceCriteria.walletProtection.aiWalletAccess.current} > ${this.acceptanceCriteria.walletProtection.aiWalletAccess.threshold}`);
+    }
+    
+    return failing;
+  }
+  
+  getAcceptanceCriteriaStatus(): {
+    overall: boolean;
+    criteria: typeof this.acceptanceCriteria;
+    failing: string[];
+    lastUpdated: number;
+  } {
+    return {
+      overall: this.isAcceptanceCriteriaPassing(),
+      criteria: { ...this.acceptanceCriteria },
+      failing: this.getFailingCriteria(),
+      lastUpdated: Date.now(),
+    };
+  }
+  
+  // Record acceptance criteria metrics
+  recordAcceptanceMetric(type: 'local_ranking_latency' | 'video_fps_drops' | 'privacy_violations' | 'policy_compliance' | 'wallet_access_attempts', value: number): void {
+    const timestamp = Date.now();
+    const metric: PerformanceMetric = {
+      id: `${type}_${timestamp}`,
+      name: type,
+      category: type.includes('latency') ? 'response_time' : 
+                type.includes('fps') ? 'user_experience' :
+                type.includes('privacy') || type.includes('policy') ? 'business' :
+                type.includes('wallet') ? 'business' : 'user_experience',
+      value,
+      unit: type.includes('latency') ? 'ms' : 
+            type.includes('rate') || type.includes('compliance') ? 'percentage' : 'count',
+      timestamp,
+      tags: { 
+        acceptance_criteria: 'true',
+        category: type.split('_')[0]
+      }
+    };
+    
+    this.metrics.push(metric);
   }
 
   // ===== UTILITY METHODS =====
