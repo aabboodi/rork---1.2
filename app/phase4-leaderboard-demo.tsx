@@ -26,7 +26,8 @@ import {
 import { GamesService } from '@/services/GamesService';
 import { GamesLeaderboardService } from '@/services/GamesLeaderboardService';
 import { LeaderboardDashboard } from '@/components/LeaderboardDashboard';
-import { colors } from '@/constants/colors';
+import { useThemeColors } from '@/store/themeStore';
+import colors from '@/constants/colors';
 
 function Phase4LeaderboardDemo() {
   const [gamesService] = useState(() => GamesService.getInstance());

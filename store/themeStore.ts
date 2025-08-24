@@ -255,7 +255,7 @@ const getSafeColors = (scheme?: ColorScheme): ThemeColors => {
 // Hook to safely get theme colors with fallback
 export const useThemeColors = () => {
   try {
-    const store = useThemeStore.getState();
+    const store = useThemeStore();
     // Always ensure we have valid colors
     if (!store || !store.colors || typeof store.colors !== 'object' || !store.colors?.background) {
       console.warn('Theme colors not available, using safe fallback');
@@ -271,7 +271,7 @@ export const useThemeColors = () => {
 // Hook to safely get color scheme with fallback
 export const useColorScheme = () => {
   try {
-    const store = useThemeStore.getState();
+    const store = useThemeStore();
     if (!store || !store.colorScheme) {
       return getSystemColorScheme();
     }
@@ -356,16 +356,12 @@ export const useThemeStore = create<ThemeState>()(
           const currentScheme = currentState.colorScheme || getSystemColorScheme();
           const safeColors = getSafeColors(currentScheme);
           
-          // Only update if colors are actually missing or invalid
-          if (!currentState.colors || typeof currentState.colors !== 'object' || !currentState.colors?.background) {
-            set({
-              colorScheme: currentScheme,
-              colors: safeColors,
-            });
-            console.log('🎨 Theme colors initialized:', { scheme: currentScheme, hasColors: !!safeColors?.background });
-          } else {
-            console.log('🎨 Theme colors already valid:', { scheme: currentScheme, hasColors: !!currentState.colors?.background });
-          }
+          // Always ensure colors are set and valid
+          set({
+            colorScheme: currentScheme,
+            colors: safeColors,
+          });
+          console.log('🎨 Theme colors initialized:', { scheme: currentScheme, hasColors: !!safeColors?.background });
           
           // Return cleanup function immediately to prevent state update during render
           let subscription: any = null;
