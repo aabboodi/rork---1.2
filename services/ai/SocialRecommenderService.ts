@@ -1,6 +1,6 @@
-import { Platform } from 'react-native';
 import PersonalizationSignalsService, { SocialSignal, TrendData } from './PersonalizationSignalsService';
 import PersonalizationSettingsService from './PersonalizationSettingsService';
+import DataLayoutService from './DataLayoutService';
 
 export interface ContentItem {
   id: string;
@@ -57,6 +57,7 @@ class SocialRecommenderService {
   
   private signalsService: PersonalizationSignalsService;
   private settingsService: PersonalizationSettingsService;
+  private dataLayoutService: DataLayoutService;
   private banditState: BanditState;
   private modelWeights: number[] = [];
   private isInitialized = false;
@@ -64,6 +65,7 @@ class SocialRecommenderService {
   private constructor() {
     this.signalsService = PersonalizationSignalsService.getInstance();
     this.settingsService = PersonalizationSettingsService.getInstance();
+    this.dataLayoutService = DataLayoutService.getInstance();
     this.banditState = {
       epsilon: 0.1,
       counts: {},
@@ -228,10 +230,43 @@ class SocialRecommenderService {
 
   // Private methods
   private async getServerPreRankedContent(slot: string): Promise<ContentItem[]> {
-    // Mock server pre-ranking - in real implementation, this would be an API call
+    try {
+      // Use DataLayoutService to fetch from server endpoint /social/prerank
+      const serverResponse = await this.dataLayoutService.fetchSocialPrerank({
+        slot: slot as 'post' | 'video' | 'voice' | 'game',
+        limit: 100 // Request up to 100 items
+      });
+      
+      // Convert server response to ContentItem format
+      const contentItems: ContentItem[] = serverResponse.map(item => ({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        author: item.author,
+        category: item.category,
+        tags: item.tags,
+        engagement: item.engagement,
+        timestamp: item.timestamp,
+        metadata: {
+          views: Math.floor(Math.random() * 2000) + 100,
+          likes: Math.floor(Math.random() * 200) + 10,
+          shares: Math.floor(Math.random() * 50) + 1
+        }
+      }));
+      
+      console.log(`📥 Received ${contentItems.length} pre-ranked items from server for ${slot}`);
+      return contentItems;
+    } catch (error) {
+      console.error('Failed to get server pre-ranked content:', error);
+      // Fallback to mock data if server fails
+      return this.getFallbackContent(slot);
+    }
+  }
+
+  private getFallbackContent(slot: string): ContentItem[] {
     const mockContent: ContentItem[] = [
       {
-        id: 'post_1',
+        id: 'fallback_post_1',
         type: 'post',
         title: 'Amazing sunset photography tips',
         author: 'photographer_pro',
@@ -242,7 +277,7 @@ class SocialRecommenderService {
         metadata: { views: 1200, likes: 89, shares: 12 }
       },
       {
-        id: 'video_1',
+        id: 'fallback_video_1',
         type: 'video',
         title: 'Quick cooking recipe',
         author: 'chef_master',
@@ -251,39 +286,17 @@ class SocialRecommenderService {
         engagement: 0.72,
         timestamp: Date.now() - 7200000,
         metadata: { duration: 180, views: 890, likes: 67 }
-      },
-      {
-        id: 'game_1',
-        type: 'game',
-        title: 'Puzzle Challenge',
-        author: 'game_dev',
-        category: 'puzzle',
-        tags: ['puzzle', 'brain', 'challenge'],
-        engagement: 0.68,
-        timestamp: Date.now() - 1800000,
-        metadata: { views: 456, likes: 34 }
       }
     ];
 
-    // Simulate server pre-ranking with 50-100 items
-    const expandedContent = [];
-    for (let i = 0; i < 75; i++) {
-      const baseItem = mockContent[i % mockContent.length];
-      expandedContent.push({
-        ...baseItem,
-        id: `${baseItem.id}_${i}`,
-        engagement: baseItem.engagement + (Math.random() - 0.5) * 0.2
-      });
-    }
-
-    return expandedContent;
+    return mockContent.slice(0, 50); // Return limited fallback content
   }
 
   private async extractFeatures(item: ContentItem): Promise<RecommendationFeatures> {
     try {
       const signals = await this.signalsService.getSocialSignals();
       const geoSignals = await this.signalsService.getGeoTemporalSignals();
-      const trends = await this.signalsService.getTrends();
+      const trends = await this.dataLayoutService.fetchTrends({ region: 'MENA' });
 
       // User history features (anonymized engagement patterns)
       const userHistory = this.computeUserHistoryFeatures(signals, item);
@@ -359,13 +372,30 @@ class SocialRecommenderService {
     rankedContent: RankedContent[],
     slot: string
   ): Promise<RankedContent[]> {
-    // ε-greedy exploration
-    if (Math.random() < this.banditState.epsilon) {
-      // Exploration: shuffle some items
+    // Dynamic ε that decreases with confidence accumulation (ε ديناميكية ↘︎ مع تراكم إشارات الثقة)
+    const confidenceSignals = this.banditState.totalCount;
+    const dynamicEpsilon = Math.max(
+      this.MIN_EPSILON,
+      this.banditState.epsilon * Math.exp(-confidenceSignals / 1000)
+    );
+    
+    // ε-greedy with Thompson Sampling elements
+    if (Math.random() < dynamicEpsilon) {
+      // Exploration: Thompson Sampling-inspired selection
       const explorationCount = Math.min(5, Math.floor(rankedContent.length * 0.2));
-      const toShuffle = rankedContent.slice(0, explorationCount);
-      const shuffled = [...toShuffle].sort(() => Math.random() - 0.5);
-      return [...shuffled, ...rankedContent.slice(explorationCount)];
+      const toExplore = rankedContent.slice(0, explorationCount);
+      
+      // Add uncertainty bonus to less-explored items
+      const exploredItems = toExplore.map(item => {
+        const itemCount = this.banditState.counts[item.id] || 0;
+        const uncertaintyBonus = Math.sqrt(2 * Math.log(this.banditState.totalCount + 1) / (itemCount + 1));
+        return {
+          ...item,
+          score: item.score + uncertaintyBonus * 0.1
+        };
+      }).sort((a, b) => b.score - a.score);
+      
+      return [...exploredItems, ...rankedContent.slice(explorationCount)];
     }
     
     // Exploitation: use current ranking
@@ -373,29 +403,40 @@ class SocialRecommenderService {
   }
 
   private computeScore(features: RecommendationFeatures): number {
-    // Lightweight linear model weights (trained offline)
-    const weights = {
-      userHistory: 0.25,
-      sessionContext: 0.15,
-      geoTemporal: 0.10,
-      trendWeight: 0.20,
-      topicSimilarity: 0.15,
-      repetitionPenalty: -0.30,
-      engagementScore: 0.25,
-      recencyScore: 0.10
-    };
-
-    let score = 0;
-    score += features.userHistory.reduce((sum, val) => sum + val, 0) * weights.userHistory;
-    score += features.sessionContext.reduce((sum, val) => sum + val, 0) * weights.sessionContext;
-    score += features.geoTemporal.reduce((sum, val) => sum + val, 0) * weights.geoTemporal;
-    score += features.trendWeight * weights.trendWeight;
-    score += features.topicSimilarity * weights.topicSimilarity;
-    score += features.repetitionPenalty * weights.repetitionPenalty;
-    score += features.engagementScore * weights.engagementScore;
-    score += features.recencyScore * weights.recencyScore;
-
+    // Implement the exact algorithm: score = w_f·F(item,user) + w_t·Trend(item,t) + w_g·Geo(item,loc) − w_r·RepeatPenalty
+    const w_f = 0.4; // User feature weight
+    const w_t = 0.25; // Trend weight
+    const w_g = 0.15; // Geo-temporal weight
+    const w_r = 0.3; // Repetition penalty weight
+    
+    // F(item,user) - User-item feature interaction
+    const userItemFeature = this.computeUserItemFeature(features);
+    
+    // Trend(item,t) - Trend score at time t
+    const trendScore = features.trendWeight;
+    
+    // Geo(item,loc) - Geographic relevance
+    const geoScore = features.geoTemporal.reduce((sum, val) => sum + val, 0) / features.geoTemporal.length;
+    
+    // RepeatPenalty - Repetition penalty
+    const repeatPenalty = features.repetitionPenalty;
+    
+    // Apply the exact formula
+    const score = w_f * userItemFeature + w_t * trendScore + w_g * geoScore - w_r * repeatPenalty;
+    
     return Math.max(0, Math.min(1, score)); // Normalize to [0, 1]
+  }
+
+  private computeUserItemFeature(features: RecommendationFeatures): number {
+    // Combine user history, session context, topic similarity, and engagement
+    const historyScore = features.userHistory.reduce((sum, val) => sum + val, 0) / features.userHistory.length;
+    const sessionScore = features.sessionContext.reduce((sum, val) => sum + val, 0) / features.sessionContext.length;
+    const topicScore = features.topicSimilarity;
+    const engagementScore = features.engagementScore;
+    const recencyScore = features.recencyScore;
+    
+    // Weighted combination
+    return (historyScore * 0.3 + sessionScore * 0.2 + topicScore * 0.25 + engagementScore * 0.15 + recencyScore * 0.1);
   }
 
   private computeUserHistoryFeatures(signals: SocialSignal[], item: ContentItem): number[] {

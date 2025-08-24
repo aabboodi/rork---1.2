@@ -38,8 +38,12 @@ class PersonalizationSignalsService {
   private static instance: PersonalizationSignalsService;
   private readonly STORAGE_KEY = 'personalization_signals';
   private readonly GEO_STORAGE_KEY = 'geo_temporal_signals';
+  private readonly SIGNALS_DB_KEY = 'signals_db'; // Per-slot events database
+  private readonly PROFILE_KEY = 'profile_json'; // User profile with vectors and timestamps
   private readonly MAX_SIGNALS = 10000; // Limit storage
   private readonly ENCRYPTION_KEY = 'personalization_encryption_key';
+  private readonly EMA_ALPHA = 0.1; // Exponential Moving Average factor
+  private readonly TOPIC_DECAY_DAYS = 30; // Topic decay period
 
   private constructor() {}
 
@@ -59,11 +63,18 @@ class PersonalizationSignalsService {
         timestamp: Date.now()
       };
 
+      // Store in main signals array
       const existingSignals = await this.getSocialSignals();
       const updatedSignals = [...existingSignals, fullSignal]
         .slice(-this.MAX_SIGNALS); // Keep only recent signals
 
       await this.storeEncrypted(this.STORAGE_KEY, updatedSignals);
+      
+      // Store in per-slot database
+      await this.storeSignalInDB(fullSignal, signal.type);
+      
+      // Update user profile with EMA
+      await this.updateUserProfile(fullSignal);
       
       console.log(`📊 Recorded ${signal.action} signal for ${signal.type} content:`, signal.contentId);
     } catch (error) {
@@ -150,6 +161,108 @@ class PersonalizationSignalsService {
     } catch (error) {
       console.error('Failed to get trends:', error);
       return [];
+    }
+  }
+
+  // Update user profile with EMA + decay for old topics
+  async updateUserProfile(signal: SocialSignal): Promise<void> {
+    try {
+      const profile = await this.getUserProfile();
+      const now = Date.now();
+      
+      // Apply topic decay
+      Object.keys(profile.topicVectors).forEach(topic => {
+        const daysSinceUpdate = (now - profile.topicVectors[topic].lastUpdate) / (1000 * 60 * 60 * 24);
+        if (daysSinceUpdate > this.TOPIC_DECAY_DAYS) {
+          const decayFactor = Math.exp(-daysSinceUpdate / this.TOPIC_DECAY_DAYS);
+          profile.topicVectors[topic].weight *= decayFactor;
+        }
+      });
+      
+      // Update with new signal using EMA
+      if (signal.metadata?.category) {
+        const category = signal.metadata.category;
+        if (!profile.topicVectors[category]) {
+          profile.topicVectors[category] = { weight: 0, lastUpdate: now };
+        }
+        
+        const currentWeight = profile.topicVectors[category].weight;
+        const signalWeight = this.getSignalWeight(signal.action);
+        profile.topicVectors[category].weight = (1 - this.EMA_ALPHA) * currentWeight + this.EMA_ALPHA * signalWeight;
+        profile.topicVectors[category].lastUpdate = now;
+      }
+      
+      profile.lastUpdated = now;
+      await this.storeEncrypted(this.PROFILE_KEY, profile);
+      
+      console.log('📈 User profile updated with EMA and decay');
+    } catch (error) {
+      console.error('Failed to update user profile:', error);
+    }
+  }
+
+  // Get user profile with vectors and timestamps
+  async getUserProfile(): Promise<{
+    topicVectors: Record<string, { weight: number; lastUpdate: number }>;
+    preferences: Record<string, number>;
+    lastUpdated: number;
+  }> {
+    try {
+      const stored = await this.getEncrypted(this.PROFILE_KEY);
+      return stored || {
+        topicVectors: {},
+        preferences: {},
+        lastUpdated: Date.now()
+      };
+    } catch (error) {
+      console.error('Failed to get user profile:', error);
+      return {
+        topicVectors: {},
+        preferences: {},
+        lastUpdated: Date.now()
+      };
+    }
+  }
+
+  // Store signals in database-like structure per slot
+  async storeSignalInDB(signal: SocialSignal, slot: 'post' | 'video' | 'voice' | 'game'): Promise<void> {
+    try {
+      const signalsDB = await this.getSignalsDB();
+      
+      if (!signalsDB[slot]) {
+        signalsDB[slot] = [];
+      }
+      
+      signalsDB[slot].push({
+        ...signal,
+        timestamp: Date.now(),
+        sessionId: this.getCurrentSessionId()
+      });
+      
+      // Keep only recent signals per slot
+      signalsDB[slot] = signalsDB[slot]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, this.MAX_SIGNALS / 4); // Distribute across slots
+      
+      await this.storeEncrypted(this.SIGNALS_DB_KEY, signalsDB);
+      console.log(`💾 Signal stored in ${slot} slot database`);
+    } catch (error) {
+      console.error('Failed to store signal in DB:', error);
+    }
+  }
+
+  // Get signals database
+  async getSignalsDB(): Promise<Record<string, (SocialSignal & { sessionId: string })[]>> {
+    try {
+      return await this.getEncrypted(this.SIGNALS_DB_KEY) || {
+        post: [],
+        video: [],
+        voice: [],
+        game: []
+      };
+    } catch (error) {
+      console.error('Failed to get signals DB:', error);
+      return { post: [], video: [], voice: [], game: [] };
     }
   }
 
@@ -266,6 +379,23 @@ class PersonalizationSignalsService {
       console.error('Failed to get location:', error);
       return 'Unknown';
     }
+  }
+
+  private getSignalWeight(action: SocialSignal['action']): number {
+    switch (action) {
+      case 'like': return 1.0;
+      case 'view': return 0.3;
+      case 'dwell': return 0.5;
+      case 'swipe': return -0.1;
+      case 'mute': return -0.5;
+      case 'report': return -1.0;
+      default: return 0;
+    }
+  }
+
+  private getCurrentSessionId(): string {
+    // Generate or retrieve current session ID
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 }
 

@@ -10,6 +10,8 @@ export interface StyleProfile {
   patterns: string[];
   punctuation: 'minimal' | 'standard' | 'expressive';
   emoji: 'none' | 'occasional' | 'frequent';
+  tfidfVectors?: Record<string, number>; // TF-IDF vectors for style analysis
+  embeddings?: number[]; // Local embeddings for semantic similarity
 }
 
 export interface ThreadPersona {
@@ -48,12 +50,14 @@ export interface AutoReplyGuards {
 
 class ChatAutoReplyService {
   private static instance: ChatAutoReplyService;
-  private readonly PERSONAS_KEY = 'chat_personas';
+  private readonly PERSONAS_KEY = 'chat_personas_json'; // Per-thread biases storage
+  private readonly STYLE_PROFILE_KEY = 'style_profile_json'; // Style profile from 10k words
   private readonly GUARDS_KEY = 'auto_reply_guards';
   private readonly REPLY_HISTORY_KEY = 'reply_history';
   private readonly MAX_PERSONAS = 100;
   private readonly MAX_REPLY_LENGTH = 280;
   private readonly DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
+  private readonly MAX_TRAINER_WORDS = 10000;
   
   private settingsService: PersonalizationSettingsService;
   private replyHistory: Map<string, number[]> = new Map(); // chatId -> timestamps
@@ -70,13 +74,25 @@ class ChatAutoReplyService {
     return ChatAutoReplyService.instance;
   }
 
-  // Style Extractor - Analyze user's writing style from trainer content
+  // Style Extractor: TF-IDF + Embeddings محلية → قوالب نبرة/طول/مفردات
   async extractStyleProfile(content: string): Promise<StyleProfile> {
     try {
-      console.log('🎨 Extracting style profile from content...');
+      console.log('🎨 Extracting style profile with TF-IDF + Local Embeddings...');
+      
+      // Validate word count (≤10k words)
+      const wordCount = this.countWords(content);
+      if (wordCount > this.MAX_TRAINER_WORDS) {
+        throw new Error(`Content exceeds ${this.MAX_TRAINER_WORDS} words limit`);
+      }
       
       const words = content.toLowerCase().split(/\s+/);
       const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      
+      // Compute TF-IDF vectors
+      const tfidfVectors = this.computeTFIDF(content);
+      
+      // Generate local embeddings (simplified)
+      const embeddings = this.generateLocalEmbeddings(content);
       
       // Analyze tone
       const formalWords = ['however', 'therefore', 'furthermore', 'consequently', 'nevertheless'];
@@ -144,8 +160,13 @@ class ChatAutoReplyService {
         vocabulary,
         patterns,
         punctuation,
-        emoji
+        emoji,
+        tfidfVectors,
+        embeddings
       };
+      
+      // Store style profile globally
+      await this.storeEncrypted(this.STYLE_PROFILE_KEY, profile);
       
       console.log('✅ Style profile extracted:', profile);
       return profile;
@@ -155,20 +176,23 @@ class ChatAutoReplyService {
     }
   }
 
-  // Create or update thread persona
+  // Create or update thread persona (لكل chatId انحياز)
   async createThreadPersona(chatId: string, isGroup: boolean, messages: any[] = []): Promise<ThreadPersona> {
     try {
-      console.log(`🎭 Creating thread persona for chat: ${chatId}`);
+      console.log(`🎭 Creating per-thread persona with biases for chat: ${chatId}`);
       
       const trainerContent = await this.settingsService.getTrainerContent();
       const baseStyle = trainerContent ? await this.extractStyleProfile(trainerContent) : this.getDefaultStyleProfile();
       
-      // Analyze thread-specific context
+      // Analyze thread-specific context from local history
       const recentTopics = this.extractTopics(messages.slice(-20));
       const participants = this.extractParticipants(messages);
       
-      // Adapt style based on thread context
-      const adaptedStyle = await this.adaptStyleToThread(baseStyle, messages, isGroup);
+      // Create thread-specific biases based on local chat history
+      const threadBiases = await this.computeThreadBiases(chatId, messages, isGroup);
+      
+      // Adapt style based on thread context and biases
+      const adaptedStyle = await this.adaptStyleToThread(baseStyle, messages, isGroup, threadBiases);
       
       const persona: ThreadPersona = {
         chatId,
@@ -188,7 +212,7 @@ class ChatAutoReplyService {
       };
       
       await this.saveThreadPersona(persona);
-      console.log('✅ Thread persona created');
+      console.log('✅ Thread persona with per-chat biases created');
       return persona;
     } catch (error) {
       console.error('Failed to create thread persona:', error);
@@ -496,8 +520,13 @@ class ChatAutoReplyService {
     return responses.slice(0, 3);
   }
 
-  private async adaptStyleToThread(baseStyle: StyleProfile, messages: any[], isGroup: boolean): Promise<StyleProfile> {
-    // Adapt style based on thread context
+  private async adaptStyleToThread(
+    baseStyle: StyleProfile, 
+    messages: any[], 
+    isGroup: boolean, 
+    threadBiases?: Record<string, number>
+  ): Promise<StyleProfile> {
+    // Adapt style based on thread context and computed biases
     const adaptedStyle = { ...baseStyle };
     
     if (isGroup) {
@@ -511,7 +540,88 @@ class ChatAutoReplyService {
       }
     }
     
+    // Apply thread-specific biases
+    if (threadBiases) {
+      // Adjust tone based on thread formality bias
+      if (threadBiases.formality > 0.7) {
+        adaptedStyle.tone = 'formal';
+      } else if (threadBiases.formality < 0.3) {
+        adaptedStyle.tone = 'casual';
+      }
+      
+      // Adjust emoji usage based on thread emoji bias
+      if (threadBiases.emojiUsage > 0.6) {
+        adaptedStyle.emoji = 'frequent';
+      } else if (threadBiases.emojiUsage < 0.2) {
+        adaptedStyle.emoji = 'none';
+      }
+      
+      // Adjust length based on thread message length bias
+      if (threadBiases.messageLength > 0.7) {
+        adaptedStyle.length = 'long';
+      } else if (threadBiases.messageLength < 0.3) {
+        adaptedStyle.length = 'short';
+      }
+    }
+    
     return adaptedStyle;
+  }
+
+  // Compute thread-specific biases from local chat history
+  private async computeThreadBiases(chatId: string, messages: any[], isGroup: boolean): Promise<Record<string, number>> {
+    const biases: Record<string, number> = {
+      formality: 0.5,
+      emojiUsage: 0.5,
+      messageLength: 0.5,
+      responseSpeed: 0.5,
+      topicFocus: 0.5
+    };
+    
+    if (messages.length === 0) {
+      return biases;
+    }
+    
+    // Analyze formality from message content
+    const formalWords = ['however', 'therefore', 'furthermore', 'please', 'thank you'];
+    const casualWords = ['yeah', 'ok', 'cool', 'lol', 'btw', 'gonna'];
+    
+    let formalCount = 0;
+    let casualCount = 0;
+    let totalEmojis = 0;
+    let totalLength = 0;
+    
+    messages.forEach(msg => {
+      if (msg.text) {
+        const text = msg.text.toLowerCase();
+        const words = text.split(/\s+/);
+        
+        // Count formal/casual words
+        formalCount += words.filter(w => formalWords.includes(w)).length;
+        casualCount += words.filter(w => casualWords.includes(w)).length;
+        
+        // Count emojis
+        const emojiMatches = text.match(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu);
+        totalEmojis += emojiMatches ? emojiMatches.length : 0;
+        
+        // Message length
+        totalLength += words.length;
+      }
+    });
+    
+    // Calculate biases
+    const totalWords = messages.reduce((sum, msg) => sum + (msg.text ? msg.text.split(/\s+/).length : 0), 0);
+    
+    if (totalWords > 0) {
+      biases.formality = formalCount > casualCount ? 
+        Math.min(0.8, 0.5 + (formalCount - casualCount) / totalWords) :
+        Math.max(0.2, 0.5 - (casualCount - formalCount) / totalWords);
+      
+      biases.emojiUsage = Math.min(0.9, totalEmojis / messages.length);
+      biases.messageLength = Math.min(0.9, (totalLength / messages.length) / 20); // Normalize by ~20 words average
+    }
+    
+    console.log(`📊 Computed thread biases for ${chatId}:`, biases);
+    return biases;
   }
 
   private extractTopics(messages: any[]): string[] {
@@ -563,6 +673,57 @@ class ChatAutoReplyService {
       .forEach(([pattern]) => patterns.push(pattern));
     
     return patterns;
+  }
+
+  // Compute TF-IDF vectors for style analysis
+  private computeTFIDF(content: string): Record<string, number> {
+    const words = content.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+    const wordCount = words.length;
+    const termFreq = new Map<string, number>();
+    
+    // Calculate term frequency
+    words.forEach(word => {
+      termFreq.set(word, (termFreq.get(word) || 0) + 1);
+    });
+    
+    // Convert to TF-IDF (simplified - no IDF calculation for single document)
+    const tfidf: Record<string, number> = {};
+    termFreq.forEach((freq, term) => {
+      tfidf[term] = freq / wordCount; // Simple TF normalization
+    });
+    
+    return tfidf;
+  }
+
+  // Generate local embeddings (simplified semantic vectors)
+  private generateLocalEmbeddings(content: string): number[] {
+    // Simplified embedding generation - in production, use a local model
+    const words = content.toLowerCase().split(/\s+/);
+    const embedding = new Array(128).fill(0); // 128-dimensional vector
+    
+    // Simple hash-based embedding
+    words.forEach((word, index) => {
+      const hash = this.simpleHash(word);
+      embedding[hash % 128] += 1 / words.length;
+    });
+    
+    // Normalize
+    const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+    return embedding.map(val => val / (norm || 1));
+  }
+
+  private simpleHash(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  }
+
+  private countWords(text: string): number {
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
   }
 
   private getDefaultStyleProfile(): StyleProfile {

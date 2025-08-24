@@ -21,6 +21,9 @@ import { AccessibleButton } from '@/components/accessibility/AccessibleButton';
 import { AccessibleCard } from '@/components/accessibility/AccessibleCard';
 import PersonalizationSettingsService, { PersonalizationSettings } from '@/services/ai/PersonalizationSettingsService';
 import PersonalizationSignalsService from '@/services/ai/PersonalizationSignalsService';
+import DataLayoutService from '@/services/ai/DataLayoutService';
+import { useSocialRecommender, useRecommenderMetrics } from '@/hooks/useSocialRecommender';
+import { useChatAutoReply } from '@/hooks/useChatAutoReply';
 
 export default function PersonalizationSettingsScreen() {
   const router = useRouter();
@@ -33,6 +36,16 @@ export default function PersonalizationSettingsScreen() {
 
   const settingsService = PersonalizationSettingsService.getInstance();
   const signalsService = PersonalizationSignalsService.getInstance();
+  const dataLayoutService = DataLayoutService.getInstance();
+  
+  // Use the new hooks for real-time data
+  const { recommendations, loading: recommendationsLoading } = useSocialRecommender({
+    slot: 'personalized',
+    limit: 5
+  });
+  
+  const { metrics } = useRecommenderMetrics();
+  const { guards, updateGuards, emergencyStop, resumeAfterStop } = useChatAutoReply();
 
   useEffect(() => {
     loadSettings();
@@ -58,8 +71,26 @@ export default function PersonalizationSettingsScreen() {
 
   const loadInsights = async () => {
     try {
-      const personalInsights = await signalsService.getPersonalizationInsights();
-      setInsights(personalInsights);
+      const [personalInsights, trendsData, profileData, signalsDB] = await Promise.all([
+        signalsService.getPersonalizationInsights(),
+        dataLayoutService.fetchTrends({ region: 'MENA' }),
+        signalsService.getUserProfile(),
+        signalsService.getSignalsDB()
+      ]);
+      
+      setInsights({
+        insights: personalInsights,
+        trends: trendsData,
+        profile: profileData,
+        signalsDB
+      });
+      
+      console.log('📊 Complete personalization data loaded:', {
+        insights: personalInsights,
+        trends: trendsData,
+        profile: profileData,
+        signalsCount: Object.values(signalsDB).reduce((sum, arr) => sum + arr.length, 0)
+      });
     } catch (error) {
       console.error('Failed to load insights:', error);
     }
@@ -137,9 +168,13 @@ export default function PersonalizationSettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await settingsService.revokeConsent();
-              await signalsService.clearAllSignals();
+              await Promise.all([
+                settingsService.revokeConsent(),
+                signalsService.clearAllSignals(),
+                dataLayoutService.clearAllData()
+              ]);
               await loadSettings();
+              await loadInsights();
               Alert.alert('تم الحذف', 'تم حذف جميع البيانات.');
             } catch (error) {
               console.error('Failed to clear data:', error);
@@ -388,8 +423,165 @@ export default function PersonalizationSettingsScreen() {
           </AccessibleCard>
         )}
 
-        {/* Insights Section */}
+        {/* Recommendation Metrics */}
+        {settings.consent.given && metrics && (
+          <AccessibleCard variant="elevated" padding="large" style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Info size={24} color={colors.primary} />
+              <AccessibleText variant="heading3" weight="semibold" style={styles.sectionTitle}>
+                Recommendation Performance
+              </AccessibleText>
+            </View>
+            
+            <View style={styles.metricsGrid}>
+              <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
+                <AccessibleText variant="heading2" weight="bold" color="primary">
+                  {metrics.ctr.toFixed(1)}%
+                </AccessibleText>
+                <AccessibleText variant="caption" color="secondary">
+                  Click Rate
+                </AccessibleText>
+              </View>
+              <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
+                <AccessibleText variant="heading2" weight="bold" color="primary">
+                  {(metrics.explorationRate * 100).toFixed(1)}%
+                </AccessibleText>
+                <AccessibleText variant="caption" color="secondary">
+                  Exploration
+                </AccessibleText>
+              </View>
+              <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
+                <AccessibleText variant="heading2" weight="bold" color="primary">
+                  {metrics.latencyMs}ms
+                </AccessibleText>
+                <AccessibleText variant="caption" color="secondary">
+                  Latency
+                </AccessibleText>
+              </View>
+              <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
+                <AccessibleText variant="heading2" weight="bold" color="primary">
+                  {(metrics.modelAccuracy * 100).toFixed(1)}%
+                </AccessibleText>
+                <AccessibleText variant="caption" color="secondary">
+                  Accuracy
+                </AccessibleText>
+              </View>
+            </View>
+          </AccessibleCard>
+        )}
+        
+        {/* Auto-Reply Guards */}
+        {settings.consent.given && guards && (
+          <AccessibleCard variant="elevated" padding="large" style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Shield size={24} color={colors.primary} />
+              <AccessibleText variant="heading3" weight="semibold" style={styles.sectionTitle}>
+                Auto-Reply Safety
+              </AccessibleText>
+            </View>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <AccessibleText variant="body" weight="medium">
+                  Emergency Stop
+                </AccessibleText>
+                <AccessibleText variant="caption" color="secondary">
+                  Immediately disable all auto-replies
+                </AccessibleText>
+              </View>
+              <Switch
+                value={guards.emergencyStop}
+                onValueChange={async (value) => {
+                  try {
+                    if (value) {
+                      await emergencyStop();
+                    } else {
+                      await resumeAfterStop();
+                    }
+                  } catch (error) {
+                    Alert.alert('Error', 'Failed to update emergency stop');
+                  }
+                }}
+                trackColor={{ false: colors.border, true: colors.error }}
+                thumbColor={colors.background}
+              />
+            </View>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <AccessibleText variant="body" weight="medium">
+                  Rate Limit (per hour)
+                </AccessibleText>
+                <AccessibleText variant="caption" color="secondary">
+                  Maximum auto-replies per hour
+                </AccessibleText>
+              </View>
+              <TextInput
+                style={[styles.numberInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                value={guards.rateLimitPerHour.toString()}
+                onChangeText={(text) => {
+                  const value = parseInt(text) || 0;
+                  updateGuards({ rateLimitPerHour: value });
+                }}
+                keyboardType="numeric"
+                placeholder="10"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <AccessibleText variant="body" weight="medium">
+                  Min Confidence (%)
+                </AccessibleText>
+                <AccessibleText variant="caption" color="secondary">
+                  Minimum confidence for auto-replies
+                </AccessibleText>
+              </View>
+              <TextInput
+                style={[styles.numberInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                value={(guards.minConfidence * 100).toFixed(0)}
+                onChangeText={(text) => {
+                  const value = (parseInt(text) || 70) / 100;
+                  updateGuards({ minConfidence: value });
+                }}
+                keyboardType="numeric"
+                placeholder="70"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          </AccessibleCard>
+        )}
+        
+        {/* Data Layout Status */}
         {settings.consent.given && insights && (
+          <AccessibleCard variant="elevated" padding="large" style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Info size={24} color={colors.primary} />
+              <AccessibleText variant="heading3" weight="semibold" style={styles.sectionTitle}>
+                Data Layout Status
+              </AccessibleText>
+            </View>
+            
+            <View style={[styles.dataStatus, { backgroundColor: colors.surface }]}>
+              <AccessibleText variant="body" style={styles.statusItem}>
+                📊 Signals DB: {Object.values(insights.signalsDB || {}).reduce((sum: number, arr: any[]) => sum + arr.length, 0)} events
+              </AccessibleText>
+              <AccessibleText variant="body" style={styles.statusItem}>
+                👤 Profile Topics: {Object.keys(insights.profile?.topicVectors || {}).length}
+              </AccessibleText>
+              <AccessibleText variant="body" style={styles.statusItem}>
+                📈 Active Trends: {insights.trends?.length || 0}
+              </AccessibleText>
+              <AccessibleText variant="body" style={styles.statusItem}>
+                🎯 Recommendations: {recommendations.length}
+              </AccessibleText>
+            </View>
+          </AccessibleCard>
+        )}
+        
+        {/* Personal Insights */}
+        {settings.consent.given && insights?.insights && (
           <AccessibleCard variant="elevated" padding="large" style={styles.section}>
             <View style={styles.sectionHeader}>
               <Info size={24} color={colors.primary} />
@@ -398,13 +590,13 @@ export default function PersonalizationSettingsScreen() {
               </AccessibleText>
             </View>
 
-            {insights.topCategories.length > 0 && (
+            {insights.insights.topCategories.length > 0 && (
               <View style={styles.insightGroup}>
                 <AccessibleText variant="body" weight="medium">
                   Preferred Content
                 </AccessibleText>
                 <View style={styles.insightTags}>
-                  {insights.topCategories.map((category: string, index: number) => (
+                  {insights.insights.topCategories.map((category: string, index: number) => (
                     <View key={index} style={[styles.insightTag, { backgroundColor: colors.primary + '20' }]}>
                       <AccessibleText variant="caption" color="primary">
                         {category === 'post' ? 'Posts' : 
@@ -417,13 +609,13 @@ export default function PersonalizationSettingsScreen() {
               </View>
             )}
 
-            {insights.preferredTimes.length > 0 && (
+            {insights.insights.preferredTimes.length > 0 && (
               <View style={styles.insightGroup}>
                 <AccessibleText variant="body" weight="medium">
                   Preferred Times
                 </AccessibleText>
                 <View style={styles.insightTags}>
-                  {insights.preferredTimes.map((time: string, index: number) => (
+                  {insights.insights.preferredTimes.map((time: string, index: number) => (
                     <View key={index} style={[styles.insightTag, { backgroundColor: colors.success + '20' }]}>
                       <AccessibleText variant="caption" color="success">
                         {time === 'morning' ? 'Morning' : 
@@ -451,14 +643,23 @@ export default function PersonalizationSettingsScreen() {
               Delete all saved data and settings
             </AccessibleText>
 
-            <AccessibleButton
-              title="Delete All Data"
-              onPress={clearAllData}
-              variant="danger"
-              size="medium"
-              icon={<Trash2 size={20} color={colors.textInverse} />}
-              style={styles.dangerButton}
-            />
+            <View style={styles.dangerButtons}>
+              <AccessibleButton
+                title="Refresh Data"
+                onPress={loadInsights}
+                variant="primary"
+                size="medium"
+                style={styles.refreshButton}
+              />
+              <AccessibleButton
+                title="Delete All Data"
+                onPress={clearAllData}
+                variant="danger"
+                size="medium"
+                icon={<Trash2 size={20} color={colors.textInverse} />}
+                style={styles.dangerButton}
+              />
+            </View>
           </AccessibleCard>
         )}
 
@@ -590,8 +791,44 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
+  dangerButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   dangerButton: {
-    alignSelf: 'flex-start',
+    flex: 1,
+    marginLeft: 8,
+  },
+  refreshButton: {
+    flex: 1,
+    marginRight: 8,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  metricItem: {
+    width: '48%',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  numberInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    width: 80,
+    textAlign: 'center',
+  },
+  dataStatus: {
+    padding: 16,
+    borderRadius: 12,
+  },
+  statusItem: {
+    marginBottom: 8,
   },
   bottomSpacing: {
     height: 40,
