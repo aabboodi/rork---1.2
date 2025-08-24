@@ -475,10 +475,11 @@ export default function ChatItem({
       <TouchableOpacity 
         style={[
           styles.container,
-          isSelected && styles.selectedContainer,
+          { backgroundColor: colors.background, borderBottomColor: colors.border },
+          isSelected && { ...styles.selectedContainer, backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' },
           isSelectionMode && styles.selectionModeContainer,
           !isMessageSafe && styles.unsafeContainer,
-          isPressed && styles.pressedContainer
+          isPressed && { ...styles.pressedContainer, backgroundColor: colors.secondary }
         ]} 
         onPress={handleChatPress}
         onPressIn={handlePressIn}

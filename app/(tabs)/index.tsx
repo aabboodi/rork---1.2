@@ -7,8 +7,7 @@ import { mockChats, mockGroups, mockChannels } from '@/mocks/chats';
 import { Chat, ChatType } from '@/types';
 import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
-import { useThemeStore } from '@/store/themeStore';
-import colors from '@/constants/colors';
+import { useSafeThemeColors } from '@/store/themeStore';
 import ChatItem from '@/components/ChatItem';
 import SecurityManager from '@/services/security/SecurityManager';
 import KeyManager from '@/services/security/KeyManager';
@@ -20,7 +19,7 @@ import { MicroInteractions } from '@/utils/microInteractions';
 export default function ChatsScreen() {
   const router = useRouter();
   const { language } = useAuthStore();
-  const { colors } = useThemeStore();
+  const colors = useSafeThemeColors();
   const t = translations[language];
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -511,7 +510,7 @@ Secure messaging even when offline`,
   };
   
   const getTabIcon = (type: ChatType, isActive: boolean) => {
-    const color = isActive ? colors.primary : colors.medium;
+    const color = isActive ? colors.primary : colors.textSecondary;
     const size = 18;
     
     switch (type) {
@@ -578,7 +577,7 @@ Secure messaging even when offline`,
   );
   
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Animated Notification Banner */}
       <AnimatedNotificationBanner
         visible={notification.visible}
@@ -589,7 +588,11 @@ Secure messaging even when offline`,
         position="top"
       />
       {/* Header */}
-      <Animated.View style={[styles.header, { transform: [{ scale: headerAnim }] }]}>
+      <Animated.View style={[styles.header, { 
+        backgroundColor: colors.background,
+        borderBottomColor: colors.border,
+        transform: [{ scale: headerAnim }] 
+      }]}>
         <View style={styles.headerLeft}>
           {isSelectionMode ? (
             <View style={styles.selectionHeader}>
@@ -600,26 +603,26 @@ Secure messaging even when offline`,
                 }}
                 style={styles.headerButton}
               >
-                <Text style={styles.cancelText}>{t.cancel}</Text>
+                <Text style={[styles.cancelText, { color: colors.primary }]}>{t.cancel}</Text>
               </TouchableOpacity>
-              <Text style={styles.selectionCount}>
+              <Text style={[styles.selectionCount, { color: colors.text }]}>
                 {selectedChats.length} محدد
               </Text>
             </View>
           ) : (
             <View style={styles.titleContainer}>
-              <Text style={styles.headerTitle}>{t.chats}</Text>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>{t.chats}</Text>
               {e2eeStatus.establishedSessions > 0 && (
-                <TouchableOpacity style={styles.e2eeIndicator} onPress={handleE2EEStatus}>
+                <TouchableOpacity style={[styles.e2eeIndicator, { backgroundColor: colors.success + '20' }]} onPress={handleE2EEStatus}>
                   <Shield size={16} color={colors.success} />
-                  <Text style={styles.e2eeText}>{e2eeStatus.establishedSessions}</Text>
-                  <Text style={styles.signalBadge}>Signal</Text>
+                  <Text style={[styles.e2eeText, { color: colors.success }]}>{e2eeStatus.establishedSessions}</Text>
+                  <Text style={[styles.signalBadge, { color: colors.success, backgroundColor: colors.success + '30' }]}>Signal</Text>
                 </TouchableOpacity>
               )}
               {dlpStatus.enabled && (
-                <TouchableOpacity style={styles.dlpIndicator} onPress={handleDLPStatus}>
+                <TouchableOpacity style={[styles.dlpIndicator, { backgroundColor: colors.primary + '20' }]} onPress={handleDLPStatus}>
                   <Shield size={16} color={colors.primary} />
-                  <Text style={styles.dlpText}>DLP</Text>
+                  <Text style={[styles.dlpText, { color: colors.primary }]}>DLP</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -660,18 +663,21 @@ Secure messaging even when offline`,
       
       {/* Search Bar */}
       {!isSelectionMode && (
-        <Animated.View style={[styles.searchContainer, { transform: [{ scale: searchAnim }] }]}>
-          <Search size={18} color={colors.medium} style={styles.searchIcon} />
+        <Animated.View style={[styles.searchContainer, { 
+          backgroundColor: colors.secondary,
+          transform: [{ scale: searchAnim }] 
+        }]}>
+          <Search size={18} color={colors.textSecondary} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder={t.search}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholderTextColor={colors.medium}
+            placeholderTextColor={colors.textSecondary}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearch}>
-              <Text style={styles.clearSearchText}>×</Text>
+              <Text style={[styles.clearSearchText, { color: colors.textSecondary }]}>×</Text>
             </TouchableOpacity>
           )}
         </Animated.View>
@@ -679,77 +685,83 @@ Secure messaging even when offline`,
       
       {/* Filter Status Indicator */}
       {filterStatus !== 'all' && (
-        <View style={styles.filterIndicator}>
+        <View style={[styles.filterIndicator, { 
+          backgroundColor: colors.backgroundSecondary,
+          borderBottomColor: colors.border 
+        }]}>
           <View style={styles.filterContent}>
             {filterStatus === 'encrypted' && <Lock size={14} color={colors.success} />}
             {filterStatus === 'dlp_protected' && <Shield size={14} color={colors.primary} />}
-            <Text style={styles.filterText}>
+            <Text style={[styles.filterText, { color: colors.primary }]}>
               {getFilterStatusText()}
             </Text>
           </View>
           <TouchableOpacity onPress={() => setFilterStatus('all')}>
-            <Text style={styles.clearFilterText}>مسح التصفية</Text>
+            <Text style={[styles.clearFilterText, { color: colors.textSecondary }]}>مسح التصفية</Text>
           </TouchableOpacity>
         </View>
       )}
       
       {/* Sub-tabs */}
-      <View style={styles.tabsContainer}>
+      <View style={[styles.tabsContainer, { 
+        backgroundColor: colors.background,
+        borderBottomColor: colors.border 
+      }]}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'conversation' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'conversation' && { ...styles.activeTab, borderBottomColor: colors.primary }]}
           onPress={() => setActiveTab('conversation')}
         >
           {getTabIcon('conversation', activeTab === 'conversation')}
-          <Text style={[styles.tabText, activeTab === 'conversation' && styles.activeTabText]}>
+          <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === 'conversation' && { color: colors.primary, fontWeight: '600' }]}>
             {getTabTitle('conversation')}
           </Text>
           {getUnreadCount('conversation') > 0 && (
-            <View style={styles.tabBadge}>
+            <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
               <Text style={styles.tabBadgeText}>{getUnreadCount('conversation')}</Text>
             </View>
           )}
           {getEncryptedCount('conversation') > 0 && (
-            <View style={styles.encryptedBadge}>
+            <View style={[styles.encryptedBadge, { backgroundColor: colors.success + '20' }]}>
               <Lock size={10} color={colors.success} />
             </View>
           )}
           {dlpStatus.enabled && getDLPProtectedCount('conversation') > 0 && (
-            <View style={styles.dlpBadge}>
+            <View style={[styles.dlpBadge, { backgroundColor: colors.primary + '20' }]}>
               <Shield size={10} color={colors.primary} />
             </View>
           )}
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'group' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'group' && { ...styles.activeTab, borderBottomColor: colors.primary }]}
           onPress={() => setActiveTab('group')}
         >
           {getTabIcon('group', activeTab === 'group')}
-          <Text style={[styles.tabText, activeTab === 'group' && styles.activeTabText]}>
+          <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === 'group' && { color: colors.primary, fontWeight: '600' }]}>
             {getTabTitle('group')}
           </Text>
           {getUnreadCount('group') > 0 && (
-            <View style={styles.tabBadge}>
+            <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
               <Text style={styles.tabBadgeText}>{getUnreadCount('group')}</Text>
             </View>
           )}
           {getEncryptedCount('group') > 0 && (
-            <View style={styles.encryptedBadge}>
+            <View style={[styles.encryptedBadge, { backgroundColor: colors.success + '20' }]}>
               <Lock size={10} color={colors.success} />
             </View>
           )}
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'channel' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'channel' && { ...styles.activeTab, borderBottomColor: colors.primary }]}
           onPress={() => setActiveTab('channel')}
         >
           {getTabIcon('channel', activeTab === 'channel')}
-          <Text style={[styles.tabText, activeTab === 'channel' && styles.activeTabText]}>
+          <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === 'channel' && { color: colors.primary, fontWeight: '600' }]}>
             {getTabTitle('channel')}
           </Text>
           {getUnreadCount('channel') > 0 && (
-            <View style={styles.tabBadge}>
+            <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
               <Text style={styles.tabBadgeText}>{getUnreadCount('channel')}</Text>
             </View>
           )}
@@ -773,10 +785,10 @@ Secure messaging even when offline`,
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {getEmptyMessage()}
             </Text>
-            <TouchableOpacity style={styles.emptyButton} onPress={handleCreateNew}>
+            <TouchableOpacity style={[styles.emptyButton, { backgroundColor: colors.primary }]} onPress={handleCreateNew}>
               <Text style={styles.emptyButtonText}>
                 {activeTab === 'conversation' && 'بدء محادثة جديدة'}
                 {activeTab === 'group' && 'إنشاء مجموعة جديدة'}
@@ -799,7 +811,7 @@ Secure messaging even when offline`,
       
       {/* Floating Action Button */}
       {!isSelectionMode && (
-        <TouchableOpacity style={styles.fab} onPress={handleCreateNew}>
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={handleCreateNew}>
           {getFabIcon()}
         </TouchableOpacity>
       )}
@@ -810,7 +822,6 @@ Secure messaging even when offline`,
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -819,8 +830,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.background,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -834,12 +843,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: colors.dark,
   },
   e2eeIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.success + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -847,14 +854,11 @@ const styles = StyleSheet.create({
   },
   e2eeText: {
     fontSize: 12,
-    color: colors.success,
     fontWeight: '600',
     marginLeft: 4,
   },
   signalBadge: {
     fontSize: 8,
-    color: colors.success,
-    backgroundColor: colors.success + '30',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 6,
@@ -864,7 +868,6 @@ const styles = StyleSheet.create({
   dlpIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -872,7 +875,6 @@ const styles = StyleSheet.create({
   },
   dlpText: {
     fontSize: 12,
-    color: colors.primary,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -883,12 +885,10 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: colors.primary,
     fontWeight: '600',
   },
   selectionCount: {
     fontSize: 16,
-    color: colors.dark,
     fontWeight: '600',
     marginLeft: 16,
   },
@@ -903,7 +903,6 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.secondary,
     borderRadius: 20,
     margin: 12,
     paddingHorizontal: 16,
@@ -915,14 +914,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     fontSize: 16,
-    color: colors.dark,
   },
   clearSearch: {
     padding: 4,
   },
   clearSearchText: {
     fontSize: 20,
-    color: colors.medium,
     fontWeight: 'bold',
   },
   filterIndicator: {
@@ -931,9 +928,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: colors.light,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   filterContent: {
     flexDirection: 'row',
@@ -941,19 +936,15 @@ const styles = StyleSheet.create({
   },
   filterText: {
     fontSize: 14,
-    color: colors.primary,
     fontWeight: '600',
     marginLeft: 6,
   },
   clearFilterText: {
     fontSize: 14,
-    color: colors.medium,
   },
   tabsContainer: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.background,
   },
   tab: {
     flex: 1,
@@ -966,20 +957,16 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.medium,
     marginLeft: 6,
   },
   activeTabText: {
-    color: colors.primary,
     fontWeight: '600',
   },
   tabBadge: {
-    backgroundColor: colors.primary,
     borderRadius: 10,
     minWidth: 18,
     height: 18,
@@ -996,7 +983,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: colors.success + '20',
     borderRadius: 8,
     padding: 2,
   },
@@ -1004,7 +990,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 24,
-    backgroundColor: colors.primary + '20',
     borderRadius: 8,
     padding: 2,
   },
@@ -1020,12 +1005,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: colors.medium,
     textAlign: 'center',
     marginBottom: 16,
   },
   emptyButton: {
-    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 20,
@@ -1042,7 +1025,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,

@@ -19,7 +19,13 @@ export default function TabLayout() {
 
   useEffect(() => {
     // Initialize route-specific security for tabs
-    initializeTabSecurity();
+    const timeoutId = setTimeout(() => {
+      initializeTabSecurity();
+    }, 0);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const initializeTabSecurity = async () => {
@@ -27,30 +33,21 @@ export default function TabLayout() {
       if (Platform.OS === 'web') {
         // Initialize security services with proper error handling
         let apiMiddleware: any = null;
-        let wafService: any = null;
         let cspMiddleware: any = null;
         
         try {
           apiMiddleware = APISecurityMiddleware.getInstance();
         } catch (error) {
-          console.warn('APISecurityMiddleware not available:', error);
           return;
-        }
-        
-        try {
-          wafService = WAFService.getInstance();
-        } catch (error) {
-          console.warn('WAFService not available:', error);
         }
         
         try {
           cspMiddleware = apiMiddleware?.getCSPMiddleware?.();
         } catch (error) {
-          console.warn('CSP middleware not available:', error);
+          return;
         }
         
         if (!cspMiddleware || typeof cspMiddleware.addRouteConfiguration !== 'function') {
-          console.warn('CSP middleware not available or not properly initialized');
           return;
         }
 

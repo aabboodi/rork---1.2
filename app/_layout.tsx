@@ -64,10 +64,12 @@ export default function RootLayout() {
   // Initialize theme immediately when store is available
   useEffect(() => {
     let mounted = true;
+    let cleanup: (() => void) | undefined;
+    
     const timeoutId = setTimeout(() => {
       if (mounted) {
         try {
-          initializeTheme();
+          cleanup = initializeTheme();
         } catch (error) {
           console.warn('Early theme initialization failed:', error);
         }
@@ -77,6 +79,13 @@ export default function RootLayout() {
     return () => {
       mounted = false;
       clearTimeout(timeoutId);
+      if (cleanup && typeof cleanup === 'function') {
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('Theme cleanup error:', error);
+        }
+      }
     };
   }, [initializeTheme]);
 
@@ -102,28 +111,32 @@ export default function RootLayout() {
     let mounted = true;
     
     if (loaded && mounted) {
-      try {
-        console.log('🎨 Initializing enhanced auto-adaptive theme system...');
-        
-        // Initialize theme synchronously to ensure colors are available immediately
-        cleanup = initializeTheme();
-        
-        console.log('✅ Enhanced theme system initialized with auto-adaptive features');
-      } catch (error) {
-        console.error('❌ Enhanced theme initialization failed:', error);
-      }
+      const timeoutId = setTimeout(() => {
+        if (mounted) {
+          try {
+            // Initialize theme synchronously to ensure colors are available immediately
+            cleanup = initializeTheme();
+          } catch (error) {
+            console.error('❌ Enhanced theme initialization failed:', error);
+          }
+        }
+      }, 0);
+      
+      return () => {
+        mounted = false;
+        clearTimeout(timeoutId);
+        if (cleanup && typeof cleanup === 'function') {
+          try {
+            cleanup();
+          } catch (error) {
+            console.warn('Theme cleanup error:', error);
+          }
+        }
+      };
     }
     
-    // Cleanup on unmount
     return () => {
       mounted = false;
-      if (cleanup && typeof cleanup === 'function') {
-        try {
-          cleanup();
-        } catch (error) {
-          console.warn('Theme cleanup error:', error);
-        }
-      }
     };
   }, [loaded, initializeTheme]);
 
