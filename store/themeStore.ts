@@ -268,6 +268,20 @@ export const useThemeColors = () => {
   }
 };
 
+// Safe hook that never returns undefined colors
+export const useSafeThemeColors = (): ThemeColors => {
+  try {
+    const colors = useThemeColors();
+    if (!colors || !colors.background) {
+      return getSafeColors();
+    }
+    return colors;
+  } catch (error) {
+    console.warn('Error in useSafeThemeColors, using fallback:', error);
+    return getSafeColors();
+  }
+};
+
 // Hook to safely get color scheme with fallback
 export const useColorScheme = () => {
   try {
@@ -356,12 +370,12 @@ export const useThemeStore = create<ThemeState>()(
           const currentScheme = currentState.colorScheme || getSystemColorScheme();
           const safeColors = getSafeColors(currentScheme);
           
-          // Always ensure colors are set and valid
+          // Always ensure colors are set and valid immediately
           set({
             colorScheme: currentScheme,
             colors: safeColors,
           });
-          console.log('🎨 Theme colors initialized:', { scheme: currentScheme, hasColors: !!safeColors?.background });
+          console.log('🎨 Theme colors initialized immediately:', { scheme: currentScheme, hasColors: !!safeColors?.background });
           
           // Return cleanup function immediately to prevent state update during render
           let subscription: any = null;
