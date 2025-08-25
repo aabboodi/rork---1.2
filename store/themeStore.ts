@@ -372,12 +372,23 @@ export const useThemeStore = create<ThemeState>()(
           const safeColors = getSafeColors(currentScheme);
           
           console.log('🎨 Initializing theme with scheme:', currentScheme);
+          console.log('🎨 Safe colors:', safeColors);
           
           // Always ensure colors are set and valid immediately
           set({
             colorScheme: currentScheme,
             colors: safeColors,
           });
+          
+          // Verify colors were set correctly
+          const verifyState = get();
+          if (!verifyState.colors || !verifyState.colors.background) {
+            console.error('🚨 Theme colors not set correctly, forcing fallback');
+            set({
+              colorScheme: 'light',
+              colors: lightColors,
+            });
+          }
           
           // Return cleanup function immediately to prevent state update during render
           let subscription: any = null;
