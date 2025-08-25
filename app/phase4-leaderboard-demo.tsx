@@ -345,14 +345,14 @@ function Phase4LeaderboardDemo() {
                 style={[styles.actionButton, styles.approveButton]}
                 onPress={() => handleApproveScore(score.id)}
               >
-                <CheckCircle size={16} color={colors.white} />
+                <CheckCircle size={16} color={colors.textInverse} />
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={[styles.actionButton, styles.rejectButton]}
                 onPress={() => handleRejectScore(score.id)}
               >
-                <XCircle size={16} color={colors.white} />
+                <XCircle size={16} color={colors.textInverse} />
               </TouchableOpacity>
             </View>
           </View>
@@ -367,7 +367,7 @@ function Phase4LeaderboardDemo() {
         style={[styles.toggleButton, showLeaderboard && styles.activeToggleButton]}
         onPress={() => setShowLeaderboard(!showLeaderboard)}
       >
-        <Trophy size={20} color={showLeaderboard ? colors.white : colors.primary} />
+        <Trophy size={20} color={showLeaderboard ? colors.textInverse : colors.primary} />
         <Text style={[
           styles.toggleButtonText,
           showLeaderboard && styles.activeToggleButtonText
