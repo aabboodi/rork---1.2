@@ -940,13 +940,13 @@ Incident ID: ${incident.id}`,
   }
 
   return (
-    <ThemeProvider>
-      <ErrorBoundary>
+    <ErrorBoundary>
+      <ThemeProvider>
         <AccessibilityProvider>
           <RootLayoutNav />
         </AccessibilityProvider>
-      </ErrorBoundary>
-    </ThemeProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

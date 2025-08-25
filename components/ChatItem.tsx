@@ -86,6 +86,114 @@ export default function ChatItem({
   const { theme } = useThemeSafe();
   const { colors } = theme;
   const [isMessageSafe, setIsMessageSafe] = useState(true);
+  const [violationType, setViolationType] = useState<string | null>(null);
+  const [violationConfidence, setViolationConfidence] = useState(0);
+  
+  // Animation values
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const [isPressed, setIsPressed] = useState(false);
+  
+  const checkMessageSafety = React.useCallback(async () => {
+    if (!chat.lastMessage?.content || chat.lastMessage.content.trim() === '') {
+      setIsMessageSafe(true);
+      return;
+    }
+
+    try {
+      const context: MessageContext = {
+        senderId: chat.lastMessage.senderId,
+        recipientId: 'current_user',
+        timestamp: new Date(chat.lastMessage.timestamp).getTime(),
+        messageType: 'text',
+        senderReputation: 0.5
+      };
+
+      const result = await ContentModerationService.analyzeContent(chat.lastMessage.content, context);
+      
+      if (result.isViolation) {
+        setIsMessageSafe(false);
+        setViolationType(result.violationType);
+        setViolationConfidence(result.confidence);
+        
+        // Log forensic event for violations
+        await ForensicsService.logForensicEvent({
+          eventType: 'message_violation',
+          severity: result.confidence > 0.7 ? 'high' : result.confidence > 0.4 ? 'medium' : 'low',
+          userId: chat.lastMessage.senderId,
+          description: `انتهاك في الرسالة: ${result.violationType} - ${result.explanation}`,
+          evidence: {
+            content: chat.lastMessage.content,
+            metadata: {
+              violationType: result.violationType,
+              confidence: result.confidence,
+              suggestedAction: result.suggestedAction,
+              detectedPatterns: result.detectedPatterns
+            },
+            deviceInfo: {
+              platform: 'mobile',
+              timestamp: new Date().toISOString()
+            }
+          },
+          status: 'pending',
+          tags: ['content_moderation', result.violationType]
+        });
+      } else {
+        setIsMessageSafe(true);
+        setViolationType(null);
+        setViolationConfidence(0);
+      }
+    } catch (error) {
+      console.error('Failed to check message safety:', error);
+      setIsMessageSafe(true);
+    }
+  }, [chat.lastMessage]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      checkMessageSafety();
+      
+      // Entrance animation
+      MicroInteractions.createEntranceAnimation(scaleAnim, opacityAnim, Math.random() * 100).start();
+      
+      // Pulse animation for unread messages
+      if (chat.unreadCount > 0) {
+        MicroInteractions.createPulseAnimation(pulseAnim, 0.98, 1.02).start();
+      }
+    }
+  }, [isLoading, checkMessageSafety, scaleAnim, opacityAnim, pulseAnim, chat.unreadCount]);
+  
+  useEffect(() => {
+    if (!isLoading) {
+      // Stop pulse animation when message is read
+      if (chat.unreadCount === 0) {
+        pulseAnim.stopAnimation();
+        pulseAnim.setValue(1);
+      }
+    }
+  }, [isLoading, chat.unreadCount, pulseAnim]);
+  
+  useEffect(() => {
+    if (!isLoading) {
+      // Shake animation for unsafe messages
+      if (!isMessageSafe && violationConfidence > 0.7) {
+        MicroInteractions.createShakeAnimation(shakeAnim).start();
+      }
+    }
+  }, [isLoading, isMessageSafe, violationConfidence, shakeAnim]);
+  
+  // Show skeleton while loading
+  if (isLoading) {
+    return <ChatItemSkeleton />;
+  }
+  
+  // Ensure colors are always available
+  if (!colors || !colors.background) {
+    console.warn('ChatItem: Theme colors not available, using fallback');
+    return <ChatItemSkeleton />;
+  }
   
   // Create styles with current theme colors
   const dynamicStyles = StyleSheet.create({
@@ -203,108 +311,6 @@ export default function ChatItem({
       marginLeft: 8,
     },
   });
-  const [violationType, setViolationType] = useState<string | null>(null);
-  const [violationConfidence, setViolationConfidence] = useState(0);
-  
-  // Animation values
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(1)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const [isPressed, setIsPressed] = useState(false);
-  
-  const checkMessageSafety = React.useCallback(async () => {
-    if (!chat.lastMessage?.content || chat.lastMessage.content.trim() === '') {
-      setIsMessageSafe(true);
-      return;
-    }
-
-    try {
-      const context: MessageContext = {
-        senderId: chat.lastMessage.senderId,
-        recipientId: 'current_user',
-        timestamp: new Date(chat.lastMessage.timestamp).getTime(),
-        messageType: 'text',
-        senderReputation: 0.5
-      };
-
-      const result = await ContentModerationService.analyzeContent(chat.lastMessage.content, context);
-      
-      if (result.isViolation) {
-        setIsMessageSafe(false);
-        setViolationType(result.violationType);
-        setViolationConfidence(result.confidence);
-        
-        // Log forensic event for violations
-        await ForensicsService.logForensicEvent({
-          eventType: 'message_violation',
-          severity: result.confidence > 0.7 ? 'high' : result.confidence > 0.4 ? 'medium' : 'low',
-          userId: chat.lastMessage.senderId,
-          description: `انتهاك في الرسالة: ${result.violationType} - ${result.explanation}`,
-          evidence: {
-            content: chat.lastMessage.content,
-            metadata: {
-              violationType: result.violationType,
-              confidence: result.confidence,
-              suggestedAction: result.suggestedAction,
-              detectedPatterns: result.detectedPatterns
-            },
-            deviceInfo: {
-              platform: 'mobile',
-              timestamp: new Date().toISOString()
-            }
-          },
-          status: 'pending',
-          tags: ['content_moderation', result.violationType]
-        });
-      } else {
-        setIsMessageSafe(true);
-        setViolationType(null);
-        setViolationConfidence(0);
-      }
-    } catch (error) {
-      console.error('Failed to check message safety:', error);
-      setIsMessageSafe(true);
-    }
-  }, [chat.lastMessage]);
-
-  useEffect(() => {
-    if (!isLoading) {
-      checkMessageSafety();
-      
-      // Entrance animation
-      MicroInteractions.createEntranceAnimation(scaleAnim, opacityAnim, Math.random() * 100).start();
-      
-      // Pulse animation for unread messages
-      if (chat.unreadCount > 0) {
-        MicroInteractions.createPulseAnimation(pulseAnim, 0.98, 1.02).start();
-      }
-    }
-  }, [isLoading, checkMessageSafety, scaleAnim, opacityAnim, pulseAnim, chat.unreadCount]);
-  
-  useEffect(() => {
-    if (!isLoading) {
-      // Stop pulse animation when message is read
-      if (chat.unreadCount === 0) {
-        pulseAnim.stopAnimation();
-        pulseAnim.setValue(1);
-      }
-    }
-  }, [isLoading, chat.unreadCount, pulseAnim]);
-  
-  useEffect(() => {
-    if (!isLoading) {
-      // Shake animation for unsafe messages
-      if (!isMessageSafe && violationConfidence > 0.7) {
-        MicroInteractions.createShakeAnimation(shakeAnim).start();
-      }
-    }
-  }, [isLoading, isMessageSafe, violationConfidence, shakeAnim]);
-  
-  // Show skeleton while loading
-  if (isLoading) {
-    return <ChatItemSkeleton />;
-  }
 
 
 
