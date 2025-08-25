@@ -67,7 +67,21 @@ export default function ChatItem({
   onLongPress,
   isLoading = false
 }: ChatItemProps) {
+  // Use safe theme colors with fallback
   const colors = useSafeThemeColors();
+  
+  // Ensure colors are always available with fallback
+  const safeColors = {
+    background: colors?.background || '#FFFFFF',
+    border: colors?.border || '#E5E5EA',
+    primary: colors?.primary || '#007AFF',
+    secondary: colors?.secondary || '#E3F2FD',
+    text: colors?.text || '#000000',
+    textSecondary: colors?.textSecondary || '#6D6D80',
+    success: colors?.success || '#34C759',
+    error: colors?.error || '#FF3B30',
+    warning: colors?.warning || '#FF9500'
+  };
   const [isMessageSafe, setIsMessageSafe] = useState(true);
   const [violationType, setViolationType] = useState<string | null>(null);
   const [violationConfidence, setViolationConfidence] = useState(0);
@@ -483,11 +497,11 @@ export default function ChatItem({
       <TouchableOpacity 
         style={[
           styles.container,
-          { backgroundColor: colors.background, borderBottomColor: colors.border },
-          isSelected && { ...styles.selectedContainer, backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' },
+          { backgroundColor: safeColors.background, borderBottomColor: safeColors.border },
+          isSelected && { ...styles.selectedContainer, backgroundColor: safeColors.primary + '15', borderColor: safeColors.primary + '40' },
           isSelectionMode && styles.selectionModeContainer,
           !isMessageSafe && styles.unsafeContainer,
-          isPressed && { ...styles.pressedContainer, backgroundColor: colors.secondary }
+          isPressed && { ...styles.pressedContainer, backgroundColor: safeColors.secondary }
         ]} 
         onPress={handleChatPress}
         onPressIn={handlePressIn}

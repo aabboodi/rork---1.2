@@ -4,7 +4,7 @@ import { Stack } from "expo-router";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { I18nManager, Alert, AppState, Platform } from "react-native";
+import { I18nManager, Alert, AppState, Platform, Text } from "react-native";
 import { useAuthStore } from "@/store/authStore";
 import { useThemeStore, useSafeThemeColors } from "@/store/themeStore";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
@@ -43,10 +43,42 @@ SplashScreen.preventAutoHideAsync();
 
 // Theme Provider Component to ensure theme is always available
 function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [isThemeReady, setIsThemeReady] = useState(false);
   const colors = useSafeThemeColors();
+  
+  // Ensure theme is initialized before rendering children
+  useEffect(() => {
+    const initTheme = async () => {
+      try {
+        // Force theme initialization
+        const { initializeTheme } = useThemeStore.getState();
+        initializeTheme();
+        
+        // Wait a bit to ensure theme is set
+        setTimeout(() => {
+          setIsThemeReady(true);
+        }, 100);
+      } catch (error) {
+        console.error('Theme initialization error:', error);
+        // Still set ready to avoid infinite loading
+        setIsThemeReady(true);
+      }
+    };
+    
+    initTheme();
+  }, []);
   
   // Double-check colors are valid before using them
   const safeBackgroundColor = colors?.background || '#FFFFFF';
+  
+  // Show loading screen while theme initializes
+  if (!isThemeReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: '#000000' }}>Loading...</Text>
+      </View>
+    );
+  }
   
   return (
     <View style={{ flex: 1, backgroundColor: safeBackgroundColor }}>
