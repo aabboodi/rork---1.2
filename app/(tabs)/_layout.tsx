@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { MessageCircle, Users, Wallet, User, BarChart3, Gamepad2 } from 'lucide-react-native';
 import SecurityNotificationBell from '@/components/SecurityNotificationBell';
-import { useSafeThemeColors } from '@/store/themeStore';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
 import { APISecurityMiddleware } from '@/services/security/APISecurityMiddleware';
@@ -11,7 +11,8 @@ import { WAFService } from '@/services/security/WAFService';
 
 export default function TabLayout() {
   const { language } = useAuthStore();
-  const colors = useSafeThemeColors();
+  const { theme } = useThemeSafe();
+  const colors = theme.colors;
   const t = translations[language];
   
   // Colors are now guaranteed to be safe from useSafeThemeColors
