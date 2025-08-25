@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
 import { Check, CheckCheck, Mic, Camera, FileText, Users, Radio, Wallet, Pin, Shield, Lock, AlertTriangle, ExternalLink, Ban, Timer } from 'lucide-react-native';
 import { Chat } from '@/types';
-import Colors from '@/constants/colors';
+import { useSafeThemeColors } from '@/store/themeStore';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import ContentModerationService, { MessageContext } from '@/services/security/ContentModerationService';
 import ForensicsService from '@/services/security/ForensicsService';
@@ -42,8 +42,24 @@ const ChatItemSkeleton = () => {
     return () => pulse.stop();
   }, [pulseAnim]);
   
+  const skeletonContainerStyle = {
+    flexDirection: 'row' as const,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
+    borderRadius: 8,
+    marginHorizontal: 4,
+    marginVertical: 2,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  };
+  
   return (
-    <View style={styles.container}>
+    <View style={skeletonContainerStyle}>
       <Animated.View style={[styles.skeletonAvatar, { opacity: pulseAnim }]} />
       <View style={styles.contentContainer}>
         <View style={styles.headerContainer}>
@@ -67,8 +83,125 @@ export default function ChatItem({
   onLongPress,
   isLoading = false
 }: ChatItemProps) {
-
+  const colors = useSafeThemeColors();
   const [isMessageSafe, setIsMessageSafe] = useState(true);
+  
+  // Create styles with current theme colors
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      padding: 16,
+      backgroundColor: colors.background,
+      borderBottomWidth: 0.5,
+      borderBottomColor: colors.border,
+      borderRadius: 8,
+      marginHorizontal: 4,
+      marginVertical: 2,
+      elevation: 1,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+    },
+    selectedContainer: {
+      backgroundColor: colors.primary + '15',
+      borderColor: colors.primary + '40',
+      borderWidth: 1,
+      elevation: 3,
+      shadowOpacity: 0.1,
+    },
+    pressedContainer: {
+      backgroundColor: colors.secondary,
+      elevation: 0,
+    },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkedBox: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    channelIndicator: {
+      position: 'absolute',
+      top: -2,
+      right: -2,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    onlineIndicator: {
+      position: 'absolute',
+      bottom: 2,
+      right: 2,
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: colors.success,
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    name: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+      flex: 1,
+    },
+    channelBadge: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 8,
+      marginLeft: 6,
+    },
+    time: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginRight: 4,
+    },
+    message: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      flex: 1,
+      marginLeft: 4,
+    },
+    unreadMessage: {
+      fontWeight: '600',
+      color: colors.text,
+    },
+    encryptedMessage: {
+      fontStyle: 'italic',
+      color: colors.success,
+    },
+    newMessageIndicator: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 3,
+      backgroundColor: colors.primary,
+      borderRadius: 2,
+    },
+    unreadBadge: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      minWidth: 24,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 8,
+    },
+  });
   const [violationType, setViolationType] = useState<string | null>(null);
   const [violationConfidence, setViolationConfidence] = useState(0);
   
@@ -290,10 +423,10 @@ export default function ChatItem({
   
   const getChatIcon = () => {
     if (chat.chatType === 'group') {
-      return <Users size={16} color={Colors.medium} style={styles.chatTypeIcon} />;
+      return <Users size={16} color={colors.textSecondary} style={styles.chatTypeIcon} />;
     }
     if (chat.chatType === 'channel') {
-      return <Radio size={16} color={Colors.medium} style={styles.chatTypeIcon} />;
+      return <Radio size={16} color={colors.textSecondary} style={styles.chatTypeIcon} />;
     }
     return null;
   };
@@ -312,18 +445,18 @@ export default function ChatItem({
     
     switch (messageType) {
       case 'voice':
-        return <Mic size={16} color={Colors.medium} />;
+        return <Mic size={16} color={colors.textSecondary} />;
       case 'image':
-        return <Camera size={16} color={Colors.medium} />;
+        return <Camera size={16} color={colors.textSecondary} />;
       case 'video':
-        return <Camera size={16} color={Colors.medium} />;
+        return <Camera size={16} color={colors.textSecondary} />;
       case 'file':
-        return <FileText size={16} color={Colors.medium} />;
+        return <FileText size={16} color={colors.textSecondary} />;
       case 'money':
-        return <Wallet size={16} color={Colors.primary} />;
+        return <Wallet size={16} color={colors.primary} />;
       default:
         if (hasSuspiciousLink) {
-          return <ExternalLink size={16} color={Colors.warning || '#ea580c'} />;
+          return <ExternalLink size={16} color={colors.warning || '#ea580c'} />;
         }
         return null;
     }
@@ -333,11 +466,11 @@ export default function ChatItem({
     if (chat.lastMessage.senderId === '0') { // Current user's message
       switch (chat.lastMessage.status) {
         case 'sent':
-          return <Check size={16} color={Colors.medium} />;
+          return <Check size={16} color={colors.textSecondary} />;
         case 'delivered':
-          return <CheckCheck size={16} color={Colors.medium} />;
+          return <CheckCheck size={16} color={colors.textSecondary} />;
         case 'read':
-          return <CheckCheck size={16} color={Colors.primary} />;
+          return <CheckCheck size={16} color={colors.primary} />;
         default:
           return null;
       }
@@ -363,8 +496,8 @@ export default function ChatItem({
     
     // E2EE indicator
     if (chat.encryptionEnabled || chat.e2eeStatus === 'verified') {
-      const color = chat.e2eeStatus === 'verified' ? Colors.success : 
-                   chat.e2eeStatus === 'warning' ? Colors.error : Colors.primary;
+      const color = chat.e2eeStatus === 'verified' ? colors.success : 
+                   chat.e2eeStatus === 'warning' ? colors.error : colors.primary;
       indicators.push(
         <View key="e2ee" style={[styles.securityIndicator, { backgroundColor: color + '20' }]}>
           <Lock size={10} color={color} />
@@ -375,8 +508,8 @@ export default function ChatItem({
     // DLP indicator (for direct conversations)
     if (!chat.isGroup && !chat.isChannel) {
       indicators.push(
-        <View key="dlp" style={[styles.securityIndicator, { backgroundColor: Colors.primary + '20' }]}>
-          <Shield size={10} color={Colors.primary} />
+        <View key="dlp" style={[styles.securityIndicator, { backgroundColor: colors.primary + '20' }]}>
+          <Shield size={10} color={colors.primary} />
         </View>
       );
     }
@@ -460,7 +593,7 @@ export default function ChatItem({
   const getChannelIndicator = () => {
     if (chat.isChannel) {
       return (
-        <View style={styles.channelIndicator}>
+        <View style={dynamicStyles.channelIndicator}>
           <Radio size={12} color="white" />
         </View>
       );
@@ -482,11 +615,11 @@ export default function ChatItem({
     >
       <TouchableOpacity 
         style={[
-          styles.container,
-          isSelected && styles.selectedContainer,
+          dynamicStyles.container,
+          isSelected && dynamicStyles.selectedContainer,
           isSelectionMode && styles.selectionModeContainer,
           !isMessageSafe && styles.unsafeContainer,
-          isPressed && styles.pressedContainer
+          isPressed && dynamicStyles.pressedContainer
         ]} 
         onPress={handleChatPress}
         onPressIn={handlePressIn}
@@ -510,7 +643,7 @@ export default function ChatItem({
       {/* Selection Indicator */}
       {isSelectionMode && (
         <View style={styles.selectionIndicator}>
-          <View style={[styles.checkbox, isSelected && styles.checkedBox]}>
+          <View style={[dynamicStyles.checkbox, isSelected && dynamicStyles.checkedBox]}>
             {isSelected && <Check size={16} color="white" />}
           </View>
         </View>
@@ -520,7 +653,7 @@ export default function ChatItem({
         <Image source={{ uri: getAvatar() }} style={styles.avatar} />
         {getChannelIndicator()}
         {chat.participants[0]?.isOnline && !chat.isGroup && !chat.isChannel && (
-          <View style={styles.onlineIndicator} />
+          <View style={dynamicStyles.onlineIndicator} />
         )}
       </View>
       
@@ -528,14 +661,14 @@ export default function ChatItem({
         <View style={styles.headerContainer}>
           <View style={styles.nameContainer}>
             {getChatIcon()}
-            <Text style={styles.name} numberOfLines={1}>
+            <Text style={dynamicStyles.name} numberOfLines={1}>
               {getDisplayName()}
             </Text>
             {chat.isPinned && (
-              <Pin size={14} color={Colors.medium} style={styles.pinIcon} />
+              <Pin size={14} color={colors.textSecondary} style={styles.pinIcon} />
             )}
             {chat.isChannel && (
-              <View style={styles.channelBadge}>
+              <View style={dynamicStyles.channelBadge}>
                 <Text style={styles.channelBadgeText}>قناة</Text>
               </View>
             )}
@@ -545,7 +678,7 @@ export default function ChatItem({
             </View>
           </View>
           <View style={styles.timeContainer}>
-            <Text style={styles.time}>
+            <Text style={dynamicStyles.time}>
               {formatTimeAgo(chat.lastMessage.timestamp)}
             </Text>
             {getStatusIcon()}
@@ -557,9 +690,9 @@ export default function ChatItem({
             {getMessageIcon()}
             <Text 
               style={[
-                styles.message,
-                chat.unreadCount > 0 && styles.unreadMessage,
-                chat.lastMessage.encrypted && styles.encryptedMessage,
+                dynamicStyles.message,
+                chat.unreadCount > 0 && dynamicStyles.unreadMessage,
+                chat.lastMessage.encrypted && dynamicStyles.encryptedMessage,
                 !isMessageSafe && styles.unsafeMessage
               ]} 
               numberOfLines={1}
@@ -575,7 +708,7 @@ export default function ChatItem({
               </View>
             )}
             {chat.unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
+              <View style={dynamicStyles.unreadBadge}>
                 <Text style={styles.unreadCount}>
                   {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
                 </Text>
@@ -590,7 +723,7 @@ export default function ChatItem({
       {chat.unreadCount > 0 && (
         <Animated.View
           style={[
-            styles.newMessageIndicator,
+            dynamicStyles.newMessageIndicator,
             {
               opacity: pulseAnim.interpolate({
                 inputRange: [0.98, 1.02],
@@ -620,32 +753,6 @@ export default function ChatItem({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: Colors.background,
-    borderBottomWidth: 0.5,
-    borderBottomColor: Colors.border,
-    borderRadius: 8,
-    marginHorizontal: 4,
-    marginVertical: 2,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  selectedContainer: {
-    backgroundColor: Colors.primary + '15',
-    borderColor: Colors.primary + '40',
-    borderWidth: 1,
-    elevation: 3,
-    shadowOpacity: 0.1,
-  },
-  pressedContainer: {
-    backgroundColor: Colors.secondary,
-    elevation: 0,
-  },
   selectionModeContainer: {
     paddingLeft: 8,
   },
@@ -653,19 +760,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkedBox: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
+
   avatarContainer: {
     position: 'relative',
     marginRight: 12,
@@ -675,30 +770,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 26,
   },
-  channelIndicator: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.background,
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: Colors.success,
-    borderWidth: 2,
-    borderColor: Colors.background,
-  },
+
   contentContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -717,22 +789,11 @@ const styles = StyleSheet.create({
   chatTypeIcon: {
     marginRight: 6,
   },
-  name: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.dark,
-    flex: 1,
-  },
+
   pinIcon: {
     marginLeft: 4,
   },
-  channelBadge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 6,
-  },
+
   channelBadgeText: {
     color: 'white',
     fontSize: 10,
@@ -753,11 +814,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  time: {
-    fontSize: 12,
-    color: Colors.medium,
-    marginRight: 4,
-  },
+
   messageContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -768,20 +825,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  message: {
-    fontSize: 14,
-    color: Colors.medium,
-    flex: 1,
-    marginLeft: 4,
-  },
-  unreadMessage: {
-    fontWeight: '600',
-    color: Colors.dark,
-  },
-  encryptedMessage: {
-    fontStyle: 'italic',
-    color: Colors.success,
-  },
+
   unsafeMessage: {
     color: '#FF4444',
     fontWeight: '600',
@@ -795,15 +839,7 @@ const styles = StyleSheet.create({
     shadowColor: '#FF4444',
     shadowOpacity: 0.1,
   },
-  newMessageIndicator: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 3,
-    backgroundColor: Colors.primary,
-    borderRadius: 2,
-  },
+
   securityWarningOverlay: {
     position: 'absolute',
     top: 0,
@@ -824,15 +860,7 @@ const styles = StyleSheet.create({
   mutedText: {
     fontSize: 12,
   },
-  unreadBadge: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
+
   unreadCount: {
     color: 'white',
     fontSize: 12,
