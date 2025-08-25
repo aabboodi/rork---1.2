@@ -26,10 +26,14 @@ import {
 import { GamesService } from '@/services/GamesService';
 import { GamesLeaderboardService } from '@/services/GamesLeaderboardService';
 import { LeaderboardDashboard } from '@/components/LeaderboardDashboard';
-import { useThemeColors } from '@/store/themeStore';
-import colors from '@/constants/colors';
+
+import { useThemeSafe } from '@/providers/ThemeProvider';
+import { AppColors } from '@/constants/theme';
 
 function Phase4LeaderboardDemo() {
+  const { theme } = useThemeSafe();
+  const colors = theme.colors;
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const [gamesService] = useState(() => GamesService.getInstance());
   const [leaderboardService] = useState(() => GamesLeaderboardService.getInstance());
   const [isLoading, setIsLoading] = useState(true);
@@ -273,7 +277,7 @@ function Phase4LeaderboardDemo() {
         onPress={handleSubmitSuspiciousScore}
         disabled={isLoading}
       >
-        <AlertTriangle size={16} color={colors.white} />
+        <AlertTriangle size={16} color={colors.textInverse} />
         <Text style={styles.suspiciousButtonText}>Test Suspicious Score</Text>
       </TouchableOpacity>
     </View>
@@ -385,7 +389,7 @@ function Phase4LeaderboardDemo() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ 
         title: 'Phase 4: Leaderboards & Anti-Cheat',
         headerStyle: { backgroundColor: colors.surface },
@@ -433,10 +437,11 @@ function Phase4LeaderboardDemo() {
   );
 }
 
-// Add the missing default export
-export default Phase4LeaderboardDemo;
 
-const styles = StyleSheet.create({
+
+type ThemeColors = ReturnType<typeof getStyles> extends StyleSheet.NamedStyles<infer T> ? AppColors : AppColors;
+
+const getStyles = (colors: AppColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -554,7 +559,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.white,
+    color: colors.textInverse,
   },
   antiCheatToggle: {
     flexDirection: 'row',
@@ -577,7 +582,7 @@ const styles = StyleSheet.create({
   suspiciousButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.white,
+    color: colors.textInverse,
     marginLeft: 8,
   },
   statsContainer: {
@@ -680,7 +685,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   activeToggleButtonText: {
-    color: colors.white,
+    color: colors.textInverse,
   },
   leaderboardWrapper: {
     marginVertical: 8,
@@ -705,4 +710,4 @@ const styles = StyleSheet.create({
   },
 });
 
-
+export default Phase4LeaderboardDemo;
