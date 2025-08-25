@@ -33,6 +33,7 @@ import { formatRelativeTime } from '@/utils/formatRelativeTime';
 import { useThemeSafe } from '@/providers/ThemeProvider';
 
 interface SecurityNotificationCenterProps {
+  visible?: boolean;
   onClose?: () => void;
 }
 
@@ -56,7 +57,7 @@ interface NotificationItem {
   }[];
 }
 
-const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({ onClose }) => {
+const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({ visible = false, onClose }) => {
   const { theme } = useThemeSafe();
   const { colors } = theme;
   
@@ -611,8 +612,18 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
   const deviceCount = notifications.filter(n => n.type.includes('device') || n.type.includes('login')).length;
   const securityCount = notifications.filter(n => n.type.includes('security') || n.type.includes('breach')).length;
 
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}
         style={styles.header}
@@ -688,8 +699,9 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
         )}
       </ScrollView>
       
-      {renderNotificationModal()}
-    </View>
+        {renderNotificationModal()}
+      </View>
+    </Modal>
   );
 };
 

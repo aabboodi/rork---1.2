@@ -38,6 +38,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       } catch (error) {
         console.warn('Failed to load theme from storage:', error);
+        // Ensure we always have a valid mode even if storage fails
+        if (isMounted) {
+          setModeState('system');
+        }
       }
     };
     
