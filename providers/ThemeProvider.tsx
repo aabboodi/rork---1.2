@@ -26,12 +26,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Initialize theme from storage
   useEffect(() => {
+    let isMounted = true;
+    
     const initializeTheme = async () => {
       try {
         // Try to get persisted theme mode from AsyncStorage
         const AsyncStorage = await import('@react-native-async-storage/async-storage');
         const storedMode = await AsyncStorage.default.getItem('theme-mode');
-        if (storedMode && ['light', 'dark', 'system'].includes(storedMode)) {
+        if (isMounted && storedMode && ['light', 'dark', 'system'].includes(storedMode)) {
           setModeState(storedMode as AppTheme['mode']);
         }
       } catch (error) {
@@ -40,6 +42,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     
     initializeTheme();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const theme = useMemo<AppTheme>(() => {

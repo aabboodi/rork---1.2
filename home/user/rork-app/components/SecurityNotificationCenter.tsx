@@ -30,6 +30,7 @@ import {
 import NewDeviceNotificationService from '@/services/security/NewDeviceNotificationService';
 import SecurityNotificationService from '@/services/security/SecurityNotificationService';
 import { formatRelativeTime } from '@/utils/formatRelativeTime';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 
 interface SecurityNotificationCenterProps {
   onClose?: () => void;
@@ -55,9 +56,10 @@ interface NotificationItem {
   }[];
 }
 
-
-
 const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({ onClose }) => {
+  const { theme } = useThemeSafe();
+  const { colors } = theme;
+  
   const [deviceNotificationService] = useState(() => NewDeviceNotificationService.getInstance());
   const [securityNotificationService] = useState(() => SecurityNotificationService.getInstance());
   const [refreshing, setRefreshing] = useState(false);
@@ -72,11 +74,11 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
 
   useEffect(() => {
     initializeNotificationCenter();
-  }, [initializeNotificationCenter]);
+  }, []);
 
   useEffect(() => {
     filterNotifications();
-  }, [notifications, selectedFilter, filterNotifications]);
+  }, [notifications, selectedFilter]);
 
   const initializeNotificationCenter = useCallback(async () => {
     try {
@@ -88,7 +90,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [deviceNotificationService, loadNotifications, loadStatistics]);
+  }, []);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -123,7 +125,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
           message: notification.message,
           severity: notification.severity.toLowerCase() as any,
           timestamp: notification.timestamp,
-          read: false, // Security notifications are always unread initially
+          read: false,
           acknowledged: false,
           actionRequired: notification.actionRequired,
           deviceInfo: notification.deviceInfo,
@@ -157,7 +159,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     } catch (error) {
       console.error('Failed to load notifications:', error);
     }
-  }, [deviceNotificationService, securityNotificationService]);
+  }, []);
 
   const loadStatistics = useCallback(async () => {
     try {
@@ -166,12 +168,10 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     } catch (error) {
       console.error('Failed to load statistics:', error);
     }
-  }, [deviceNotificationService]);
+  }, []);
 
   const getHighPriorityAlerts = async (): Promise<any[]> => {
     try {
-      // This would get high-priority alerts from storage
-      // For now, return empty array
       return [];
     } catch (error) {
       console.error('Failed to get high-priority alerts:', error);
@@ -213,7 +213,6 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     setSelectedNotification(notification);
     setShowNotificationModal(true);
     
-    // Mark as read
     if (!notification.read) {
       markAsRead(notification.id);
     }
@@ -221,14 +220,12 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
 
   const markAsRead = async (notificationId: string) => {
     try {
-      // Update local state
       setNotifications(prev => 
         prev.map(n => 
           n.id === notificationId ? { ...n, read: true } : n
         )
       );
       
-      // Update in storage/service
       await deviceNotificationService.acknowledgeNotification(notificationId, 'current_user');
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
@@ -243,7 +240,6 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
         await deviceNotificationService.acknowledgeNotification(notification.id, 'current_user');
       }
       
-      // Update local state
       setNotifications(prev => 
         prev.map(n => ({ ...n, read: true }))
       );
@@ -327,44 +323,44 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return <AlertTriangle size={20} color="#DC2626" />;
+        return <AlertTriangle size={20} color={colors.danger} />;
       case 'high':
-        return <AlertCircle size={20} color="#EA580C" />;
+        return <AlertCircle size={20} color={colors.warning} />;
       case 'medium':
-        return <Info size={20} color="#D97706" />;
+        return <Info size={20} color={colors.info} />;
       case 'low':
-        return <CheckCircle size={20} color="#16A34A" />;
+        return <CheckCircle size={20} color={colors.success} />;
       default:
-        return <Bell size={20} color="#6B7280" />;
+        return <Bell size={20} color={colors.textSecondary} />;
     }
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return '#DC2626';
+        return colors.danger;
       case 'high':
-        return '#EA580C';
+        return colors.warning;
       case 'medium':
-        return '#D97706';
+        return colors.info;
       case 'low':
-        return '#16A34A';
+        return colors.success;
       default:
-        return '#6B7280';
+        return colors.textSecondary;
     }
   };
 
   const getTypeIcon = (type: string) => {
     if (type.includes('device') || type.includes('login')) {
-      return <Smartphone size={18} color="#6B7280" />;
+      return <Smartphone size={18} color={colors.textSecondary} />;
     } else if (type.includes('security') || type.includes('breach')) {
-      return <Shield size={18} color="#6B7280" />;
+      return <Shield size={18} color={colors.textSecondary} />;
     } else if (type.includes('password') || type.includes('key')) {
-      return <Key size={18} color="#6B7280" />;
+      return <Key size={18} color={colors.textSecondary} />;
     } else if (type.includes('user') || type.includes('account')) {
-      return <User size={18} color="#6B7280" />;
+      return <User size={18} color={colors.textSecondary} />;
     } else {
-      return <Bell size={18} color="#6B7280" />;
+      return <Bell size={18} color={colors.textSecondary} />;
     }
   };
 
@@ -374,34 +370,27 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
       
       switch (action) {
         case 'approve_device':
-          // Handle device approval
           await deviceNotificationService.approveDevice(notificationId);
           break;
         case 'block_device':
-          // Handle device blocking
           await deviceNotificationService.blockDevice(notificationId);
           break;
         case 'review_activity':
-          // Navigate to activity review
           console.log('Navigate to activity review');
           break;
         case 'secure_account':
-          // Navigate to security settings
           console.log('Navigate to security settings');
           break;
         case 'change_password':
-          // Navigate to password change
           console.log('Navigate to password change');
           break;
         case 'review_devices':
-          // Navigate to device management
           console.log('Navigate to device management');
           break;
         default:
           console.log('Unknown action:', action);
       }
       
-      // Mark notification as acknowledged
       await markAsRead(notificationId);
       setShowNotificationModal(false);
     } catch (error) {
@@ -415,7 +404,8 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
       key={notification.id}
       style={[
         styles.notificationItem,
-        !notification.read && styles.unreadNotification
+        { backgroundColor: colors.surface },
+        !notification.read && { borderLeftColor: colors.primary, borderLeftWidth: 4 }
       ]}
       onPress={() => handleNotificationPress(notification)}
     >
@@ -425,25 +415,25 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
         </View>
         <View style={styles.notificationContent}>
           <View style={styles.notificationTitleRow}>
-            <Text style={styles.notificationTitle} numberOfLines={1}>
+            <Text style={[styles.notificationTitle, { color: colors.text }]} numberOfLines={1}>
               {notification.title}
             </Text>
-            <Text style={styles.notificationTime}>
+            <Text style={[styles.notificationTime, { color: colors.textSecondary }]}>
               {formatRelativeTime(notification.timestamp)}
             </Text>
           </View>
-          <Text style={styles.notificationMessage} numberOfLines={2}>
+          <Text style={[styles.notificationMessage, { color: colors.textSecondary }]} numberOfLines={2}>
             {notification.message}
           </Text>
           <View style={styles.notificationMeta}>
             <View style={styles.notificationTypeContainer}>
               {getTypeIcon(notification.type)}
-              <Text style={styles.notificationTypeText}>
+              <Text style={[styles.notificationTypeText, { color: colors.textSecondary }]}>
                 {notification.type.replace(/_/g, ' ').toUpperCase()}
               </Text>
             </View>
             {notification.actionRequired && (
-              <View style={styles.actionRequiredBadge}>
+              <View style={[styles.actionRequiredBadge, { backgroundColor: colors.warning }]}>
                 <Zap size={12} color="#FFFFFF" />
                 <Text style={styles.actionRequiredText}>ACTION REQUIRED</Text>
               </View>
@@ -451,7 +441,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
           </View>
         </View>
       </View>
-      {!notification.read && <View style={styles.unreadIndicator} />}
+      {!notification.read && <View style={[styles.unreadIndicator, { backgroundColor: colors.primary }]} />}
     </TouchableOpacity>
   );
 
@@ -470,7 +460,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
         {label}
       </Text>
       {count !== undefined && count > 0 && (
-        <View style={styles.filterBadge}>
+        <View style={[styles.filterBadge, { backgroundColor: colors.danger }]}>
           <Text style={styles.filterBadgeText}>{count}</Text>
         </View>
       )}
@@ -481,28 +471,28 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     if (!statistics) return null;
 
     return (
-      <View style={styles.statisticsContainer}>
-        <Text style={styles.statisticsTitle}>Security Overview</Text>
+      <View style={[styles.statisticsContainer, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.statisticsTitle, { color: colors.text }]}>Security Overview</Text>
         <View style={styles.statisticsGrid}>
           <View style={styles.statisticsItem}>
-            <Bell size={20} color="#6B7280" />
-            <Text style={styles.statisticsValue}>{statistics.total || 0}</Text>
-            <Text style={styles.statisticsLabel}>Total</Text>
+            <Bell size={20} color={colors.textSecondary} />
+            <Text style={[styles.statisticsValue, { color: colors.text }]}>{statistics.total || 0}</Text>
+            <Text style={[styles.statisticsLabel, { color: colors.textSecondary }]}>Total</Text>
           </View>
           <View style={styles.statisticsItem}>
-            <AlertTriangle size={20} color="#DC2626" />
-            <Text style={styles.statisticsValue}>{statistics.unread || 0}</Text>
-            <Text style={styles.statisticsLabel}>Unread</Text>
+            <AlertTriangle size={20} color={colors.danger} />
+            <Text style={[styles.statisticsValue, { color: colors.text }]}>{statistics.unread || 0}</Text>
+            <Text style={[styles.statisticsLabel, { color: colors.textSecondary }]}>Unread</Text>
           </View>
           <View style={styles.statisticsItem}>
-            <Shield size={20} color="#EA580C" />
-            <Text style={styles.statisticsValue}>{statistics.highPriority || 0}</Text>
-            <Text style={styles.statisticsLabel}>High Priority</Text>
+            <Shield size={20} color={colors.warning} />
+            <Text style={[styles.statisticsValue, { color: colors.text }]}>{statistics.highPriority || 0}</Text>
+            <Text style={[styles.statisticsLabel, { color: colors.textSecondary }]}>High Priority</Text>
           </View>
           <View style={styles.statisticsItem}>
-            <CheckCircle size={20} color="#16A34A" />
-            <Text style={styles.statisticsValue}>{statistics.resolved || 0}</Text>
-            <Text style={styles.statisticsLabel}>Resolved</Text>
+            <CheckCircle size={20} color={colors.success} />
+            <Text style={[styles.statisticsValue, { color: colors.text }]}>{statistics.resolved || 0}</Text>
+            <Text style={[styles.statisticsLabel, { color: colors.textSecondary }]}>Resolved</Text>
           </View>
         </View>
       </View>
@@ -519,14 +509,14 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
         presentationStyle="pageSheet"
         onRequestClose={() => setShowNotificationModal(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Notification Details</Text>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Notification Details</Text>
             <TouchableOpacity
               style={styles.modalCloseButton}
               onPress={() => setShowNotificationModal(false)}
             >
-              <X size={24} color="#6B7280" />
+              <X size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           
@@ -541,30 +531,30 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
                   {selectedNotification.severity.toUpperCase()}
                 </Text>
               </View>
-              <Text style={styles.modalNotificationTime}>
+              <Text style={[styles.modalNotificationTime, { color: colors.textSecondary }]}>
                 {formatRelativeTime(selectedNotification.timestamp)}
               </Text>
             </View>
             
-            <Text style={styles.modalNotificationTitle}>
+            <Text style={[styles.modalNotificationTitle, { color: colors.text }]}>
               {selectedNotification.title}
             </Text>
             
-            <Text style={styles.modalNotificationMessage}>
+            <Text style={[styles.modalNotificationMessage, { color: colors.textSecondary }]}>
               {selectedNotification.message}
             </Text>
             
             {selectedNotification.deviceInfo && (
-              <View style={styles.modalDeviceInfo}>
-                <Text style={styles.modalSectionTitle}>Device Information</Text>
+              <View style={[styles.modalDeviceInfo, { backgroundColor: colors.backgroundSecondary }]}>
+                <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Device Information</Text>
                 <View style={styles.modalDeviceDetails}>
-                  <Text style={styles.modalDeviceText}>
+                  <Text style={[styles.modalDeviceText, { color: colors.textSecondary }]}>
                     Device: {selectedNotification.deviceInfo.deviceName || 'Unknown'}
                   </Text>
-                  <Text style={styles.modalDeviceText}>
+                  <Text style={[styles.modalDeviceText, { color: colors.textSecondary }]}>
                     Location: {selectedNotification.deviceInfo.location || 'Unknown'}
                   </Text>
-                  <Text style={styles.modalDeviceText}>
+                  <Text style={[styles.modalDeviceText, { color: colors.textSecondary }]}>
                     IP: {selectedNotification.deviceInfo.ipAddress || 'Unknown'}
                   </Text>
                 </View>
@@ -573,14 +563,15 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
             
             {selectedNotification.actions && selectedNotification.actions.length > 0 && (
               <View style={styles.modalActions}>
-                <Text style={styles.modalSectionTitle}>Available Actions</Text>
+                <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Available Actions</Text>
                 {selectedNotification.actions.map((action) => (
                   <TouchableOpacity
                     key={action.id}
                     style={[
                       styles.modalActionButton,
-                      action.style === 'primary' && styles.modalActionButtonPrimary,
-                      action.style === 'danger' && styles.modalActionButtonDanger
+                      { backgroundColor: colors.backgroundSecondary },
+                      action.style === 'primary' && { backgroundColor: colors.primary },
+                      action.style === 'danger' && { backgroundColor: colors.danger }
                     ]}
                     onPress={() => handleNotificationAction(
                       selectedNotification.id,
@@ -590,8 +581,9 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
                   >
                     <Text style={[
                       styles.modalActionButtonText,
-                      action.style === 'primary' && styles.modalActionButtonTextPrimary,
-                      action.style === 'danger' && styles.modalActionButtonTextDanger
+                      { color: colors.textSecondary },
+                      action.style === 'primary' && { color: '#FFFFFF' },
+                      action.style === 'danger' && { color: '#FFFFFF' }
                     ]}>
                       {action.label}
                     </Text>
@@ -607,9 +599,9 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <RefreshCw size={24} color="#6B7280" />
-        <Text style={styles.loadingText}>Loading notifications...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <RefreshCw size={24} color={colors.textSecondary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading notifications...</Text>
       </View>
     );
   }
@@ -620,9 +612,9 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
   const securityCount = notifications.filter(n => n.type.includes('security') || n.type.includes('breach')).length;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={['#1E293B', '#0F172A']}
+        colors={[colors.primary, colors.primaryDark]}
         style={styles.header}
       >
         <View style={styles.headerContent}>
@@ -676,15 +668,15 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#6B7280"
+            tintColor={colors.textSecondary}
           />
         }
       >
         {filteredNotifications.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <BellOff size={48} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>No notifications</Text>
-            <Text style={styles.emptyMessage}>
+            <BellOff size={48} color={colors.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No notifications</Text>
+            <Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
               {selectedFilter === 'all' 
                 ? 'You have no security notifications at this time.'
                 : `No ${selectedFilter.replace('_', ' ')} notifications found.`
@@ -704,7 +696,6 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
@@ -758,7 +749,6 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   filterBadge: {
-    backgroundColor: '#DC2626',
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -772,7 +762,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   statisticsContainer: {
-    backgroundColor: '#FFFFFF',
     margin: 16,
     padding: 16,
     borderRadius: 12,
@@ -785,7 +774,6 @@ const styles = StyleSheet.create({
   statisticsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 12,
   },
   statisticsGrid: {
@@ -799,19 +787,16 @@ const styles = StyleSheet.create({
   statisticsValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
     marginTop: 4,
   },
   statisticsLabel: {
     fontSize: 12,
-    color: '#6B7280',
     marginTop: 2,
   },
   notificationsList: {
     flex: 1,
   },
   notificationItem: {
-    backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
     marginVertical: 4,
     padding: 16,
@@ -822,10 +807,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
     position: 'relative',
-  },
-  unreadNotification: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
   },
   notificationHeader: {
     flexDirection: 'row',
@@ -846,17 +827,14 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
     flex: 1,
     marginRight: 8,
   },
   notificationTime: {
     fontSize: 12,
-    color: '#6B7280',
   },
   notificationMessage: {
     fontSize: 14,
-    color: '#4B5563',
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -872,13 +850,11 @@ const styles = StyleSheet.create({
   notificationTypeText: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#6B7280',
     marginLeft: 4,
   },
   actionRequiredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F59E0B',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -896,7 +872,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3B82F6',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -907,13 +882,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#4B5563',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyMessage: {
     fontSize: 14,
-    color: '#6B7280',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -921,16 +894,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
   },
   loadingText: {
     fontSize: 16,
-    color: '#6B7280',
     marginTop: 12,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -940,12 +910,10 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
   },
   modalCloseButton: {
     padding: 4,
@@ -971,22 +939,18 @@ const styles = StyleSheet.create({
   },
   modalNotificationTime: {
     fontSize: 14,
-    color: '#6B7280',
   },
   modalNotificationTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 12,
   },
   modalNotificationMessage: {
     fontSize: 16,
-    color: '#4B5563',
     lineHeight: 24,
     marginBottom: 20,
   },
   modalDeviceInfo: {
-    backgroundColor: '#F8FAFC',
     padding: 16,
     borderRadius: 8,
     marginBottom: 20,
@@ -994,7 +958,6 @@ const styles = StyleSheet.create({
   modalSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 12,
   },
   modalDeviceDetails: {
@@ -1002,35 +965,20 @@ const styles = StyleSheet.create({
   },
   modalDeviceText: {
     fontSize: 14,
-    color: '#4B5563',
   },
   modalActions: {
     marginBottom: 20,
   },
   modalActionButton: {
-    backgroundColor: '#F3F4F6',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     marginBottom: 8,
     alignItems: 'center',
   },
-  modalActionButtonPrimary: {
-    backgroundColor: '#3B82F6',
-  },
-  modalActionButtonDanger: {
-    backgroundColor: '#DC2626',
-  },
   modalActionButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#4B5563',
-  },
-  modalActionButtonTextPrimary: {
-    color: '#FFFFFF',
-  },
-  modalActionButtonTextDanger: {
-    color: '#FFFFFF',
   },
 });
 
