@@ -6,7 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { I18nManager, Alert, AppState, Platform } from "react-native";
 import { useAuthStore } from "@/store/authStore";
-import { ThemeProvider } from "@/providers/ThemeProvider";
+import { ThemeProvider, useThemeSafe } from "@/providers/ThemeProvider";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
 import React from 'react';
 import SecurityManager from "@/services/security/SecurityManager";
@@ -951,6 +951,7 @@ Incident ID: ${incident.id}`,
 }
 
 function RootLayoutNav() {
+  const { theme } = useThemeSafe(); // Safe to use here since we're inside ThemeProvider
   const { isAuthenticated, logout } = useAuthStore();
   const [sessionValid, setSessionValid] = useState(true);
 

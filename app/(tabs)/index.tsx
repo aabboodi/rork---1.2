@@ -7,7 +7,7 @@ import { mockChats, mockGroups, mockChannels } from '@/mocks/chats';
 import { Chat, ChatType } from '@/types';
 import { translations } from '@/constants/i18n';
 import { useAuthStore } from '@/store/authStore';
-import { useSafeThemeColors } from '@/store/themeStore';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 import ChatItem from '@/components/ChatItem';
 import SecurityManager from '@/services/security/SecurityManager';
 import KeyManager from '@/services/security/KeyManager';
@@ -19,7 +19,8 @@ import { MicroInteractions } from '@/utils/microInteractions';
 export default function ChatsScreen() {
   const router = useRouter();
   const { language } = useAuthStore();
-  const colors = useSafeThemeColors();
+  const { theme } = useThemeSafe();
+  const { colors } = theme;
   const t = translations[language];
   
   const [searchQuery, setSearchQuery] = useState('');
