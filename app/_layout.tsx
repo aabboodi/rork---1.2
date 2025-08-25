@@ -45,9 +45,11 @@ SplashScreen.preventAutoHideAsync();
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const colors = useSafeThemeColors();
   
-  // Colors are now guaranteed to be safe, no need to check
+  // Double-check colors are valid before using them
+  const safeBackgroundColor = colors?.background || '#FFFFFF';
+  
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: safeBackgroundColor }}>
       {children}
     </View>
   );
@@ -66,19 +68,15 @@ export default function RootLayout() {
     let mounted = true;
     let cleanup: (() => void) | undefined;
     
-    const timeoutId = setTimeout(() => {
-      if (mounted) {
-        try {
-          cleanup = initializeTheme();
-        } catch (error) {
-          console.warn('Early theme initialization failed:', error);
-        }
-      }
-    }, 0);
+    // Initialize theme synchronously first to ensure colors are available
+    try {
+      cleanup = initializeTheme();
+    } catch (error) {
+      console.warn('Synchronous theme initialization failed:', error);
+    }
     
     return () => {
       mounted = false;
-      clearTimeout(timeoutId);
       if (cleanup && typeof cleanup === 'function') {
         try {
           cleanup();

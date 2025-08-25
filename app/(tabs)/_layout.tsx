@@ -15,7 +15,21 @@ export default function TabLayout() {
   const t = translations[language];
   
   // Colors are now guaranteed to be safe from useSafeThemeColors
-  const safeColors = useMemo(() => colors, [colors]);
+  const safeColors = useMemo(() => {
+    // Double-check colors are valid before using them
+    if (!colors || typeof colors !== 'object' || !colors.background) {
+      console.warn('Invalid colors in TabLayout, using fallback');
+      return {
+        primary: '#0066CC',
+        textSecondary: '#6A6A6A',
+        background: '#FFFFFF',
+        border: '#D1D1D6',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#1A1A1A'
+      };
+    }
+    return colors;
+  }, [colors]);
 
   useEffect(() => {
     // Initialize route-specific security for tabs
