@@ -100,15 +100,20 @@ export default function RootLayout() {
     let mounted = true;
     let cleanup: (() => void) | undefined;
     
-    // Initialize theme synchronously first to ensure colors are available
-    try {
-      cleanup = initializeTheme();
-    } catch (error) {
-      console.warn('Synchronous theme initialization failed:', error);
-    }
+    // Initialize theme asynchronously to prevent state updates during render
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        try {
+          cleanup = initializeTheme();
+        } catch (error) {
+          console.warn('Theme initialization failed:', error);
+        }
+      }
+    }, 0);
     
     return () => {
       mounted = false;
+      clearTimeout(timeoutId);
       if (cleanup && typeof cleanup === 'function') {
         try {
           cleanup();
@@ -135,40 +140,7 @@ export default function RootLayout() {
     }
   }, [loaded]);
   
-  // Initialize enhanced theme system synchronously
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    let mounted = true;
-    
-    if (loaded && mounted) {
-      const timeoutId = setTimeout(() => {
-        if (mounted) {
-          try {
-            // Initialize theme synchronously to ensure colors are available immediately
-            cleanup = initializeTheme();
-          } catch (error) {
-            console.error('❌ Enhanced theme initialization failed:', error);
-          }
-        }
-      }, 0);
-      
-      return () => {
-        mounted = false;
-        clearTimeout(timeoutId);
-        if (cleanup && typeof cleanup === 'function') {
-          try {
-            cleanup();
-          } catch (error) {
-            console.warn('Theme cleanup error:', error);
-          }
-        }
-      };
-    }
-    
-    return () => {
-      mounted = false;
-    };
-  }, [loaded, initializeTheme]);
+
 
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
   const initializeAppSecurity = async () => {
