@@ -258,10 +258,12 @@ export const useThemeColors = () => {
     const store = useThemeStore();
     // Always ensure we have valid colors
     if (!store || !store.colors || typeof store.colors !== 'object' || !store.colors?.background) {
+      console.warn('useThemeColors: Invalid store or colors, using fallback');
       return getSafeColors();
     }
     return store.colors;
   } catch (error) {
+    console.warn('useThemeColors: Error accessing store, using fallback:', error);
     return getSafeColors();
   }
 };
@@ -271,10 +273,12 @@ export const useSafeThemeColors = (): ThemeColors => {
   try {
     const store = useThemeStore();
     if (!store || !store.colors || typeof store.colors !== 'object' || !store.colors?.background) {
+      console.warn('useSafeThemeColors: Invalid store or colors, using fallback');
       return getSafeColors();
     }
     return store.colors;
   } catch (error) {
+    console.warn('useSafeThemeColors: Error accessing store, using fallback:', error);
     return getSafeColors();
   }
 };
@@ -366,6 +370,8 @@ export const useThemeStore = create<ThemeState>()(
           const currentState = get();
           const currentScheme = currentState.colorScheme || getSystemColorScheme();
           const safeColors = getSafeColors(currentScheme);
+          
+          console.log('🎨 Initializing theme with scheme:', currentScheme);
           
           // Always ensure colors are set and valid immediately
           set({
