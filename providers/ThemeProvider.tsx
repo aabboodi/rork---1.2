@@ -22,7 +22,7 @@ const ThemeContext = createContext<ThemeCtx>({
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const sys = useColorScheme();
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(true); // Start as ready with defaults
 
   // Initialize theme from storage
   useEffect(() => {
@@ -36,8 +36,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       } catch (error) {
         console.warn('Failed to load theme from storage:', error);
-      } finally {
-        setReady(true);
       }
     };
     
@@ -46,15 +44,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const theme = useMemo<AppTheme>(() => {
     const effective = mode === 'system' ? (sys === 'dark' ? 'dark' : 'light') : mode;
-    return effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+    const selectedTheme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+    
+    // Ensure theme always has valid colors
+    if (!selectedTheme || !selectedTheme.colors || !selectedTheme.colors.background) {
+      console.warn('Invalid theme detected, using DEFAULT_LIGHT fallback');
+      return DEFAULT_LIGHT;
+    }
+    
+    return selectedTheme;
   }, [mode, sys]);
 
   // ضبط خلفية النظام لمنع وميض أبيض/أسود
   useEffect(() => {
-    if (ready) {
+    if (theme?.colors?.background) {
       SystemUI.setBackgroundColorAsync(theme.colors.background).catch(() => {});
     }
-  }, [theme.colors.background, ready]);
+  }, [theme?.colors?.background]);
 
   const setMode = useCallback(async (newMode: AppTheme['mode']) => {
     try {
@@ -88,5 +94,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 // هوك آمن لا يُرجع undefined أبدًا
 export function useThemeSafe() {
-  return useContext(ThemeContext); // دائمًا يحوي DEFAULT_* حتى أثناء التحميل
+  const context = useContext(ThemeContext);
+  
+  // Always ensure we have a valid theme
+  if (!context || !context.theme || !context.theme.colors || !context.theme.colors.background) {
+    console.warn('useThemeSafe: Invalid context, returning DEFAULT_LIGHT fallback');
+    return {
+      theme: DEFAULT_LIGHT,
+      setMode: () => {},
+      ready: true,
+      toggleTheme: () => {},
+    };
+  }
+  
+  return context;
 }
