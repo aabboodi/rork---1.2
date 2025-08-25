@@ -7,7 +7,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useThemeStore } from '@/store/themeStore';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 import { useAccessibilityStore } from '@/services/accessibility/AccessibilityService';
 import { AccessibleText } from './AccessibleText';
 import { AccessibleButton } from './AccessibleButton';
@@ -16,7 +16,9 @@ import { Settings, Eye, Volume2, Type, Contrast, Moon, Sun, Smartphone, Palette 
 import { router } from 'expo-router';
 
 export const AccessibilitySettings: React.FC = () => {
-  const { colors, mode, setThemeMode, toggleTheme } = useThemeStore();
+  const { theme, setMode, toggleTheme } = useThemeSafe();
+  const { colors } = theme;
+  const mode = theme.mode;
   const { settings, preferences, updateSettings, updatePreferences } = useAccessibilityStore();
   const { announceForAccessibility } = useAccessibility();
   

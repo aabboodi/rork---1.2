@@ -84,7 +84,7 @@ export default function ChatItem({
   isLoading = false
 }: ChatItemProps) {
   const { theme } = useThemeSafe();
-  const colors = theme.colors;
+  const { colors } = theme;
   const [isMessageSafe, setIsMessageSafe] = useState(true);
   
   // Create styles with current theme colors

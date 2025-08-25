@@ -7,7 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  Modal
+  Modal,
+  SafeAreaView,
+  Switch,
+  TextInput
 } from 'react-native';
 import {
   Bell,
@@ -20,9 +23,10 @@ import {
   Smartphone,
   User,
   Settings,
-  FileText
+  FileText,
+  MapPin
 } from 'lucide-react-native';
-import { useThemeStore } from '@/store/themeStore';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 import { useRouter } from 'expo-router';
 import SecurityNotificationService, { SecurityNotification } from '@/services/security/SecurityNotificationService';
 import { formatRelativeTime } from '@/utils/formatRelativeTime';
@@ -38,7 +42,8 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
   onClose,
   userId
 }) => {
-  const { colors } = useThemeStore();
+  const { theme } = useThemeSafe();
+  const { colors } = theme;
   const router = useRouter();
   const [notifications, setNotifications] = useState<SecurityNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +80,11 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     }
   };
 
-  const getSeverityColor = (severity: SecurityAlert['severity']) => {
+  const [selectedNotification, setSelectedNotification] = useState<SecurityNotification | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
+
+  const getSeverityColor = (severity: SecurityNotification['severity']) => {
     switch (severity) {
       case 'CRITICAL': return '#DC2626';
       case 'HIGH': return '#EA580C';
@@ -85,7 +94,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     }
   };
 
-  const getSeverityIcon = (severity: SecurityAlert['severity']) => {
+  const getSeverityIcon = (severity: SecurityNotification['severity']) => {
     switch (severity) {
       case 'CRITICAL': return AlertTriangle;
       case 'HIGH': return Shield;
@@ -95,7 +104,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     }
   };
 
-  const getAlertTypeIcon = (type: SecurityAlert['type']) => {
+  const getAlertTypeIcon = (type: SecurityNotification['type']) => {
     switch (type) {
       case 'LOGIN_NEW_DEVICE': return Smartphone;
       case 'SUSPICIOUS_ACTIVITY': return AlertTriangle;
@@ -109,7 +118,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     }
   };
 
-  const handleNotificationPress = (notification: SecurityAlert) => {
+  const handleNotificationPress = (notification: SecurityNotification) => {
     setSelectedNotification(notification);
   };
 
@@ -145,7 +154,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     );
   };
 
-  const updateNotificationSettings = async (newSettings: Partial<SecurityNotificationSettings>) => {
+  const updateNotificationSettings = async (newSettings: any) => {
     try {
       await notificationService.updateSettings(newSettings);
       setSettings(prev => prev ? { ...prev, ...newSettings } : null);
@@ -154,7 +163,7 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     }
   };
 
-  const renderNotificationItem = (notification: SecurityAlert) => {
+  const renderNotificationItem = (notification: SecurityNotification) => {
     const SeverityIcon = getSeverityIcon(notification.severity);
     const TypeIcon = getAlertTypeIcon(notification.type);
     const severityColor = getSeverityColor(notification.severity);
