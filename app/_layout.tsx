@@ -3,7 +3,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { I18nManager, Alert, AppState, Platform } from "react-native";
 import { useAuthStore } from "@/store/authStore";
 import { ThemeProvider, useThemeSafe } from "@/providers/ThemeProvider";
@@ -58,12 +58,19 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
+    let mounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     if (loaded) {
-      // Initialize security in background to avoid blocking UI
-      setTimeout(() => {
-        initializeAppSecurity();
+      timeoutId = setTimeout(() => {
+        if (mounted) {
+          initializeAppSecurity();
+        }
       }, 100);
     }
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [loaded]);
   
 
@@ -334,7 +341,7 @@ export default function RootLayout() {
       }
       
       // Set up app state monitoring for security
-      AppState.addEventListener('change', handleAppStateChange);
+      const appStateSub = AppState.addEventListener('change', handleAppStateChange);
       
       // Set up incident response monitoring
       setupIncidentResponseMonitoring(incidentResponse, socService);
@@ -342,8 +349,16 @@ export default function RootLayout() {
       // Set up UEBA monitoring
       setupUEBAMonitoring(uebaService, behaviorAnalyticsService, threatIntelligenceService);
       
-      setSecurityInitialized(true);
+      if (typeof setSecurityInitialized === 'function') {
+        setSecurityInitialized(true);
+      }
       console.log('✅ Comprehensive security with UEBA and Behavior Analytics initialized successfully');
+      
+      return () => {
+        try {
+          appStateSub.remove();
+        } catch {}
+      };
       
       // Log successful initialization
       if (centralizedLogging) {
@@ -363,7 +378,7 @@ export default function RootLayout() {
       
     } catch (error) {
       console.error('💥 Critical security initialization failure:', error);
-      setSecurityBlocked(true);
+      try { setSecurityBlocked(true); } catch {}
       
       // Try to log the error if logging service is available
       try {

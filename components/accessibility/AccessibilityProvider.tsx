@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
-import { StatusBar, Platform } from 'react-native';
-import { useColorScheme } from '@/store/themeStore';
+import { StatusBar, Platform, useColorScheme as useRNColorScheme } from 'react-native';
 import { useAccessibilityStore } from '@/services/accessibility/AccessibilityService';
 
 interface AccessibilityContextType {
@@ -18,7 +17,7 @@ interface AccessibilityProviderProps {
 }
 
 export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ children }) => {
-  const colorScheme = useColorScheme();
+  const colorScheme = useRNColorScheme();
   const { 
     settings, 
     initializeAccessibility, 
