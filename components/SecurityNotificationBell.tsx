@@ -5,7 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Platform
+  Platform,
+  Modal
 } from 'react-native';
 import { Bell, AlertTriangle } from 'lucide-react-native';
 import SecurityNotificationService, { SecurityAlert } from '@/services/security/SecurityNotificationService';
