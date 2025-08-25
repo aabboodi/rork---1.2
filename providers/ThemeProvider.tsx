@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { useColorScheme } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { AppTheme, DEFAULT_LIGHT, DEFAULT_DARK } from '../constants/theme';
@@ -8,6 +8,7 @@ type ThemeCtx = {
   theme: AppTheme;
   setMode: (m: AppTheme['mode']) => void;
   ready: boolean;
+  toggleTheme: () => void;
 };
 
 // سياق بقيم افتراضية سليمة (لا undefined)
@@ -15,12 +16,33 @@ const ThemeContext = createContext<ThemeCtx>({
   theme: DEFAULT_LIGHT,
   setMode: () => {},
   ready: true,
+  toggleTheme: () => {},
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const sys = useColorScheme();
-  const [mode, setMode] = useState<AppTheme['mode']>('system');
-  const [ready] = useState(true); // لو لديك Persist حقيقي، ابدأ بـ false ثم setReady(true) بعد التحميل.
+  const [mode, setModeState] = useState<AppTheme['mode']>('system');
+  const [ready, setReady] = useState(false);
+
+  // Initialize theme from storage
+  useEffect(() => {
+    const initializeTheme = async () => {
+      try {
+        // Try to get persisted theme mode from AsyncStorage
+        const AsyncStorage = await import('@react-native-async-storage/async-storage');
+        const storedMode = await AsyncStorage.default.getItem('theme-mode');
+        if (storedMode && ['light', 'dark', 'system'].includes(storedMode)) {
+          setModeState(storedMode as AppTheme['mode']);
+        }
+      } catch (error) {
+        console.warn('Failed to load theme from storage:', error);
+      } finally {
+        setReady(true);
+      }
+    };
+    
+    initializeTheme();
+  }, []);
 
   const theme = useMemo<AppTheme>(() => {
     const effective = mode === 'system' ? (sys === 'dark' ? 'dark' : 'light') : mode;
@@ -29,10 +51,33 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // ضبط خلفية النظام لمنع وميض أبيض/أسود
   useEffect(() => {
-    SystemUI.setBackgroundColorAsync(theme.colors.background).catch(() => {});
-  }, [theme.colors.background]);
+    if (ready) {
+      SystemUI.setBackgroundColorAsync(theme.colors.background).catch(() => {});
+    }
+  }, [theme.colors.background, ready]);
 
-  const value = useMemo(() => ({ theme, setMode, ready }), [theme, setMode, ready]);
+  const setMode = useCallback(async (newMode: AppTheme['mode']) => {
+    try {
+      setModeState(newMode);
+      // Persist to storage
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      await AsyncStorage.default.setItem('theme-mode', newMode);
+    } catch (error) {
+      console.warn('Failed to save theme to storage:', error);
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    if (mode === 'system') {
+      setMode('light');
+    } else if (mode === 'light') {
+      setMode('dark');
+    } else {
+      setMode('system');
+    }
+  }, [mode, setMode]);
+
+  const value = useMemo(() => ({ theme, setMode, ready, toggleTheme }), [theme, setMode, ready, toggleTheme]);
 
   return (
     <ThemeContext.Provider value={value}>
