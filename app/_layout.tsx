@@ -4,12 +4,11 @@ import { Stack } from "expo-router";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { I18nManager, Alert, AppState, Platform, Text } from "react-native";
+import { I18nManager, Alert, AppState, Platform } from "react-native";
 import { useAuthStore } from "@/store/authStore";
-import { useThemeStore, useSafeThemeColors } from "@/store/themeStore";
+import { ThemeProvider } from "@/providers/ThemeProvider";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
 import React from 'react';
-import { View } from 'react-native';
 import SecurityManager from "@/services/security/SecurityManager";
 import DeviceSecurityService from "@/services/security/DeviceSecurityService";
 import ScreenProtectionService from "@/services/security/ScreenProtectionService";
@@ -41,51 +40,7 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-// Theme Provider Component to ensure theme is always available
-function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isThemeReady, setIsThemeReady] = useState(false);
-  const colors = useSafeThemeColors();
-  
-  // Ensure theme is initialized before rendering children
-  useEffect(() => {
-    const initTheme = async () => {
-      try {
-        // Force theme initialization
-        const { initializeTheme } = useThemeStore.getState();
-        initializeTheme();
-        
-        // Wait a bit to ensure theme is set
-        setTimeout(() => {
-          setIsThemeReady(true);
-        }, 100);
-      } catch (error) {
-        console.error('Theme initialization error:', error);
-        // Still set ready to avoid infinite loading
-        setIsThemeReady(true);
-      }
-    };
-    
-    initTheme();
-  }, []);
-  
-  // Double-check colors are valid before using them
-  const safeBackgroundColor = colors?.background || '#FFFFFF';
-  
-  // Show loading screen while theme initializes
-  if (!isThemeReady) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#000000' }}>Loading...</Text>
-      </View>
-    );
-  }
-  
-  return (
-    <View style={{ flex: 1, backgroundColor: safeBackgroundColor }}>
-      {children}
-    </View>
-  );
-}
+
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -93,36 +48,7 @@ export default function RootLayout() {
   });
   const [securityInitialized, setSecurityInitialized] = useState(true);
   const [securityBlocked, setSecurityBlocked] = useState(false);
-  const { initializeTheme } = useThemeStore();
-  
-  // Initialize theme immediately when store is available
-  useEffect(() => {
-    let mounted = true;
-    let cleanup: (() => void) | undefined;
-    
-    // Initialize theme asynchronously to prevent state updates during render
-    const timeoutId = setTimeout(() => {
-      if (mounted) {
-        try {
-          cleanup = initializeTheme();
-        } catch (error) {
-          console.warn('Theme initialization failed:', error);
-        }
-      }
-    }, 0);
-    
-    return () => {
-      mounted = false;
-      clearTimeout(timeoutId);
-      if (cleanup && typeof cleanup === 'function') {
-        try {
-          cleanup();
-        } catch (error) {
-          console.warn('Theme cleanup error:', error);
-        }
-      }
-    };
-  }, [initializeTheme]);
+
 
   useEffect(() => {
     if (error) {

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
 import { Check, CheckCheck, Mic, Camera, FileText, Users, Radio, Wallet, Pin, Shield, Lock, AlertTriangle, ExternalLink, Ban, Timer } from 'lucide-react-native';
 import { Chat } from '@/types';
-import { useSafeThemeColors } from '@/store/themeStore';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import ContentModerationService, { MessageContext } from '@/services/security/ContentModerationService';
 import ForensicsService from '@/services/security/ForensicsService';
@@ -83,7 +83,8 @@ export default function ChatItem({
   onLongPress,
   isLoading = false
 }: ChatItemProps) {
-  const colors = useSafeThemeColors();
+  const { theme } = useThemeSafe();
+  const colors = theme.colors;
   const [isMessageSafe, setIsMessageSafe] = useState(true);
   
   // Create styles with current theme colors
