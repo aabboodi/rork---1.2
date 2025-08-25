@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   RefreshControl,
   Platform,
   Alert,
-  Dimensions,
   Modal
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,24 +17,15 @@ import {
   Shield,
   AlertTriangle,
   CheckCircle,
-  Clock,
   Smartphone,
   Key,
   User,
-  Settings,
   X,
-  Eye,
-  EyeOff,
-  Trash2,
   Filter,
-  Search,
-  Download,
   RefreshCw,
   AlertCircle,
   Info,
-  Zap,
-  Lock,
-  Unlock
+  Zap
 } from 'lucide-react-native';
 import NewDeviceNotificationService from '@/services/security/NewDeviceNotificationService';
 import SecurityNotificationService from '@/services/security/SecurityNotificationService';
@@ -57,15 +47,15 @@ interface NotificationItem {
   actionRequired: boolean;
   deviceInfo?: any;
   metadata?: any;
-  actions?: Array<{
+  actions?: {
     id: string;
     label: string;
     action: string;
     style: 'primary' | 'secondary' | 'danger';
-  }>;
+  }[];
 }
 
-const { width } = Dimensions.get('window');
+
 
 const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({ onClose }) => {
   const [deviceNotificationService] = useState(() => NewDeviceNotificationService.getInstance());
@@ -82,13 +72,13 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
 
   useEffect(() => {
     initializeNotificationCenter();
-  }, []);
+  }, [initializeNotificationCenter]);
 
   useEffect(() => {
     filterNotifications();
-  }, [notifications, selectedFilter]);
+  }, [notifications, selectedFilter, filterNotifications]);
 
-  const initializeNotificationCenter = async () => {
+  const initializeNotificationCenter = useCallback(async () => {
     try {
       await deviceNotificationService.initialize();
       await loadNotifications();
@@ -98,9 +88,9 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [deviceNotificationService, loadNotifications, loadStatistics]);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
       const allNotifications: NotificationItem[] = [];
 
@@ -167,19 +157,881 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
     } catch (error) {
       console.error('Failed to load notifications:', error);
     }
-  };
+  }, [deviceNotificationService, securityNotificationService]);
 
-  const loadStatistics = async () => {
+  const loadStatistics = useCallback(async () => {
     try {
       const stats = await deviceNotificationService.getNotificationStatistics();
       setStatistics(stats);
     } catch (error) {
       console.error('Failed to load statistics:', error);
     }
-  };
+  }, [deviceNotificationService]);
 
   const getHighPriorityAlerts = async (): Promise<any[]> => {
     try {
       // This would get high-priority alerts from storage
       // For now, return empty array
-      return [];\n    } catch (error) {\n      console.error('Failed to get high-priority alerts:', error);\n      return [];\n    }\n  };\n\n  const filterNotifications = () => {\n    let filtered = notifications;\n\n    switch (selectedFilter) {\n      case 'unread':\n        filtered = notifications.filter(n => !n.read);\n        break;\n      case 'high_priority':\n        filtered = notifications.filter(n => n.severity === 'high' || n.severity === 'critical');\n        break;\n      case 'device':\n        filtered = notifications.filter(n => n.type.includes('device') || n.type.includes('login'));\n        break;\n      case 'security':\n        filtered = notifications.filter(n => n.type.includes('security') || n.type.includes('breach'));\n        break;\n      default:\n        filtered = notifications;\n    }\n\n    setFilteredNotifications(filtered);\n  };\n\n  const onRefresh = async () => {\n    setRefreshing(true);\n    await loadNotifications();\n    await loadStatistics();\n    setRefreshing(false);\n  };\n\n  const handleNotificationPress = (notification: NotificationItem) => {\n    setSelectedNotification(notification);\n    setShowNotificationModal(true);\n    \n    // Mark as read\n    if (!notification.read) {\n      markAsRead(notification.id);\n    }\n  };\n\n  const markAsRead = async (notificationId: string) => {\n    try {\n      // Update local state\n      setNotifications(prev => \n        prev.map(n => \n          n.id === notificationId ? { ...n, read: true } : n\n        )\n      );\n      \n      // Update in storage/service\n      await deviceNotificationService.acknowledgeNotification(notificationId, 'current_user');\n    } catch (error) {\n      console.error('Failed to mark notification as read:', error);\n    }\n  };\n\n  const markAllAsRead = async () => {\n    try {\n      const unreadNotifications = notifications.filter(n => !n.read);\n      \n      for (const notification of unreadNotifications) {\n        await deviceNotificationService.acknowledgeNotification(notification.id, 'current_user');\n      }\n      \n      setNotifications(prev => \n        prev.map(n => ({ ...n, read: true }))\n      );\n      \n      Alert.alert('Success', `Marked ${unreadNotifications.length} notifications as read`);\n    } catch (error) {\n      console.error('Failed to mark all as read:', error);\n      Alert.alert('Error', 'Failed to mark notifications as read');\n    }\n  };\n\n  const clearAllNotifications = () => {\n    Alert.alert(\n      'Clear All Notifications',\n      'Are you sure you want to clear all notifications? This action cannot be undone.',\n      [\n        { text: 'Cancel', style: 'cancel' },\n        {\n          text: 'Clear All',\n          style: 'destructive',\n          onPress: async () => {\n            try {\n              // Clear from services\n              await securityNotificationService.clearNotifications();\n              \n              // Clear local state\n              setNotifications([]);\n              \n              Alert.alert('Success', 'All notifications cleared');\n            } catch (error) {\n              Alert.alert('Error', 'Failed to clear notifications');\n            }\n          }\n        }\n      ]\n    );\n  };\n\n  const handleNotificationAction = async (notificationId: string, action: string) => {\n    try {\n      switch (action) {\n        case 'trust_device':\n          await deviceNotificationService.acknowledgeNotification(notificationId, 'current_user', 'trust_device');\n          Alert.alert('Success', 'Device has been trusted');\n          break;\n        case 'block_device':\n          await deviceNotificationService.acknowledgeNotification(notificationId, 'current_user', 'block_device');\n          Alert.alert('Success', 'Device has been blocked');\n          break;\n        case 'review_security':\n          // Navigate to security settings\n          Alert.alert('Security Review', 'Opening security settings...');\n          break;\n        case 'ignore':\n          await deviceNotificationService.acknowledgeNotification(notificationId, 'current_user', 'ignore');\n          break;\n      }\n      \n      // Update notification state\n      setNotifications(prev => \n        prev.map(n => \n          n.id === notificationId ? { ...n, acknowledged: true } : n\n        )\n      );\n      \n      setShowNotificationModal(false);\n      await loadNotifications();\n    } catch (error) {\n      console.error('Failed to handle notification action:', error);\n      Alert.alert('Error', 'Failed to perform action');\n    }\n  };\n\n  const getNotificationTitle = (type: string): string => {\n    switch (type) {\n      case 'new_device': return 'New Device Login';\n      case 'device_change': return 'Device Change Detected';\n      case 'suspicious_device': return 'Suspicious Device Activity';\n      case 'location_change': return 'New Location Login';\n      default: return 'Security Notification';\n    }\n  };\n\n  const getNotificationMessage = (notification: any): string => {\n    const device = notification.deviceInfo;\n    const location = device?.location ? \n      `${device.location.city}, ${device.location.country}` : \n      'Unknown Location';\n    \n    switch (notification.notificationType) {\n      case 'new_device':\n        return `Login from ${device?.model || 'Unknown Device'} in ${location}`;\n      case 'device_change':\n        return `Device characteristics changed for ${device?.platform || 'Unknown'} device`;\n      case 'suspicious_device':\n        return `Suspicious activity from ${device?.platform || 'Unknown'} device (Risk: ${device?.riskScore || 0})`;\n      case 'location_change':\n        return `Login from new location: ${location}`;\n      default:\n        return 'Security event detected';\n    }\n  };\n\n  const getNotificationActions = (type: string) => {\n    switch (type) {\n      case 'new_device':\n      case 'device_change':\n        return [\n          { id: 'trust_device', label: 'Trust Device', action: 'trust_device', style: 'primary' as const },\n          { id: 'block_device', label: 'Block Device', action: 'block_device', style: 'danger' as const },\n          { id: 'review_security', label: 'Review Security', action: 'review_security', style: 'secondary' as const }\n        ];\n      default:\n        return [\n          { id: 'acknowledge', label: 'OK', action: 'ignore', style: 'primary' as const }\n        ];\n    }\n  };\n\n  const getSeverityColor = (severity: string) => {\n    switch (severity) {\n      case 'low': return '#10B981';\n      case 'medium': return '#F59E0B';\n      case 'high': return '#EF4444';\n      case 'critical': return '#DC2626';\n      default: return '#6B7280';\n    }\n  };\n\n  const getSeverityIcon = (severity: string) => {\n    switch (severity) {\n      case 'low': return Info;\n      case 'medium': return Clock;\n      case 'high': return AlertTriangle;\n      case 'critical': return AlertCircle;\n      default: return Bell;\n    }\n  };\n\n  const getTypeIcon = (type: string) => {\n    if (type.includes('device') || type.includes('login')) return Smartphone;\n    if (type.includes('key') || type.includes('rotation')) return Key;\n    if (type.includes('security') || type.includes('breach')) return Shield;\n    return Bell;\n  };\n\n  const renderNotificationItem = (notification: NotificationItem, index: number) => {\n    const SeverityIcon = getSeverityIcon(notification.severity);\n    const TypeIcon = getTypeIcon(notification.type);\n    \n    return (\n      <TouchableOpacity\n        key={notification.id}\n        style={[\n          styles.notificationItem,\n          !notification.read && styles.unreadNotification\n        ]}\n        onPress={() => handleNotificationPress(notification)}\n      >\n        <View style={styles.notificationHeader}>\n          <View style={styles.notificationIcons}>\n            <View style={[\n              styles.severityIndicator,\n              { backgroundColor: getSeverityColor(notification.severity) }\n            ]} />\n            <TypeIcon size={16} color=\"#6B7280\" />\n            <SeverityIcon size={14} color={getSeverityColor(notification.severity)} />\n          </View>\n          <View style={styles.notificationMeta}>\n            <Text style={styles.notificationTimestamp}>\n              {formatRelativeTime(notification.timestamp)}\n            </Text>\n            {!notification.read && <View style={styles.unreadDot} />}\n          </View>\n        </View>\n        \n        <View style={styles.notificationContent}>\n          <Text style={styles.notificationTitle}>{notification.title}</Text>\n          <Text style={styles.notificationMessage} numberOfLines={2}>\n            {notification.message}\n          </Text>\n          \n          {notification.actionRequired && (\n            <View style={styles.actionRequiredBadge}>\n              <Zap size={12} color=\"#FFFFFF\" />\n              <Text style={styles.actionRequiredText}>Action Required</Text>\n            </View>\n          )}\n        </View>\n      </TouchableOpacity>\n    );\n  };\n\n  const renderNotificationModal = () => {\n    if (!selectedNotification) return null;\n    \n    const SeverityIcon = getSeverityIcon(selectedNotification.severity);\n    \n    return (\n      <Modal\n        visible={showNotificationModal}\n        animationType=\"slide\"\n        presentationStyle=\"pageSheet\"\n        onRequestClose={() => setShowNotificationModal(false)}\n      >\n        <View style={styles.modalContainer}>\n          <LinearGradient\n            colors={[getSeverityColor(selectedNotification.severity), getSeverityColor(selectedNotification.severity) + '80']}\n            style={styles.modalHeader}\n          >\n            <View style={styles.modalHeaderContent}>\n              <View style={styles.modalHeaderLeft}>\n                <SeverityIcon size={24} color=\"#FFFFFF\" />\n                <Text style={styles.modalTitle}>{selectedNotification.title}</Text>\n              </View>\n              <TouchableOpacity\n                style={styles.modalCloseButton}\n                onPress={() => setShowNotificationModal(false)}\n              >\n                <X size={20} color=\"#FFFFFF\" />\n              </TouchableOpacity>\n            </View>\n          </LinearGradient>\n          \n          <ScrollView style={styles.modalContent}>\n            <View style={styles.modalSection}>\n              <Text style={styles.modalSectionTitle}>Details</Text>\n              <Text style={styles.modalMessage}>{selectedNotification.message}</Text>\n              \n              <View style={styles.modalMetadata}>\n                <View style={styles.modalMetadataItem}>\n                  <Text style={styles.modalMetadataLabel}>Severity:</Text>\n                  <Text style={[\n                    styles.modalMetadataValue,\n                    { color: getSeverityColor(selectedNotification.severity) }\n                  ]}>\n                    {selectedNotification.severity.toUpperCase()}\n                  </Text>\n                </View>\n                \n                <View style={styles.modalMetadataItem}>\n                  <Text style={styles.modalMetadataLabel}>Time:</Text>\n                  <Text style={styles.modalMetadataValue}>\n                    {selectedNotification.timestamp.toLocaleString()}\n                  </Text>\n                </View>\n                \n                <View style={styles.modalMetadataItem}>\n                  <Text style={styles.modalMetadataLabel}>Type:</Text>\n                  <Text style={styles.modalMetadataValue}>{selectedNotification.type}</Text>\n                </View>\n              </View>\n            </View>\n            \n            {selectedNotification.deviceInfo && (\n              <View style={styles.modalSection}>\n                <Text style={styles.modalSectionTitle}>Device Information</Text>\n                <View style={styles.deviceInfo}>\n                  <View style={styles.deviceInfoItem}>\n                    <Text style={styles.deviceInfoLabel}>Device:</Text>\n                    <Text style={styles.deviceInfoValue}>\n                      {selectedNotification.deviceInfo.model || 'Unknown'}\n                    </Text>\n                  </View>\n                  \n                  <View style={styles.deviceInfoItem}>\n                    <Text style={styles.deviceInfoLabel}>Platform:</Text>\n                    <Text style={styles.deviceInfoValue}>\n                      {selectedNotification.deviceInfo.platform || 'Unknown'}\n                    </Text>\n                  </View>\n                  \n                  {selectedNotification.deviceInfo.location && (\n                    <View style={styles.deviceInfoItem}>\n                      <Text style={styles.deviceInfoLabel}>Location:</Text>\n                      <Text style={styles.deviceInfoValue}>\n                        {selectedNotification.deviceInfo.location.city}, {selectedNotification.deviceInfo.location.country}\n                      </Text>\n                    </View>\n                  )}\n                  \n                  {selectedNotification.deviceInfo.riskScore !== undefined && (\n                    <View style={styles.deviceInfoItem}>\n                      <Text style={styles.deviceInfoLabel}>Risk Score:</Text>\n                      <Text style={[\n                        styles.deviceInfoValue,\n                        { color: selectedNotification.deviceInfo.riskScore > 70 ? '#EF4444' : '#10B981' }\n                      ]}>\n                        {selectedNotification.deviceInfo.riskScore}/100\n                      </Text>\n                    </View>\n                  )}\n                </View>\n              </View>\n            )}\n            \n            {selectedNotification.actions && selectedNotification.actions.length > 0 && (\n              <View style={styles.modalSection}>\n                <Text style={styles.modalSectionTitle}>Actions</Text>\n                <View style={styles.modalActions}>\n                  {selectedNotification.actions.map(action => (\n                    <TouchableOpacity\n                      key={action.id}\n                      style={[\n                        styles.modalActionButton,\n                        action.style === 'primary' && styles.primaryActionButton,\n                        action.style === 'danger' && styles.dangerActionButton,\n                        action.style === 'secondary' && styles.secondaryActionButton\n                      ]}\n                      onPress={() => handleNotificationAction(selectedNotification.id, action.action)}\n                    >\n                      <Text style={[\n                        styles.modalActionButtonText,\n                        action.style === 'secondary' && styles.secondaryActionButtonText\n                      ]}>\n                        {action.label}\n                      </Text>\n                    </TouchableOpacity>\n                  ))}\n                </View>\n              </View>\n            )}\n          </ScrollView>\n        </View>\n      </Modal>\n    );\n  };\n\n  if (loading) {\n    return (\n      <View style={styles.loadingContainer}>\n        <RefreshCw size={32} color=\"#3B82F6\" />\n        <Text style={styles.loadingText}>Loading Notifications...</Text>\n      </View>\n    );\n  }\n\n  return (\n    <View style={styles.container}>\n      <LinearGradient\n        colors={['#1E40AF', '#3B82F6']}\n        style={styles.header}\n      >\n        <View style={styles.headerContent}>\n          <View style={styles.headerLeft}>\n            <Bell size={24} color=\"#FFFFFF\" />\n            <Text style={styles.headerTitle}>Security Notifications</Text>\n          </View>\n          {onClose && (\n            <TouchableOpacity style={styles.closeButton} onPress={onClose}>\n              <X size={20} color=\"#FFFFFF\" />\n            </TouchableOpacity>\n          )}\n        </View>\n      </LinearGradient>\n\n      {/* Statistics */}\n      {statistics && (\n        <View style={styles.statisticsContainer}>\n          <View style={styles.statItem}>\n            <Text style={styles.statValue}>{statistics.totalNotifications}</Text>\n            <Text style={styles.statLabel}>Total</Text>\n          </View>\n          <View style={styles.statItem}>\n            <Text style={[styles.statValue, { color: '#EF4444' }]}>\n              {statistics.pendingNotifications}\n            </Text>\n            <Text style={styles.statLabel}>Unread</Text>\n          </View>\n          <View style={styles.statItem}>\n            <Text style={[styles.statValue, { color: '#F59E0B' }]}>\n              {statistics.highPriorityAlerts || 0}\n            </Text>\n            <Text style={styles.statLabel}>High Priority</Text>\n          </View>\n          <View style={styles.statItem}>\n            <Text style={[styles.statValue, { color: '#10B981' }]}>\n              {statistics.trustedDevices}\n            </Text>\n            <Text style={styles.statLabel}>Trusted Devices</Text>\n          </View>\n        </View>\n      )}\n\n      {/* Controls */}\n      <View style={styles.controlsContainer}>\n        <TouchableOpacity\n          style={[styles.controlButton, showFilters && styles.activeControlButton]}\n          onPress={() => setShowFilters(!showFilters)}\n        >\n          <Filter size={16} color={showFilters ? \"#FFFFFF\" : \"#6B7280\"} />\n          <Text style={[\n            styles.controlButtonText,\n            showFilters && styles.activeControlButtonText\n          ]}>Filter</Text>\n        </TouchableOpacity>\n        \n        <TouchableOpacity style={styles.controlButton} onPress={markAllAsRead}>\n          <CheckCircle size={16} color=\"#6B7280\" />\n          <Text style={styles.controlButtonText}>Mark All Read</Text>\n        </TouchableOpacity>\n        \n        <TouchableOpacity style={styles.controlButton} onPress={clearAllNotifications}>\n          <Trash2 size={16} color=\"#6B7280\" />\n          <Text style={styles.controlButtonText}>Clear All</Text>\n        </TouchableOpacity>\n      </View>\n\n      {/* Filters */}\n      {showFilters && (\n        <View style={styles.filtersContainer}>\n          <ScrollView horizontal showsHorizontalScrollIndicator={false}>\n            {[\n              { key: 'all', label: 'All' },\n              { key: 'unread', label: 'Unread' },\n              { key: 'high_priority', label: 'High Priority' },\n              { key: 'device', label: 'Device' },\n              { key: 'security', label: 'Security' }\n            ].map(filter => (\n              <TouchableOpacity\n                key={filter.key}\n                style={[\n                  styles.filterChip,\n                  selectedFilter === filter.key && styles.activeFilterChip\n                ]}\n                onPress={() => setSelectedFilter(filter.key as any)}\n              >\n                <Text style={[\n                  styles.filterChipText,\n                  selectedFilter === filter.key && styles.activeFilterChipText\n                ]}>\n                  {filter.label}\n                </Text>\n              </TouchableOpacity>\n            ))}\n          </ScrollView>\n        </View>\n      )}\n\n      {/* Notifications List */}\n      <ScrollView\n        style={styles.notificationsContainer}\n        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}\n      >\n        {filteredNotifications.length > 0 ? (\n          filteredNotifications.map((notification, index) => \n            renderNotificationItem(notification, index)\n          )\n        ) : (\n          <View style={styles.emptyState}>\n            <BellOff size={48} color=\"#D1D5DB\" />\n            <Text style={styles.emptyStateTitle}>No Notifications</Text>\n            <Text style={styles.emptyStateText}>\n              {selectedFilter === 'all' \n                ? 'You\\'re all caught up! No security notifications at this time.'\n                : `No ${selectedFilter} notifications found.`\n              }\n            </Text>\n          </View>\n        )}\n      </ScrollView>\n\n      {renderNotificationModal()}\n    </View>\n  );\n};\n\nconst styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    backgroundColor: '#F8FAFC'\n  },\n  loadingContainer: {\n    flex: 1,\n    justifyContent: 'center',\n    alignItems: 'center',\n    backgroundColor: '#F8FAFC'\n  },\n  loadingText: {\n    marginTop: 16,\n    fontSize: 16,\n    color: '#6B7280',\n    fontWeight: '500'\n  },\n  header: {\n    paddingTop: Platform.OS === 'ios' ? 50 : 30,\n    paddingBottom: 20,\n    paddingHorizontal: 20\n  },\n  headerContent: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center'\n  },\n  headerLeft: {\n    flexDirection: 'row',\n    alignItems: 'center'\n  },\n  headerTitle: {\n    marginLeft: 12,\n    fontSize: 20,\n    fontWeight: 'bold',\n    color: '#FFFFFF'\n  },\n  closeButton: {\n    width: 32,\n    height: 32,\n    borderRadius: 16,\n    backgroundColor: 'rgba(255, 255, 255, 0.2)',\n    justifyContent: 'center',\n    alignItems: 'center'\n  },\n  statisticsContainer: {\n    flexDirection: 'row',\n    backgroundColor: '#FFFFFF',\n    paddingVertical: 16,\n    borderBottomWidth: 1,\n    borderBottomColor: '#E5E7EB'\n  },\n  statItem: {\n    flex: 1,\n    alignItems: 'center'\n  },\n  statValue: {\n    fontSize: 20,\n    fontWeight: 'bold',\n    color: '#1F2937'\n  },\n  statLabel: {\n    fontSize: 12,\n    color: '#6B7280',\n    marginTop: 4\n  },\n  controlsContainer: {\n    flexDirection: 'row',\n    backgroundColor: '#FFFFFF',\n    paddingHorizontal: 16,\n    paddingVertical: 12,\n    borderBottomWidth: 1,\n    borderBottomColor: '#E5E7EB'\n  },\n  controlButton: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    paddingHorizontal: 12,\n    paddingVertical: 8,\n    borderRadius: 6,\n    backgroundColor: '#F3F4F6',\n    marginRight: 8\n  },\n  activeControlButton: {\n    backgroundColor: '#3B82F6'\n  },\n  controlButtonText: {\n    marginLeft: 6,\n    fontSize: 12,\n    fontWeight: '500',\n    color: '#6B7280'\n  },\n  activeControlButtonText: {\n    color: '#FFFFFF'\n  },\n  filtersContainer: {\n    backgroundColor: '#FFFFFF',\n    paddingHorizontal: 16,\n    paddingVertical: 12,\n    borderBottomWidth: 1,\n    borderBottomColor: '#E5E7EB'\n  },\n  filterChip: {\n    paddingHorizontal: 12,\n    paddingVertical: 6,\n    borderRadius: 16,\n    backgroundColor: '#F3F4F6',\n    marginRight: 8\n  },\n  activeFilterChip: {\n    backgroundColor: '#3B82F6'\n  },\n  filterChipText: {\n    fontSize: 12,\n    fontWeight: '500',\n    color: '#6B7280'\n  },\n  activeFilterChipText: {\n    color: '#FFFFFF'\n  },\n  notificationsContainer: {\n    flex: 1,\n    padding: 16\n  },\n  notificationItem: {\n    backgroundColor: '#FFFFFF',\n    borderRadius: 8,\n    padding: 12,\n    marginBottom: 8,\n    shadowColor: '#000',\n    shadowOffset: { width: 0, height: 1 },\n    shadowOpacity: 0.05,\n    shadowRadius: 2,\n    elevation: 1\n  },\n  unreadNotification: {\n    borderLeftWidth: 4,\n    borderLeftColor: '#3B82F6'\n  },\n  notificationHeader: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: 8\n  },\n  notificationIcons: {\n    flexDirection: 'row',\n    alignItems: 'center'\n  },\n  severityIndicator: {\n    width: 4,\n    height: 16,\n    borderRadius: 2,\n    marginRight: 8\n  },\n  notificationMeta: {\n    flexDirection: 'row',\n    alignItems: 'center'\n  },\n  notificationTimestamp: {\n    fontSize: 12,\n    color: '#6B7280'\n  },\n  unreadDot: {\n    width: 8,\n    height: 8,\n    borderRadius: 4,\n    backgroundColor: '#3B82F6',\n    marginLeft: 8\n  },\n  notificationContent: {\n    marginLeft: 20\n  },\n  notificationTitle: {\n    fontSize: 14,\n    fontWeight: '600',\n    color: '#1F2937',\n    marginBottom: 4\n  },\n  notificationMessage: {\n    fontSize: 12,\n    color: '#6B7280',\n    lineHeight: 16\n  },\n  actionRequiredBadge: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    backgroundColor: '#F59E0B',\n    paddingHorizontal: 8,\n    paddingVertical: 4,\n    borderRadius: 12,\n    marginTop: 8,\n    alignSelf: 'flex-start'\n  },\n  actionRequiredText: {\n    marginLeft: 4,\n    fontSize: 10,\n    fontWeight: '600',\n    color: '#FFFFFF'\n  },\n  emptyState: {\n    alignItems: 'center',\n    justifyContent: 'center',\n    paddingVertical: 64\n  },\n  emptyStateTitle: {\n    fontSize: 18,\n    fontWeight: '600',\n    color: '#374151',\n    marginTop: 16\n  },\n  emptyStateText: {\n    fontSize: 14,\n    color: '#6B7280',\n    textAlign: 'center',\n    marginTop: 8,\n    paddingHorizontal: 32\n  },\n  modalContainer: {\n    flex: 1,\n    backgroundColor: '#F8FAFC'\n  },\n  modalHeader: {\n    paddingTop: Platform.OS === 'ios' ? 50 : 30,\n    paddingBottom: 20,\n    paddingHorizontal: 20\n  },\n  modalHeaderContent: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center'\n  },\n  modalHeaderLeft: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    flex: 1\n  },\n  modalTitle: {\n    marginLeft: 12,\n    fontSize: 18,\n    fontWeight: 'bold',\n    color: '#FFFFFF',\n    flex: 1\n  },\n  modalCloseButton: {\n    width: 32,\n    height: 32,\n    borderRadius: 16,\n    backgroundColor: 'rgba(255, 255, 255, 0.2)',\n    justifyContent: 'center',\n    alignItems: 'center'\n  },\n  modalContent: {\n    flex: 1,\n    padding: 16\n  },\n  modalSection: {\n    backgroundColor: '#FFFFFF',\n    borderRadius: 8,\n    padding: 16,\n    marginBottom: 16\n  },\n  modalSectionTitle: {\n    fontSize: 16,\n    fontWeight: '600',\n    color: '#1F2937',\n    marginBottom: 12\n  },\n  modalMessage: {\n    fontSize: 14,\n    color: '#374151',\n    lineHeight: 20,\n    marginBottom: 16\n  },\n  modalMetadata: {\n    borderTopWidth: 1,\n    borderTopColor: '#F3F4F6',\n    paddingTop: 12\n  },\n  modalMetadataItem: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    paddingVertical: 4\n  },\n  modalMetadataLabel: {\n    fontSize: 12,\n    color: '#6B7280',\n    fontWeight: '500'\n  },\n  modalMetadataValue: {\n    fontSize: 12,\n    color: '#1F2937',\n    fontWeight: '400'\n  },\n  deviceInfo: {\n    backgroundColor: '#F9FAFB',\n    borderRadius: 6,\n    padding: 12\n  },\n  deviceInfoItem: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    paddingVertical: 4\n  },\n  deviceInfoLabel: {\n    fontSize: 12,\n    color: '#6B7280',\n    fontWeight: '500'\n  },\n  deviceInfoValue: {\n    fontSize: 12,\n    color: '#1F2937',\n    fontWeight: '400'\n  },\n  modalActions: {\n    flexDirection: 'row',\n    flexWrap: 'wrap',\n    gap: 8\n  },\n  modalActionButton: {\n    flex: 1,\n    minWidth: 100,\n    paddingVertical: 12,\n    paddingHorizontal: 16,\n    borderRadius: 6,\n    alignItems: 'center'\n  },\n  primaryActionButton: {\n    backgroundColor: '#3B82F6'\n  },\n  dangerActionButton: {\n    backgroundColor: '#EF4444'\n  },\n  secondaryActionButton: {\n    backgroundColor: '#F3F4F6',\n    borderWidth: 1,\n    borderColor: '#D1D5DB'\n  },\n  modalActionButtonText: {\n    fontSize: 14,\n    fontWeight: '600',\n    color: '#FFFFFF'\n  },\n  secondaryActionButtonText: {\n    color: '#374151'\n  }\n});\n\nexport default SecurityNotificationCenter;"
+      return [];
+    } catch (error) {
+      console.error('Failed to get high-priority alerts:', error);
+      return [];
+    }
+  };
+
+  const filterNotifications = useCallback(() => {
+    let filtered = notifications;
+
+    switch (selectedFilter) {
+      case 'unread':
+        filtered = notifications.filter(n => !n.read);
+        break;
+      case 'high_priority':
+        filtered = notifications.filter(n => n.severity === 'high' || n.severity === 'critical');
+        break;
+      case 'device':
+        filtered = notifications.filter(n => n.type.includes('device') || n.type.includes('login'));
+        break;
+      case 'security':
+        filtered = notifications.filter(n => n.type.includes('security') || n.type.includes('breach'));
+        break;
+      default:
+        filtered = notifications;
+    }
+
+    setFilteredNotifications(filtered);
+  }, [notifications, selectedFilter]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadNotifications();
+    await loadStatistics();
+    setRefreshing(false);
+  };
+
+  const handleNotificationPress = (notification: NotificationItem) => {
+    setSelectedNotification(notification);
+    setShowNotificationModal(true);
+    
+    // Mark as read
+    if (!notification.read) {
+      markAsRead(notification.id);
+    }
+  };
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => 
+          n.id === notificationId ? { ...n, read: true } : n
+        )
+      );
+      
+      // Update in storage/service
+      await deviceNotificationService.acknowledgeNotification(notificationId, 'current_user');
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      
+      for (const notification of unreadNotifications) {
+        await deviceNotificationService.acknowledgeNotification(notification.id, 'current_user');
+      }
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => ({ ...n, read: true }))
+      );
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
+  };
+
+  const getNotificationTitle = (type: string): string => {
+    switch (type) {
+      case 'new_device_login':
+        return 'New Device Login';
+      case 'suspicious_activity':
+        return 'Suspicious Activity Detected';
+      case 'security_breach':
+        return 'Security Breach Alert';
+      case 'password_change':
+        return 'Password Changed';
+      case 'account_locked':
+        return 'Account Locked';
+      case 'failed_login_attempts':
+        return 'Failed Login Attempts';
+      case 'device_removed':
+        return 'Device Removed';
+      case 'permission_change':
+        return 'Permission Changed';
+      default:
+        return 'Security Notification';
+    }
+  };
+
+  const getNotificationMessage = (notification: any): string => {
+    const deviceInfo = notification.deviceInfo;
+    const location = deviceInfo?.location || 'Unknown location';
+    const deviceName = deviceInfo?.deviceName || 'Unknown device';
+    
+    switch (notification.notificationType) {
+      case 'new_device_login':
+        return `New login from ${deviceName} in ${location}`;
+      case 'suspicious_activity':
+        return `Unusual activity detected on your account from ${location}`;
+      case 'security_breach':
+        return 'Potential security breach detected. Please review your account.';
+      case 'password_change':
+        return 'Your password was changed successfully.';
+      case 'account_locked':
+        return 'Your account has been locked due to suspicious activity.';
+      case 'failed_login_attempts':
+        return `Multiple failed login attempts from ${location}`;
+      case 'device_removed':
+        return `Device ${deviceName} was removed from your account`;
+      case 'permission_change':
+        return 'Your account permissions have been updated.';
+      default:
+        return notification.message || 'Security notification';
+    }
+  };
+
+  const getNotificationActions = (type: string) => {
+    switch (type) {
+      case 'new_device_login':
+        return [
+          { id: 'approve', label: 'Approve', action: 'approve_device', style: 'primary' as const },
+          { id: 'block', label: 'Block Device', action: 'block_device', style: 'danger' as const }
+        ];
+      case 'suspicious_activity':
+        return [
+          { id: 'review', label: 'Review Activity', action: 'review_activity', style: 'primary' as const },
+          { id: 'secure', label: 'Secure Account', action: 'secure_account', style: 'secondary' as const }
+        ];
+      case 'security_breach':
+        return [
+          { id: 'change_password', label: 'Change Password', action: 'change_password', style: 'danger' as const },
+          { id: 'review_devices', label: 'Review Devices', action: 'review_devices', style: 'secondary' as const }
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case 'critical':
+        return <AlertTriangle size={20} color="#DC2626" />;
+      case 'high':
+        return <AlertCircle size={20} color="#EA580C" />;
+      case 'medium':
+        return <Info size={20} color="#D97706" />;
+      case 'low':
+        return <CheckCircle size={20} color="#16A34A" />;
+      default:
+        return <Bell size={20} color="#6B7280" />;
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical':
+        return '#DC2626';
+      case 'high':
+        return '#EA580C';
+      case 'medium':
+        return '#D97706';
+      case 'low':
+        return '#16A34A';
+      default:
+        return '#6B7280';
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    if (type.includes('device') || type.includes('login')) {
+      return <Smartphone size={18} color="#6B7280" />;
+    } else if (type.includes('security') || type.includes('breach')) {
+      return <Shield size={18} color="#6B7280" />;
+    } else if (type.includes('password') || type.includes('key')) {
+      return <Key size={18} color="#6B7280" />;
+    } else if (type.includes('user') || type.includes('account')) {
+      return <User size={18} color="#6B7280" />;
+    } else {
+      return <Bell size={18} color="#6B7280" />;
+    }
+  };
+
+  const handleNotificationAction = async (notificationId: string, actionId: string, action: string) => {
+    try {
+      console.log(`Executing action ${action} for notification ${notificationId}`);
+      
+      switch (action) {
+        case 'approve_device':
+          // Handle device approval
+          await deviceNotificationService.approveDevice(notificationId);
+          break;
+        case 'block_device':
+          // Handle device blocking
+          await deviceNotificationService.blockDevice(notificationId);
+          break;
+        case 'review_activity':
+          // Navigate to activity review
+          console.log('Navigate to activity review');
+          break;
+        case 'secure_account':
+          // Navigate to security settings
+          console.log('Navigate to security settings');
+          break;
+        case 'change_password':
+          // Navigate to password change
+          console.log('Navigate to password change');
+          break;
+        case 'review_devices':
+          // Navigate to device management
+          console.log('Navigate to device management');
+          break;
+        default:
+          console.log('Unknown action:', action);
+      }
+      
+      // Mark notification as acknowledged
+      await markAsRead(notificationId);
+      setShowNotificationModal(false);
+    } catch (error) {
+      console.error('Failed to execute notification action:', error);
+      Alert.alert('Error', 'Failed to execute action. Please try again.');
+    }
+  };
+
+  const renderNotificationItem = (notification: NotificationItem) => (
+    <TouchableOpacity
+      key={notification.id}
+      style={[
+        styles.notificationItem,
+        !notification.read && styles.unreadNotification
+      ]}
+      onPress={() => handleNotificationPress(notification)}
+    >
+      <View style={styles.notificationHeader}>
+        <View style={styles.notificationIconContainer}>
+          {getSeverityIcon(notification.severity)}
+        </View>
+        <View style={styles.notificationContent}>
+          <View style={styles.notificationTitleRow}>
+            <Text style={styles.notificationTitle} numberOfLines={1}>
+              {notification.title}
+            </Text>
+            <Text style={styles.notificationTime}>
+              {formatRelativeTime(notification.timestamp)}
+            </Text>
+          </View>
+          <Text style={styles.notificationMessage} numberOfLines={2}>
+            {notification.message}
+          </Text>
+          <View style={styles.notificationMeta}>
+            <View style={styles.notificationTypeContainer}>
+              {getTypeIcon(notification.type)}
+              <Text style={styles.notificationTypeText}>
+                {notification.type.replace(/_/g, ' ').toUpperCase()}
+              </Text>
+            </View>
+            {notification.actionRequired && (
+              <View style={styles.actionRequiredBadge}>
+                <Zap size={12} color="#FFFFFF" />
+                <Text style={styles.actionRequiredText}>ACTION REQUIRED</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+      {!notification.read && <View style={styles.unreadIndicator} />}
+    </TouchableOpacity>
+  );
+
+  const renderFilterButton = (filter: typeof selectedFilter, label: string, count?: number) => (
+    <TouchableOpacity
+      style={[
+        styles.filterButton,
+        selectedFilter === filter && styles.activeFilterButton
+      ]}
+      onPress={() => setSelectedFilter(filter)}
+    >
+      <Text style={[
+        styles.filterButtonText,
+        selectedFilter === filter && styles.activeFilterButtonText
+      ]}>
+        {label}
+      </Text>
+      {count !== undefined && count > 0 && (
+        <View style={styles.filterBadge}>
+          <Text style={styles.filterBadgeText}>{count}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  const renderStatistics = () => {
+    if (!statistics) return null;
+
+    return (
+      <View style={styles.statisticsContainer}>
+        <Text style={styles.statisticsTitle}>Security Overview</Text>
+        <View style={styles.statisticsGrid}>
+          <View style={styles.statisticsItem}>
+            <Bell size={20} color="#6B7280" />
+            <Text style={styles.statisticsValue}>{statistics.total || 0}</Text>
+            <Text style={styles.statisticsLabel}>Total</Text>
+          </View>
+          <View style={styles.statisticsItem}>
+            <AlertTriangle size={20} color="#DC2626" />
+            <Text style={styles.statisticsValue}>{statistics.unread || 0}</Text>
+            <Text style={styles.statisticsLabel}>Unread</Text>
+          </View>
+          <View style={styles.statisticsItem}>
+            <Shield size={20} color="#EA580C" />
+            <Text style={styles.statisticsValue}>{statistics.highPriority || 0}</Text>
+            <Text style={styles.statisticsLabel}>High Priority</Text>
+          </View>
+          <View style={styles.statisticsItem}>
+            <CheckCircle size={20} color="#16A34A" />
+            <Text style={styles.statisticsValue}>{statistics.resolved || 0}</Text>
+            <Text style={styles.statisticsLabel}>Resolved</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderNotificationModal = () => {
+    if (!selectedNotification) return null;
+
+    return (
+      <Modal
+        visible={showNotificationModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowNotificationModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Notification Details</Text>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowNotificationModal(false)}
+            >
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.modalNotificationHeader}>
+              <View style={styles.modalSeverityContainer}>
+                {getSeverityIcon(selectedNotification.severity)}
+                <Text style={[
+                  styles.modalSeverityText,
+                  { color: getSeverityColor(selectedNotification.severity) }
+                ]}>
+                  {selectedNotification.severity.toUpperCase()}
+                </Text>
+              </View>
+              <Text style={styles.modalNotificationTime}>
+                {formatRelativeTime(selectedNotification.timestamp)}
+              </Text>
+            </View>
+            
+            <Text style={styles.modalNotificationTitle}>
+              {selectedNotification.title}
+            </Text>
+            
+            <Text style={styles.modalNotificationMessage}>
+              {selectedNotification.message}
+            </Text>
+            
+            {selectedNotification.deviceInfo && (
+              <View style={styles.modalDeviceInfo}>
+                <Text style={styles.modalSectionTitle}>Device Information</Text>
+                <View style={styles.modalDeviceDetails}>
+                  <Text style={styles.modalDeviceText}>
+                    Device: {selectedNotification.deviceInfo.deviceName || 'Unknown'}
+                  </Text>
+                  <Text style={styles.modalDeviceText}>
+                    Location: {selectedNotification.deviceInfo.location || 'Unknown'}
+                  </Text>
+                  <Text style={styles.modalDeviceText}>
+                    IP: {selectedNotification.deviceInfo.ipAddress || 'Unknown'}
+                  </Text>
+                </View>
+              </View>
+            )}
+            
+            {selectedNotification.actions && selectedNotification.actions.length > 0 && (
+              <View style={styles.modalActions}>
+                <Text style={styles.modalSectionTitle}>Available Actions</Text>
+                {selectedNotification.actions.map((action) => (
+                  <TouchableOpacity
+                    key={action.id}
+                    style={[
+                      styles.modalActionButton,
+                      action.style === 'primary' && styles.modalActionButtonPrimary,
+                      action.style === 'danger' && styles.modalActionButtonDanger
+                    ]}
+                    onPress={() => handleNotificationAction(
+                      selectedNotification.id,
+                      action.id,
+                      action.action
+                    )}
+                  >
+                    <Text style={[
+                      styles.modalActionButtonText,
+                      action.style === 'primary' && styles.modalActionButtonTextPrimary,
+                      action.style === 'danger' && styles.modalActionButtonTextDanger
+                    ]}>
+                      {action.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <RefreshCw size={24} color="#6B7280" />
+        <Text style={styles.loadingText}>Loading notifications...</Text>
+      </View>
+    );
+  }
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const highPriorityCount = notifications.filter(n => n.severity === 'high' || n.severity === 'critical').length;
+  const deviceCount = notifications.filter(n => n.type.includes('device') || n.type.includes('login')).length;
+  const securityCount = notifications.filter(n => n.type.includes('security') || n.type.includes('breach')).length;
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#1E293B', '#0F172A']}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Shield size={24} color="#FFFFFF" />
+            <Text style={styles.headerTitle}>Security Center</Text>
+          </View>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setShowFilters(!showFilters)}
+            >
+              <Filter size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={markAllAsRead}
+              disabled={unreadCount === 0}
+            >
+              <CheckCircle size={20} color={unreadCount > 0 ? "#FFFFFF" : "#64748B"} />
+            </TouchableOpacity>
+            {onClose && (
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={onClose}
+              >
+                <X size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        
+        {showFilters && (
+          <View style={styles.filtersContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {renderFilterButton('all', 'All', notifications.length)}
+              {renderFilterButton('unread', 'Unread', unreadCount)}
+              {renderFilterButton('high_priority', 'High Priority', highPriorityCount)}
+              {renderFilterButton('device', 'Device', deviceCount)}
+              {renderFilterButton('security', 'Security', securityCount)}
+            </ScrollView>
+          </View>
+        )}
+      </LinearGradient>
+      
+      {renderStatistics()}
+      
+      <ScrollView
+        style={styles.notificationsList}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#6B7280"
+          />
+        }
+      >
+        {filteredNotifications.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <BellOff size={48} color="#9CA3AF" />
+            <Text style={styles.emptyTitle}>No notifications</Text>
+            <Text style={styles.emptyMessage}>
+              {selectedFilter === 'all' 
+                ? 'You have no security notifications at this time.'
+                : `No ${selectedFilter.replace('_', ' ')} notifications found.`
+              }
+            </Text>
+          </View>
+        ) : (
+          filteredNotifications.map(renderNotificationItem)
+        )}
+      </ScrollView>
+      
+      {renderNotificationModal()}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 12,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  filtersContainer: {
+    marginTop: 16,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activeFilterButton: {
+    backgroundColor: '#FFFFFF',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  activeFilterButtonText: {
+    color: '#1E293B',
+  },
+  filterBadge: {
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  filterBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  statisticsContainer: {
+    backgroundColor: '#FFFFFF',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statisticsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  statisticsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statisticsItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statisticsValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 4,
+  },
+  statisticsLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  notificationsList: {
+    flex: 1,
+  },
+  notificationItem: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginVertical: 4,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+    position: 'relative',
+  },
+  unreadNotification: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+  },
+  notificationIconContainer: {
+    marginRight: 12,
+    paddingTop: 2,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+    marginRight: 8,
+  },
+  notificationTime: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  notificationMessage: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  notificationMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  notificationTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notificationTypeText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  actionRequiredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  actionRequiredText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 4,
+  },
+  unreadIndicator: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3B82F6',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#4B5563',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  modalNotificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  modalSeverityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalSeverityText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  modalNotificationTime: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  modalNotificationTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  modalNotificationMessage: {
+    fontSize: 16,
+    color: '#4B5563',
+    lineHeight: 24,
+    marginBottom: 20,
+  },
+  modalDeviceInfo: {
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  modalDeviceDetails: {
+    gap: 8,
+  },
+  modalDeviceText: {
+    fontSize: 14,
+    color: '#4B5563',
+  },
+  modalActions: {
+    marginBottom: 20,
+  },
+  modalActionButton: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  modalActionButtonPrimary: {
+    backgroundColor: '#3B82F6',
+  },
+  modalActionButtonDanger: {
+    backgroundColor: '#DC2626',
+  },
+  modalActionButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  modalActionButtonTextPrimary: {
+    color: '#FFFFFF',
+  },
+  modalActionButtonTextDanger: {
+    color: '#FFFFFF',
+  },
+});
+
+export default SecurityNotificationCenter;
