@@ -17,7 +17,7 @@ import {
   Bot
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
-import { useThemeStore } from '@/store/themeStore';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 import { translations } from '@/constants/i18n';
 import { mockUsers } from '@/mocks/users';
 
@@ -29,7 +29,8 @@ import { AccessibleCard } from '@/components/accessibility/AccessibleCard';
 export default function ProfileScreen() {
   const router = useRouter();
   const { language, logout, userRole, hasPermission } = useAuthStore();
-  const { colors } = useThemeStore();
+  const { theme } = useThemeSafe();
+  const { colors } = theme;
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const t = translations[language];
   
