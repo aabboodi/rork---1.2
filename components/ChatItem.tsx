@@ -7,7 +7,7 @@ import { formatTimeAgo } from '@/utils/dateUtils';
 import ContentModerationService, { MessageContext } from '@/services/security/ContentModerationService';
 import ForensicsService from '@/services/security/ForensicsService';
 import { MicroInteractions } from '@/utils/microInteractions';
-import { useThemeStore } from '@/store/themeStore';
+import { useSafeThemeColors } from '@/store/themeStore';
 
 interface ChatItemProps {
   chat: Chat;
@@ -40,7 +40,7 @@ const ChatItemSkeleton = () => {
     pulse.start();
     
     return () => pulse.stop();
-  }, []);
+  }, [pulseAnim]);
   
   return (
     <View style={styles.container}>
@@ -67,6 +67,7 @@ export default function ChatItem({
   onLongPress,
   isLoading = false
 }: ChatItemProps) {
+  const colors = useSafeThemeColors();
   const [isMessageSafe, setIsMessageSafe] = useState(true);
   const [violationType, setViolationType] = useState<string | null>(null);
   const [violationConfidence, setViolationConfidence] = useState(0);
@@ -74,44 +75,11 @@ export default function ChatItem({
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const [isPressed, setIsPressed] = useState(false);
   
-  // Show skeleton while loading
-  if (isLoading) {
-    return <ChatItemSkeleton />;
-  }
-
-  useEffect(() => {
-    checkMessageSafety();
-    
-    // Entrance animation
-    MicroInteractions.createEntranceAnimation(scaleAnim, opacityAnim, Math.random() * 100).start();
-    
-    // Pulse animation for unread messages
-    if (chat.unreadCount > 0) {
-      MicroInteractions.createPulseAnimation(pulseAnim, 0.98, 1.02).start();
-    }
-  }, [chat.lastMessage]);
-  
-  useEffect(() => {
-    // Stop pulse animation when message is read
-    if (chat.unreadCount === 0) {
-      pulseAnim.stopAnimation();
-      pulseAnim.setValue(1);
-    }
-  }, [chat.unreadCount]);
-  
-  useEffect(() => {
-    // Shake animation for unsafe messages
-    if (!isMessageSafe && violationConfidence > 0.7) {
-      MicroInteractions.createShakeAnimation(shakeAnim).start();
-    }
-  }, [isMessageSafe, violationConfidence]);
-
-  const checkMessageSafety = async () => {
+  const checkMessageSafety = React.useCallback(async () => {
     if (!chat.lastMessage?.content || chat.lastMessage.content.trim() === '') {
       setIsMessageSafe(true);
       return;
@@ -164,7 +132,47 @@ export default function ChatItem({
       console.error('Failed to check message safety:', error);
       setIsMessageSafe(true);
     }
-  };
+  }, [chat.lastMessage]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      checkMessageSafety();
+      
+      // Entrance animation
+      MicroInteractions.createEntranceAnimation(scaleAnim, opacityAnim, Math.random() * 100).start();
+      
+      // Pulse animation for unread messages
+      if (chat.unreadCount > 0) {
+        MicroInteractions.createPulseAnimation(pulseAnim, 0.98, 1.02).start();
+      }
+    }
+  }, [isLoading, checkMessageSafety, scaleAnim, opacityAnim, pulseAnim, chat.unreadCount]);
+  
+  useEffect(() => {
+    if (!isLoading) {
+      // Stop pulse animation when message is read
+      if (chat.unreadCount === 0) {
+        pulseAnim.stopAnimation();
+        pulseAnim.setValue(1);
+      }
+    }
+  }, [isLoading, chat.unreadCount, pulseAnim]);
+  
+  useEffect(() => {
+    if (!isLoading) {
+      // Shake animation for unsafe messages
+      if (!isMessageSafe && violationConfidence > 0.7) {
+        MicroInteractions.createShakeAnimation(shakeAnim).start();
+      }
+    }
+  }, [isLoading, isMessageSafe, violationConfidence, shakeAnim]);
+  
+  // Show skeleton while loading
+  if (isLoading) {
+    return <ChatItemSkeleton />;
+  }
+
+
 
   const getViolationIcon = () => {
     if (isMessageSafe) return null;
