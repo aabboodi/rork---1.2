@@ -22,6 +22,16 @@ export default function ChatsScreen() {
   const colors = theme.colors;
   const t = translations[language];
   
+  // Debug: Log theme status
+  React.useEffect(() => {
+    console.log('ChatsScreen theme status:', {
+      hasTheme: !!theme,
+      hasColors: !!colors,
+      hasBackground: !!colors?.background,
+      themeMode: theme?.mode
+    });
+  }, [theme, colors]);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<ChatType>('conversation');
   const [chats, setChats] = useState<Chat[]>(mockChats);
