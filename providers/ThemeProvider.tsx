@@ -11,7 +11,7 @@ type ThemeCtx = {
   toggleTheme: () => void;
 };
 
-// سياق بقيم افتراضية سليمة (لا undefined)
+// سياق بقيم افتراضية سليمة (لا undefined) - Always provide valid theme
 const ThemeContext = createContext<ThemeCtx>({
   theme: DEFAULT_LIGHT,
   setMode: () => {},
@@ -19,15 +19,33 @@ const ThemeContext = createContext<ThemeCtx>({
   toggleTheme: () => {},
 });
 
+// Validate that DEFAULT_LIGHT is properly defined
+if (!DEFAULT_LIGHT || !DEFAULT_LIGHT.colors || !DEFAULT_LIGHT.colors.background) {
+  console.error('DEFAULT_LIGHT theme is not properly defined!');
+}
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const sys = useColorScheme();
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
   const [ready, setReady] = useState(true); // Start as ready with defaults
   
-  // Ensure we always have a valid theme immediately
+  // Ensure we always have a valid theme immediately - use DEFAULT_LIGHT as fallback
   const [initialTheme] = useState<AppTheme>(() => {
-    const effective = 'system' === 'system' ? (sys === 'dark' ? 'dark' : 'light') : 'system';
-    return effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+    try {
+      const effective = 'system' === 'system' ? (sys === 'dark' ? 'dark' : 'light') : 'system';
+      const theme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+      
+      // Validate the theme has all required properties
+      if (!theme || !theme.colors || !theme.colors.background) {
+        console.warn('Initial theme validation failed, using DEFAULT_LIGHT');
+        return DEFAULT_LIGHT;
+      }
+      
+      return theme;
+    } catch (error) {
+      console.error('Error initializing theme:', error);
+      return DEFAULT_LIGHT;
+    }
   });
 
   // Initialize theme from storage
