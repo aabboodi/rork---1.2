@@ -60,23 +60,33 @@ export default function RootLayout() {
   useEffect(() => {
     let mounted = true;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    const initializeWithMountedCheck = async () => {
+      if (mounted) {
+        await initializeAppSecurity(mounted);
+      }
+    };
+    
     if (loaded) {
       timeoutId = setTimeout(() => {
         if (mounted) {
-          initializeAppSecurity();
+          initializeWithMountedCheck();
         }
       }, 100);
     }
+    
     return () => {
       mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [loaded]);
   
 
 
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
-  const initializeAppSecurity = async () => {
+  const initializeAppSecurity = async (mounted: boolean = true) => {
     try {
       console.log('🚀 Initializing comprehensive security with UEBA and Behavior Analytics...');
       
@@ -87,7 +97,9 @@ export default function RootLayout() {
         console.log('✅ SecurityManager initialized successfully');
       } catch (error) {
         console.error('💥 SecurityManager initialization failed:', error);
-        setSecurityBlocked(true);
+        if (mounted) {
+          setSecurityBlocked(true);
+        }
         return;
       }
       
@@ -284,7 +296,9 @@ export default function RootLayout() {
       // Check for critical security threats that would block app usage
       if (securityStatus?.securityStatus?.riskLevel === 'critical') {
         console.error('🚨 CRITICAL SECURITY THREATS DETECTED ON APP START');
-        setSecurityBlocked(true);
+        if (mounted) {
+          setSecurityBlocked(true);
+        }
         
         // Create critical incident if service is available
         if (incidentResponse) {
@@ -349,7 +363,8 @@ export default function RootLayout() {
       // Set up UEBA monitoring
       setupUEBAMonitoring(uebaService, behaviorAnalyticsService, threatIntelligenceService);
       
-      if (typeof setSecurityInitialized === 'function') {
+      // Only update state if component is still mounted
+      if (mounted && typeof setSecurityInitialized === 'function') {
         setSecurityInitialized(true);
       }
       console.log('✅ Comprehensive security with UEBA and Behavior Analytics initialized successfully');
@@ -378,7 +393,9 @@ export default function RootLayout() {
       
     } catch (error) {
       console.error('💥 Critical security initialization failure:', error);
-      try { setSecurityBlocked(true); } catch {}
+      if (mounted) {
+        try { setSecurityBlocked(true); } catch {}
+      }
       
       // Try to log the error if logging service is available
       try {
@@ -744,7 +761,7 @@ Incident ID: ${incident.id}`,
     }
   };
 
-  // Secure logout with proper cleanup and logging
+  // Secure logout with proper cleanup and logging (for RootLayout)
   const performSecureLogout = async (reason: string) => {
     try {
       console.log(`🔐 Performing secure logout. Reason: ${reason}`);
@@ -966,9 +983,16 @@ Incident ID: ${incident.id}`,
 }
 
 function RootLayoutNav() {
-  const { theme } = useThemeSafe(); // Safe to use here since we're inside ThemeProvider
+  const themeContext = useThemeSafe(); // Safe to use here since we're inside ThemeProvider
   const { isAuthenticated, logout } = useAuthStore();
   const [sessionValid, setSessionValid] = useState(true);
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return null; // Don't render until theme is ready
+  }
+  
+  const { theme } = themeContext;
 
   useEffect(() => {
     // Enhanced authentication check with session validation and incident logging
