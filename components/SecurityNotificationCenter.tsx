@@ -42,7 +42,14 @@ const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({
   onClose,
   userId
 }) => {
-  const { theme } = useThemeSafe();
+  const themeContext = useThemeSafe();
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return null; // Don't render until theme is ready
+  }
+  
+  const { theme } = themeContext;
   const { colors } = theme;
   const router = useRouter();
   const [notifications, setNotifications] = useState<SecurityNotification[]>([]);

@@ -83,7 +83,14 @@ export default function ChatItem({
   onLongPress,
   isLoading = false
 }: ChatItemProps) {
-  const { theme } = useThemeSafe();
+  const themeContext = useThemeSafe();
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return <ChatItemSkeleton />; // Show skeleton while theme loads
+  }
+  
+  const { theme } = themeContext;
   const { colors } = theme;
   const [isMessageSafe, setIsMessageSafe] = useState(true);
   const [violationType, setViolationType] = useState<string | null>(null);

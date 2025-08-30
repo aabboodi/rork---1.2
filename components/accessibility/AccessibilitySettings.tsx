@@ -16,7 +16,14 @@ import { Settings, Eye, Volume2, Type, Contrast, Moon, Sun, Smartphone, Palette 
 import { router } from 'expo-router';
 
 export const AccessibilitySettings: React.FC = () => {
-  const { theme, setMode, toggleTheme } = useThemeSafe();
+  const themeContext = useThemeSafe();
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return null; // Don't render until theme is ready
+  }
+  
+  const { theme, setMode, toggleTheme } = themeContext;
   const { colors } = theme;
   const mode = theme.mode;
   const { settings, preferences, updateSettings, updatePreferences } = useAccessibilityStore();

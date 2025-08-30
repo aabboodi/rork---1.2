@@ -58,7 +58,14 @@ interface NotificationItem {
 }
 
 const SecurityNotificationCenter: React.FC<SecurityNotificationCenterProps> = ({ visible = false, onClose }) => {
-  const { theme } = useThemeSafe();
+  const themeContext = useThemeSafe();
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return null; // Don't render until theme is ready
+  }
+  
+  const { theme } = themeContext;
   const { colors } = theme;
   
   const [deviceNotificationService] = useState(() => NewDeviceNotificationService.getInstance());
