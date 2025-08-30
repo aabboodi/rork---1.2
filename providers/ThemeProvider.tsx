@@ -23,6 +23,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const sys = useColorScheme();
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
   const [ready, setReady] = useState(true); // Start as ready with defaults
+  
+  // Ensure we always have a valid theme immediately
+  const [initialTheme] = useState<AppTheme>(() => {
+    const effective = 'system' === 'system' ? (sys === 'dark' ? 'dark' : 'light') : 'system';
+    return effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+  });
 
   // Initialize theme from storage
   useEffect(() => {
@@ -53,16 +59,30 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const theme = useMemo<AppTheme>(() => {
-    const effective = mode === 'system' ? (sys === 'dark' ? 'dark' : 'light') : mode;
-    const selectedTheme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
-    
-    // Ensure theme always has valid colors
-    if (!selectedTheme || !selectedTheme.colors || !selectedTheme.colors.background) {
-      console.warn('Invalid theme detected, using DEFAULT_LIGHT fallback');
+    try {
+      const effective = mode === 'system' ? (sys === 'dark' ? 'dark' : 'light') : mode;
+      const selectedTheme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+      
+      // Ensure theme always has valid colors with comprehensive validation
+      if (!selectedTheme || !selectedTheme.colors || !selectedTheme.colors.background) {
+        console.warn('Invalid theme detected, using DEFAULT_LIGHT fallback');
+        return DEFAULT_LIGHT;
+      }
+      
+      // Additional validation for all required color properties
+      const requiredColors = ['background', 'surface', 'text', 'primary', 'secondary', 'border'];
+      for (const colorKey of requiredColors) {
+        if (!selectedTheme.colors[colorKey as keyof typeof selectedTheme.colors]) {
+          console.warn(`Missing color ${colorKey}, using DEFAULT_LIGHT fallback`);
+          return DEFAULT_LIGHT;
+        }
+      }
+      
+      return selectedTheme;
+    } catch (error) {
+      console.error('Error computing theme:', error);
       return DEFAULT_LIGHT;
     }
-    
-    return selectedTheme;
   }, [mode, sys]);
 
   // ضبط خلفية النظام لمنع وميض أبيض/أسود
@@ -106,9 +126,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 export function useThemeSafe() {
   const context = useContext(ThemeContext);
   
-  // Always ensure we have a valid theme
+  // Always ensure we have a valid theme with comprehensive checks
   if (!context || !context.theme || !context.theme.colors || !context.theme.colors.background) {
     console.warn('useThemeSafe: Invalid context, returning DEFAULT_LIGHT fallback');
+    return {
+      theme: DEFAULT_LIGHT,
+      setMode: () => {},
+      ready: true,
+      toggleTheme: () => {},
+    };
+  }
+  
+  // Additional safety check for theme structure
+  if (!context.theme.colors || typeof context.theme.colors !== 'object') {
+    console.warn('useThemeSafe: Invalid theme colors, returning DEFAULT_LIGHT fallback');
     return {
       theme: DEFAULT_LIGHT,
       setMode: () => {},
