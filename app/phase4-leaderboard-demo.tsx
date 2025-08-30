@@ -31,7 +31,19 @@ import { useThemeSafe } from '@/providers/ThemeProvider';
 import { AppColors } from '@/constants/theme';
 
 function Phase4LeaderboardDemo() {
-  const { theme } = useThemeSafe();
+  const themeContext = useThemeSafe();
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+        <Text style={{ marginTop: 16, fontSize: 16, color: '#6B7280' }}>Loading theme...</Text>
+      </View>
+    );
+  }
+  
+  const { theme } = themeContext;
   const colors = theme.colors;
   const styles = React.useMemo(() => getStyles(colors), [colors]);
   const [gamesService] = useState(() => GamesService.getInstance());

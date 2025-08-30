@@ -29,7 +29,14 @@ import { AccessibleCard } from '@/components/accessibility/AccessibleCard';
 export default function ProfileScreen() {
   const router = useRouter();
   const { language, logout, userRole, hasPermission } = useAuthStore();
-  const { theme } = useThemeSafe();
+  const themeContext = useThemeSafe();
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return null; // Don't render until theme is ready
+  }
+  
+  const { theme } = themeContext;
   const { colors } = theme;
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const t = translations[language];

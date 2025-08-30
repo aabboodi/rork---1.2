@@ -18,7 +18,14 @@ import { MicroInteractions } from '@/utils/microInteractions';
 export default function ChatsScreen() {
   const router = useRouter();
   const { language } = useAuthStore();
-  const { theme } = useThemeSafe();
+  const themeContext = useThemeSafe();
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return null; // Don't render until theme is ready
+  }
+  
+  const { theme } = themeContext;
   const colors = theme.colors;
   const t = translations[language];
   
