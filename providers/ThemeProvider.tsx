@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useColorScheme } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { AppTheme, DEFAULT_LIGHT, DEFAULT_DARK } from '../constants/theme';
@@ -73,73 +73,57 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [ready, setReady] = useState(true); // Start as ready with default theme to prevent undefined errors
   const [initError, setInitError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
-  const [isMounted, setIsMounted] = useState(true);
+  const mountedRef = useRef(true);
 
   // Initialize theme from storage
   useEffect(() => {
-    let isMounted = true;
+    mountedRef.current = true;
     
     const initializeTheme = async () => {
-      if (isInitializing) return; // Prevent multiple initializations
-      
+      if (isInitializing) return; 
       try {
         setIsInitializing(true);
-        // Try to get persisted theme mode from AsyncStorage
         const AsyncStorage = await import('@react-native-async-storage/async-storage');
         const storedMode = await AsyncStorage.default.getItem('theme-mode');
-        if (isMounted && storedMode && ['light', 'dark', 'system'].includes(storedMode)) {
+        if (mountedRef.current && storedMode && ['light', 'dark', 'system'].includes(storedMode)) {
           setModeState(storedMode as AppTheme['mode']);
         }
       } catch (error) {
         console.warn('Failed to load theme from storage:', error);
-        // Ensure we always have a valid mode even if storage fails
-        if (isMounted) {
+        if (mountedRef.current) {
           setModeState('system');
         }
       } finally {
-        // Theme is already ready with defaults, just ensure it stays ready
-        if (isMounted) {
+        if (mountedRef.current) {
           setReady(true);
           setIsInitializing(false);
         }
       }
     };
     
-    // Only initialize once
     if (!isInitializing) {
       initializeTheme();
     }
     
     return () => {
-      isMounted = false;
+      mountedRef.current = false;
     };
   }, [isInitializing]);
 
   const theme = useMemo<AppTheme>(() => {
     try {
-      // Always ensure we have a valid fallback first
-      if (!isMounted) {
-        return SAFE_FALLBACK_THEME;
-      }
-      
       const effective = mode === 'system' ? (sys === 'dark' ? 'dark' : 'light') : mode;
       let selectedTheme;
-      
-      // Safely get the theme with fallback
       try {
         selectedTheme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
       } catch (themeError) {
         console.warn('Error accessing theme constants, using fallback:', themeError);
         return SAFE_FALLBACK_THEME;
       }
-      
-      // Ensure theme always has valid colors with comprehensive validation
       if (!selectedTheme || !selectedTheme.colors || !selectedTheme.colors.background) {
         console.warn('Invalid theme detected, using SAFE_FALLBACK_THEME');
         return SAFE_FALLBACK_THEME;
       }
-      
-      // Additional validation for all required color properties
       const requiredColors = ['background', 'surface', 'text', 'primary', 'secondary', 'border', 'textSecondary', 'warning', 'error', 'success', 'textInverse'];
       for (const colorKey of requiredColors) {
         if (!selectedTheme.colors[colorKey as keyof typeof selectedTheme.colors]) {
@@ -147,13 +131,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return SAFE_FALLBACK_THEME;
         }
       }
-      
       return selectedTheme;
     } catch (error) {
       console.error('Error computing theme:', error);
       return SAFE_FALLBACK_THEME;
     }
-  }, [mode, sys, isMounted]);
+  }, [mode, sys]);
   
   // Handle error state separately to avoid state updates during render
   useEffect(() => {
@@ -166,29 +149,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // ضبط خلفية النظام لمنع وميض أبيض/أسود
   useEffect(() => {
-    let isMounted = true;
     let timeoutId: NodeJS.Timeout | null = null;
-    
     const updateSystemUI = async () => {
-      // Only update if component is mounted, theme is ready, and background color exists
-      if (isMounted && ready && theme?.colors?.background && !isInitializing) {
+      if (mountedRef.current && ready && theme?.colors?.background && !isInitializing) {
         try {
-          // Add a small delay to ensure the theme is fully initialized
           timeoutId = setTimeout(async () => {
-            if (isMounted && theme?.colors?.background) {
+            if (mountedRef.current && theme?.colors?.background) {
               await SystemUI.setBackgroundColorAsync(theme.colors.background);
             }
           }, 100);
-        } catch {
-          // Silently ignore SystemUI errors
-        }
+        } catch {}
       }
     };
-    
     updateSystemUI();
-    
     return () => {
-      isMounted = false;
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -221,7 +195,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      setIsMounted(false);
+      mountedRef.current = false;
     };
   }, []);
 

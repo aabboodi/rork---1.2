@@ -15,7 +15,11 @@ export default function TabLayout() {
   
   // Ensure theme is available before rendering
   if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
-    return null; // Don't render until theme is ready
+    return (
+      <React.Fragment>
+        {/* Minimal placeholder to satisfy navigator while theme loads */}
+      </React.Fragment>
+    );
   }
   
   const { theme } = themeContext;
