@@ -3,12 +3,12 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { I18nManager, Alert, AppState, Platform, View, Text } from "react-native";
 import { useAuthStore } from "@/store/authStore";
 import { ThemeProvider, useThemeSafe } from "@/providers/ThemeProvider";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
-import React from 'react';
+import React, { useCallback } from 'react';
 import SecurityManager from "@/services/security/SecurityManager";
 import DeviceSecurityService from "@/services/security/DeviceSecurityService";
 import ScreenProtectionService from "@/services/security/ScreenProtectionService";
@@ -986,38 +986,43 @@ function RootLayoutNav() {
   const themeContext = useThemeSafe(); // Safe to use here since we're inside ThemeProvider
   const { isAuthenticated, logout } = useAuthStore();
   const [sessionValid, setSessionValid] = useState(true);
+  const [isValidating, setIsValidating] = useState(false);
   
-  // Always call hooks first, before any early returns
-  useEffect(() => {
-    // Enhanced authentication check with session validation and incident logging
-    if (isAuthenticated) {
-      validateSession();
+  // Define all callbacks first before any conditional returns
+  const performSecureLogout = React.useCallback(async (reason: string) => {
+    try {
+      console.log(`🔐 Performing secure logout. Reason: ${reason}`);
+      
+      const sessionManager = SessionManager.getInstance();
+      const deviceBinding = DeviceBindingService.getInstance();
+      const centralizedLogging = CentralizedLoggingService.getInstance();
+      
+      // Log logout event
+      await centralizedLogging.logSecurity('info', 'user_logout', 'Secure logout performed', {
+        reason,
+        timestamp: Date.now()
+      });
+      
+      // Clear all session data securely
+      await sessionManager.clearSession();
+      await deviceBinding.clearDeviceBinding();
+      
+      // Clear auth store
+      logout();
+      setSessionValid(false);
+      
+      // Log security event
+      console.log(`✅ Secure logout completed. Reason: ${reason}`);
+      
+    } catch (error) {
+      console.error('💥 Error during secure logout:', error);
+      // Force logout even if cleanup fails
+      logout();
+      setSessionValid(false);
     }
-  }, [isAuthenticated]);
-  
-  // Ensure theme is available with comprehensive fallback
-  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
-    // Show a simple loading screen with hardcoded colors while theme loads
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <Text style={{ fontSize: 16, color: '#6B7280' }}>Loading theme...</Text>
-      </View>
-    );
-  }
-  
-  // Additional safety check for background color specifically
-  if (!themeContext.theme.colors.background) {
-    console.error('Theme background color is undefined, using fallback');
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <Text style={{ fontSize: 16, color: '#6B7280' }}>Theme error - using fallback</Text>
-      </View>
-    );
-  }
-  
-  const { theme } = themeContext;
+  }, [logout]);
 
-  const validateSession = async () => {
+  const validateSession = React.useCallback(async () => {
     try {
       const sessionManager = SessionManager.getInstance();
       const deviceBinding = DeviceBindingService.getInstance();
@@ -1158,41 +1163,46 @@ function RootLayoutNav() {
       // On any validation error, force logout for security
       performSecureLogout('validation_error');
     }
-  };
-  
-  // Secure logout with proper cleanup and logging (for RootLayoutNav)
-  const performSecureLogout = async (reason: string) => {
-    try {
-      console.log(`🔐 Performing secure logout. Reason: ${reason}`);
-      
-      const sessionManager = SessionManager.getInstance();
-      const deviceBinding = DeviceBindingService.getInstance();
-      const centralizedLogging = CentralizedLoggingService.getInstance();
-      
-      // Log logout event
-      await centralizedLogging.logSecurity('info', 'user_logout', 'Secure logout performed', {
-        reason,
-        timestamp: Date.now()
+  }, [performSecureLogout]);
+
+  // Always call hooks first, before any early returns
+  useEffect(() => {
+    let isMounted = true;
+    
+    // Enhanced authentication check with session validation and incident logging
+    if (isAuthenticated && !isValidating) {
+      setIsValidating(true);
+      validateSession().finally(() => {
+        if (isMounted) {
+          setIsValidating(false);
+        }
       });
-      
-      // Clear all session data securely
-      await sessionManager.clearSession();
-      await deviceBinding.clearDeviceBinding();
-      
-      // Clear auth store
-      logout();
-      setSessionValid(false);
-      
-      // Log security event
-      console.log(`✅ Secure logout completed. Reason: ${reason}`);
-      
-    } catch (error) {
-      console.error('💥 Error during secure logout:', error);
-      // Force logout even if cleanup fails
-      logout();
-      setSessionValid(false);
     }
-  };
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, isValidating, validateSession]);
+  
+  // Ensure theme is available with comprehensive fallback
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    // Show a simple loading screen with hardcoded colors while theme loads
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <Text style={{ fontSize: 16, color: '#6B7280' }}>Loading theme...</Text>
+      </View>
+    );
+  }
+  
+  // Additional safety check for background color specifically
+  if (!themeContext.theme.colors.background) {
+    console.error('Theme background color is undefined, using fallback');
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <Text style={{ fontSize: 16, color: '#6B7280' }}>Theme error - using fallback</Text>
+      </View>
+    );
+  }
 
   // Don't render authenticated screens if session is invalid
   const shouldShowAuthenticatedScreens = isAuthenticated && sessionValid;
