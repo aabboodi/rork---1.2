@@ -73,6 +73,9 @@ interface AuthState {
   refreshSession: () => Promise<boolean>;
   checkSessionValidity: () => Promise<boolean>;
 
+  // OTP controls
+  isOTPEnabled: () => boolean;
+
   updateChatSettings: (settings: Partial<ChatSettings>) => Promise<void>;
   getChatSettings: () => ChatSettings;
   
@@ -632,6 +635,16 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error('Session validity check failed:', error);
           return false;
+        }
+      },
+
+      // OTP controls - default enabled; can be wired to remote config later
+      isOTPEnabled: () => {
+        try {
+          return true;
+        } catch (e) {
+          console.warn('isOTPEnabled check failed, defaulting to true', e);
+          return true;
         }
       },
 
