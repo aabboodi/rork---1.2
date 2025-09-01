@@ -23,8 +23,9 @@ export default function OTPScreen() {
   const [otp, setOtp] = useState('');
   const [countdown, setCountdown] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
-  type SecurityStatus = { device?: { isSecure?: boolean; riskLevel?: string } };
-  const [securityStatus, setSecurityStatus] = useState<SecurityStatus | null>(null);
+  interface SecurityStatus { device: { isSecure: boolean; riskLevel: string } }
+  const defaultSecurityStatus: SecurityStatus = { device: { isSecure: false, riskLevel: 'Unknown' } };
+  const [securityStatus, setSecurityStatus] = useState<SecurityStatus>(defaultSecurityStatus);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [isSpecialUser, setIsSpecialUser] = useState(false);
@@ -96,8 +97,14 @@ export default function OTPScreen() {
         await screenProtection.protectSensitiveScreen('otp');
         
         // Get security status
-        const status = securityManager.getSecurityStatus();
-        setSecurityStatus(status);
+        const rawStatus = securityManager.getSecurityStatus?.();
+        const nextStatus: SecurityStatus = rawStatus && rawStatus.device ? {
+          device: {
+            isSecure: !!rawStatus.device.isSecure,
+            riskLevel: rawStatus.device.riskLevel ?? 'Unknown',
+          }
+        } : defaultSecurityStatus;
+        setSecurityStatus(nextStatus);
       } catch (error) {
         console.error('Security initialization failed:', error);
       }
@@ -238,11 +245,11 @@ export default function OTPScreen() {
   };
   
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="otp-safe-area">
       <StatusBar style="dark" />
       
       {/* Enhanced Security Indicator */}
-      <View style={styles.securityIndicator}>
+      <View style={styles.securityIndicator} testID="otp-security-indicator">
         <Shield size={20} color={Colors.secure} />
         <Text style={styles.securityText}>Secure Connection</Text>
         <Lock size={16} color={Colors.encrypted} />
@@ -262,7 +269,7 @@ export default function OTPScreen() {
       </View>
       
       <View style={styles.content}>
-        <View style={styles.header}>
+        <View style={styles.header} testID="otp-header">
           <Text style={styles.title}>
             {!otpSystemEnabled ? 'OTP Disabled by Admin' : t.enterOTP}
           </Text>
@@ -273,7 +280,7 @@ export default function OTPScreen() {
             }
           </Text>
           {isSpecialUser && (
-            <View style={styles.specialUserBadge}>
+            <View style={styles.specialUserBadge} testID="otp-special-user-badge">
               <Crown size={20} color={Colors.primary} />
               <Text style={styles.specialUserText}>
                 {userRole === 'main_admin' ? 'Main Administrator' : userRole === 'admin' ? 'Administrator' : 'Privileged User'}
@@ -283,7 +290,7 @@ export default function OTPScreen() {
         </View>
         
         {/* Enhanced Security Features Display */}
-        <View style={styles.securityInfo}>
+        <View style={styles.securityInfo} testID="otp-security-info">
           <Text style={styles.securityLabel}>Security Features Active:</Text>
           <View style={styles.securityFeatures}>
             <View style={styles.securityFeature}>
@@ -312,19 +319,18 @@ export default function OTPScreen() {
             )}
           </View>
           
-          {securityStatus?.device && (
-            <View style={styles.deviceStatus}>
-              <Text style={styles.deviceStatusLabel}>Device Security:</Text>
-              <Text
-                style={[
-                  styles.deviceStatusText,
-                  { color: (securityStatus?.device?.isSecure ?? false) ? Colors.secure : Colors.warning },
-                ]}
-              >
-                {(securityStatus?.device?.isSecure ?? false) ? 'Secure' : `Risk: ${securityStatus?.device?.riskLevel ?? 'Unknown'}`}
-              </Text>
-            </View>
-          )}
+          <View style={styles.deviceStatus} testID="otp-device-status">
+            <Text style={styles.deviceStatusLabel}>Device Security:</Text>
+            <Text
+              style={[
+                styles.deviceStatusText,
+                { color: securityStatus.device.isSecure ? Colors.secure : Colors.warning },
+              ]}
+              testID="otp-device-status-text"
+            >
+              {securityStatus.device.isSecure ? 'Secure' : `Risk: ${securityStatus.device.riskLevel}`}
+            </Text>
+          </View>
         </View>
         
         {/* Show OTP input only if OTP is enabled */}
@@ -333,6 +339,7 @@ export default function OTPScreen() {
             length={6}
             value={otp}
             onChange={setOtp}
+            testID="otp-input"
           />
         )}
         
@@ -343,6 +350,7 @@ export default function OTPScreen() {
             disabled={otp.length !== 6}
             loading={isLoading}
             style={styles.button}
+            testID="otp-verify-button"
           />
         ) : (
           <Button
@@ -350,6 +358,7 @@ export default function OTPScreen() {
             onPress={handleOTPDisabledBypass}
             loading={isLoading}
             style={[styles.button, styles.bypassButton]}
+            testID="otp-bypass-admin"
           />
         )}
         
@@ -359,6 +368,7 @@ export default function OTPScreen() {
             onPress={handleSpecialUserBypass}
             loading={isLoading}
             style={[styles.button, styles.bypassButton]}
+            testID="otp-bypass-special"
           />
         )}
         
@@ -367,6 +377,7 @@ export default function OTPScreen() {
             style={styles.resendContainer}
             onPress={handleResend}
             disabled={countdown > 0}
+            testID="otp-resend"
           >
             <Text
               style={[
@@ -380,7 +391,7 @@ export default function OTPScreen() {
         )}
 
         {/* Security Notice */}
-        <View style={styles.securityNotice}>
+        <View style={styles.securityNotice} testID="otp-security-notice">
           <Text style={styles.noticeText}>
             🔒 Your data is protected with military-grade encryption and advanced security measures.
             {!otpSystemEnabled && ' ⚠️ OTP verification is currently disabled by the administrator.'}
