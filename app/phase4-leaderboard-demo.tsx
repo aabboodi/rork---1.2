@@ -43,6 +43,7 @@ function Phase4LeaderboardDemo() {
   const [anomalyStats, setAnomalyStats] = useState<any>(null);
   const [flaggedScores, setFlaggedScores] = useState<any[]>([]);
   const [antiCheatEnabled, setAntiCheatEnabled] = useState(true);
+  const [isMounted, setIsMounted] = useState(true);
   
   // Get theme with fallback
   const theme = themeContext?.theme || { colors: { background: '#FFFFFF', primary: '#4F46E5', text: '#111827', textSecondary: '#6B7280', surface: '#F7F7F8', border: '#E5E7EB', warning: '#F59E0B', error: '#EF4444', success: '#16A34A', textInverse: '#FFFFFF' } };
@@ -50,21 +51,29 @@ function Phase4LeaderboardDemo() {
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   const loadDemoData = useCallback(async () => {
+    if (!isMounted) return;
+    
     try {
       // Get anomaly stats for demo game
       const stats = await gamesService.getGameAnomalyStats(selectedGame);
-      setAnomalyStats(stats);
+      if (isMounted) {
+        setAnomalyStats(stats);
+      }
 
       // Get flagged scores
       const flagged = await gamesService.getFlaggedGameScores(selectedGame, 5);
-      setFlaggedScores(flagged);
+      if (isMounted) {
+        setFlaggedScores(flagged);
+      }
 
     } catch (error) {
       console.warn('⚠️ Failed to load demo data:', error);
     }
-  }, [gamesService, selectedGame]);
+  }, [gamesService, selectedGame, isMounted]);
 
   const initializeServices = useCallback(async () => {
+    if (!isMounted) return;
+    
     try {
       console.log('🏆 Initializing Phase 4 Leaderboard Demo...');
       
@@ -79,20 +88,28 @@ function Phase4LeaderboardDemo() {
       console.log('✅ Phase 4 services initialized');
     } catch (error) {
       console.error('❌ Phase 4 initialization failed:', error);
-      Alert.alert('Initialization Error', 'Failed to initialize leaderboard services');
+      if (isMounted) {
+        Alert.alert('Initialization Error', 'Failed to initialize leaderboard services');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
-  }, [gamesService, leaderboardService, loadDemoData]);
+  }, [gamesService, leaderboardService, loadDemoData, isMounted]);
 
   const handleSubmitScore = useCallback(async () => {
+    if (!isMounted) return;
+    
     if (!testScore || isNaN(Number(testScore))) {
       Alert.alert('Invalid Score', 'Please enter a valid numeric score');
       return;
     }
 
     try {
-      setIsLoading(true);
+      if (isMounted) {
+        setIsLoading(true);
+      }
       
       const response = await gamesService.submitGameScore(
         {
@@ -124,22 +141,32 @@ function Phase4LeaderboardDemo() {
         message += `\\n❌ Reason: ${response.reason}`;
       }
 
-      Alert.alert('Score Submission', message);
+      if (isMounted) {
+        Alert.alert('Score Submission', message);
+      }
       
       // Reload demo data
       await loadDemoData();
 
     } catch (error) {
       console.error('❌ Score submission failed:', error);
-      Alert.alert('Error', 'Failed to submit score');
+      if (isMounted) {
+        Alert.alert('Error', 'Failed to submit score');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
-  }, [gamesService, selectedGame, testScore, userId, userName, antiCheatEnabled, loadDemoData]);
+  }, [gamesService, selectedGame, testScore, userId, userName, antiCheatEnabled, loadDemoData, isMounted]);
 
   const handleSubmitSuspiciousScore = useCallback(async () => {
+    if (!isMounted) return;
+    
     try {
-      setIsLoading(true);
+      if (isMounted) {
+        setIsLoading(true);
+      }
       
       // Submit an obviously suspicious score to test anti-cheat
       const suspiciousScore = 999999999;
@@ -167,50 +194,75 @@ function Phase4LeaderboardDemo() {
         message += '\\n⚠️ Score was not flagged - check anti-cheat settings';
       }
 
-      Alert.alert('Anti-Cheat Test', message);
+      if (isMounted) {
+        Alert.alert('Anti-Cheat Test', message);
+      }
       
       // Reload demo data
       await loadDemoData();
 
     } catch (error) {
       console.error('❌ Suspicious score test failed:', error);
-      Alert.alert('Error', 'Failed to test suspicious score');
+      if (isMounted) {
+        Alert.alert('Error', 'Failed to test suspicious score');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
-  }, [gamesService, selectedGame, userId, userName, loadDemoData]);
+  }, [gamesService, selectedGame, userId, userName, loadDemoData, isMounted]);
 
   const handleApproveScore = useCallback(async (scoreId: string) => {
+    if (!isMounted) return;
+    
     try {
       await gamesService.approveGameScore(scoreId, 'demo-admin');
-      Alert.alert('Success', 'Score approved');
+      if (isMounted) {
+        Alert.alert('Success', 'Score approved');
+      }
       await loadDemoData();
     } catch (error) {
       console.error('❌ Failed to approve score:', error);
-      Alert.alert('Error', 'Failed to approve score');
+      if (isMounted) {
+        Alert.alert('Error', 'Failed to approve score');
+      }
     }
-  }, [gamesService, loadDemoData]);
+  }, [gamesService, loadDemoData, isMounted]);
 
   const handleRejectScore = useCallback(async (scoreId: string) => {
+    if (!isMounted) return;
+    
     try {
       await gamesService.rejectGameScore(scoreId, 'Confirmed cheat attempt', 'demo-admin');
-      Alert.alert('Success', 'Score rejected');
+      if (isMounted) {
+        Alert.alert('Success', 'Score rejected');
+      }
       await loadDemoData();
     } catch (error) {
       console.error('❌ Failed to reject score:', error);
-      Alert.alert('Error', 'Failed to reject score');
+      if (isMounted) {
+        Alert.alert('Error', 'Failed to reject score');
+      }
     }
-  }, [gamesService, loadDemoData]);
+  }, [gamesService, loadDemoData, isMounted]);
 
   useEffect(() => {
     initializeServices();
   }, [initializeServices]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && isMounted) {
       loadDemoData();
     }
-  }, [selectedGame, isLoading, loadDemoData]);
+  }, [selectedGame, isLoading, loadDemoData, isMounted]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
   
   // Early return for theme loading
   if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {

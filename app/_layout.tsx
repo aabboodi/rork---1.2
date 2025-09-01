@@ -63,11 +63,19 @@ export default function RootLayout() {
     
     const initializeWithMountedCheck = async () => {
       if (mounted) {
-        await initializeAppSecurity(mounted);
+        try {
+          await initializeAppSecurity(mounted);
+        } catch (error) {
+          console.error('Security initialization failed:', error);
+          // Don't update state if component is unmounted
+          if (mounted) {
+            setSecurityBlocked(true);
+          }
+        }
       }
     };
     
-    if (loaded) {
+    if (loaded && mounted) {
       timeoutId = setTimeout(() => {
         if (mounted) {
           initializeWithMountedCheck();
@@ -365,7 +373,11 @@ export default function RootLayout() {
       
       // Only update state if component is still mounted
       if (mounted && typeof setSecurityInitialized === 'function') {
-        setSecurityInitialized(true);
+        try {
+          setSecurityInitialized(true);
+        } catch (stateError) {
+          console.warn('Failed to update security initialized state:', stateError);
+        }
       }
       console.log('✅ Comprehensive security with UEBA and Behavior Analytics initialized successfully');
       
@@ -394,7 +406,11 @@ export default function RootLayout() {
     } catch (error) {
       console.error('💥 Critical security initialization failure:', error);
       if (mounted) {
-        try { setSecurityBlocked(true); } catch {}
+        try { 
+          setSecurityBlocked(true); 
+        } catch (stateError) {
+          console.warn('Failed to update security blocked state:', stateError);
+        }
       }
       
       // Try to log the error if logging service is available

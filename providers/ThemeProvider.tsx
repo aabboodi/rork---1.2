@@ -11,14 +11,6 @@ type ThemeCtx = {
   toggleTheme: () => void;
 };
 
-// سياق بقيم افتراضية سليمة (لا undefined) - Always provide valid theme
-const ThemeContext = createContext<ThemeCtx>({
-  theme: DEFAULT_LIGHT,
-  setMode: () => {},
-  ready: true,
-  toggleTheme: () => {},
-});
-
 // Create a safe fallback theme that's guaranteed to have all required properties
 const SAFE_FALLBACK_THEME: AppTheme = {
   mode: 'light',
@@ -67,12 +59,21 @@ if (!DEFAULT_LIGHT || !DEFAULT_LIGHT.colors || !DEFAULT_LIGHT.colors.background)
   console.error('DEFAULT_LIGHT theme is not properly defined!');
 }
 
+// سياق بقيم افتراضية سليمة (لا undefined) - Always provide valid theme
+const ThemeContext = createContext<ThemeCtx>({
+  theme: SAFE_FALLBACK_THEME,
+  setMode: () => {},
+  ready: true,
+  toggleTheme: () => {},
+});
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const sys = useColorScheme();
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
   const [ready, setReady] = useState(true); // Start as ready with default theme to prevent undefined errors
   const [initError, setInitError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [isMounted, setIsMounted] = useState(true);
 
   // Initialize theme from storage
   useEffect(() => {
@@ -116,8 +117,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const theme = useMemo<AppTheme>(() => {
     try {
+      // Always ensure we have a valid fallback first
+      if (!isMounted) {
+        return SAFE_FALLBACK_THEME;
+      }
+      
       const effective = mode === 'system' ? (sys === 'dark' ? 'dark' : 'light') : mode;
-      let selectedTheme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+      let selectedTheme;
+      
+      // Safely get the theme with fallback
+      try {
+        selectedTheme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
+      } catch (themeError) {
+        console.warn('Error accessing theme constants, using fallback:', themeError);
+        return SAFE_FALLBACK_THEME;
+      }
       
       // Ensure theme always has valid colors with comprehensive validation
       if (!selectedTheme || !selectedTheme.colors || !selectedTheme.colors.background) {
@@ -139,7 +153,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Error computing theme:', error);
       return SAFE_FALLBACK_THEME;
     }
-  }, [mode, sys]);
+  }, [mode, sys, isMounted]);
   
   // Handle error state separately to avoid state updates during render
   useEffect(() => {
@@ -203,6 +217,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [mode, setMode]);
 
   const value = useMemo(() => ({ theme, setMode, ready, toggleTheme }), [theme, setMode, ready, toggleTheme]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
 
   return (
     <ThemeContext.Provider value={value}>
