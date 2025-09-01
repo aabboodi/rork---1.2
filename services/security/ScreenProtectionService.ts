@@ -685,6 +685,48 @@ class ScreenProtectionService {
     }
   }
 
+  // Protect a specific sensitive screen context
+  async protectSensitiveScreen(context: string): Promise<boolean> {
+    try {
+      console.log(`🔒 Protecting sensitive screen: ${context}`);
+      const result = await this.forceEnableProtection();
+      if (!result) {
+        console.warn('ScreenProtectionService.protectSensitiveScreen: forceEnableProtection returned false');
+      }
+      this.logProtectionEvent({
+        type: 'protection_enabled',
+        timestamp: Date.now(),
+        details: { context, config: this.protectionConfig, platform: Platform.OS },
+        severity: 'low'
+      });
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to protect sensitive screen:', error);
+      return false;
+    }
+  }
+
+  // Unprotect a previously protected screen context
+  async unprotectScreen(context: string): Promise<boolean> {
+    try {
+      console.log(`🔓 Unprotecting sensitive screen: ${context}`);
+      const result = await this.disableScreenProtection();
+      if (!result) {
+        console.warn('ScreenProtectionService.unprotectScreen: disableScreenProtection returned false');
+      }
+      this.logProtectionEvent({
+        type: 'protection_disabled',
+        timestamp: Date.now(),
+        details: { context, platform: Platform.OS },
+        severity: 'low'
+      });
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to unprotect screen:', error);
+      return false;
+    }
+  }
+
   // Check if device supports screen protection
   async checkProtectionSupport(): Promise<{
     screenshotPrevention: boolean;
