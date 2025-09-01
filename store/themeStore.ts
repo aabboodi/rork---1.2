@@ -401,38 +401,45 @@ export const useThemeStore = create<ThemeState>()(
           let subscription: any = null;
           let intervalId: any = null;
           
-          // Set up system theme listener
-          subscription = Appearance.addChangeListener(({ colorScheme }) => {
+          // Use setTimeout to defer listener setup to avoid render issues
+          setTimeout(() => {
             try {
-              const currentState = get();
-              const { mode, isAutoAdaptive, adaptiveMode } = currentState;
-              if (mode === 'auto' && (!isAutoAdaptive || adaptiveMode === 'system')) {
-                const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
-                // Only update if scheme actually changed
-                if (currentState.colorScheme !== newScheme) {
-                  set({
-                    colorScheme: newScheme,
-                    colors: getSafeColors(newScheme),
-                  });
+              // Set up system theme listener
+              subscription = Appearance.addChangeListener(({ colorScheme }) => {
+                try {
+                  const currentState = get();
+                  const { mode, isAutoAdaptive, adaptiveMode } = currentState;
+                  if (mode === 'auto' && (!isAutoAdaptive || adaptiveMode === 'system')) {
+                    const newScheme = colorScheme === 'dark' ? 'dark' : 'light';
+                    // Only update if scheme actually changed
+                    if (currentState.colorScheme !== newScheme) {
+                      set({
+                        colorScheme: newScheme,
+                        colors: getSafeColors(newScheme),
+                      });
+                    }
+                  }
+                } catch (error) {
+                  console.warn('Theme change listener error:', error);
                 }
-              }
+              });
+              
+              // Set up periodic theme checking for auto-adaptive modes
+              intervalId = setInterval(() => {
+                try {
+                  const currentState = get();
+                  const { mode, isAutoAdaptive } = currentState;
+                  if (mode === 'auto' && isAutoAdaptive) {
+                    get().checkAndUpdateTheme();
+                  }
+                } catch (error) {
+                  console.warn('Periodic theme check error:', error);
+                }
+              }, 60000); // Check every minute
             } catch (error) {
-              console.warn('Theme change listener error:', error);
+              console.warn('Theme listener setup error:', error);
             }
-          });
-          
-          // Set up periodic theme checking for auto-adaptive modes
-          intervalId = setInterval(() => {
-            try {
-              const currentState = get();
-              const { mode, isAutoAdaptive } = currentState;
-              if (mode === 'auto' && isAutoAdaptive) {
-                get().checkAndUpdateTheme();
-              }
-            } catch (error) {
-              console.warn('Periodic theme check error:', error);
-            }
-          }, 60000); // Check every minute
+          }, 0);
           
           return () => {
             try {
