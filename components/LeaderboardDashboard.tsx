@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Trophy, Medal, Flag, Shield, TrendingUp, Users, Clock, AlertTriangle } from 'lucide-react-native';
 import { GamesLeaderboardService, Leaderboard, LeaderboardEntry, GameScore } from '@/services/GamesLeaderboardService';
-import { colors } from '@/constants/colors';
+import colors from '@/constants/colors';
 
 interface LeaderboardDashboardProps {
   gameId: string;
