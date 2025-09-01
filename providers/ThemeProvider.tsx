@@ -27,26 +27,7 @@ if (!DEFAULT_LIGHT || !DEFAULT_LIGHT.colors || !DEFAULT_LIGHT.colors.background)
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const sys = useColorScheme();
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
-  const [ready, setReady] = useState(true); // Start as ready with defaults
-  
-  // Ensure we always have a valid theme immediately - use DEFAULT_LIGHT as fallback
-  const [initialTheme] = useState<AppTheme>(() => {
-    try {
-      const effective = 'system' === 'system' ? (sys === 'dark' ? 'dark' : 'light') : 'system';
-      const theme = effective === 'dark' ? DEFAULT_DARK : DEFAULT_LIGHT;
-      
-      // Validate the theme has all required properties
-      if (!theme || !theme.colors || !theme.colors.background) {
-        console.warn('Initial theme validation failed, using DEFAULT_LIGHT');
-        return DEFAULT_LIGHT;
-      }
-      
-      return theme;
-    } catch (error) {
-      console.error('Error initializing theme:', error);
-      return DEFAULT_LIGHT;
-    }
-  });
+  const [ready] = useState(true); // Start as ready with defaults
 
   // Initialize theme from storage
   useEffect(() => {
@@ -105,9 +86,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // ضبط خلفية النظام لمنع وميض أبيض/أسود
   useEffect(() => {
-    if (theme?.colors?.background) {
-      SystemUI.setBackgroundColorAsync(theme.colors.background).catch(() => {});
-    }
+    let isMounted = true;
+    
+    const updateSystemUI = async () => {
+      if (isMounted && theme?.colors?.background) {
+        try {
+          await SystemUI.setBackgroundColorAsync(theme.colors.background);
+        } catch {
+          // Silently ignore SystemUI errors
+        }
+      }
+    };
+    
+    updateSystemUI();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [theme?.colors?.background]);
 
   const setMode = useCallback(async (newMode: AppTheme['mode']) => {

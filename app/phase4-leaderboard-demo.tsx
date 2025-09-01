@@ -32,20 +32,6 @@ import { AppColors } from '@/constants/theme';
 
 function Phase4LeaderboardDemo() {
   const themeContext = useThemeSafe();
-  
-  // Ensure theme is available before rendering
-  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#4F46E5" />
-        <Text style={{ marginTop: 16, fontSize: 16, color: '#6B7280' }}>Loading theme...</Text>
-      </View>
-    );
-  }
-  
-  const { theme } = themeContext;
-  const colors = theme.colors;
-  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const [gamesService] = useState(() => GamesService.getInstance());
   const [leaderboardService] = useState(() => GamesLeaderboardService.getInstance());
   const [isLoading, setIsLoading] = useState(true);
@@ -57,6 +43,26 @@ function Phase4LeaderboardDemo() {
   const [anomalyStats, setAnomalyStats] = useState<any>(null);
   const [flaggedScores, setFlaggedScores] = useState<any[]>([]);
   const [antiCheatEnabled, setAntiCheatEnabled] = useState(true);
+  
+  // Get theme with fallback
+  const theme = themeContext?.theme || { colors: { background: '#FFFFFF', primary: '#4F46E5', text: '#111827', textSecondary: '#6B7280', surface: '#F7F7F8', border: '#E5E7EB', warning: '#F59E0B', error: '#EF4444', success: '#16A34A', textInverse: '#FFFFFF' } };
+  const colors = theme.colors;
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
+  const loadDemoData = useCallback(async () => {
+    try {
+      // Get anomaly stats for demo game
+      const stats = await gamesService.getGameAnomalyStats(selectedGame);
+      setAnomalyStats(stats);
+
+      // Get flagged scores
+      const flagged = await gamesService.getFlaggedGameScores(selectedGame, 5);
+      setFlaggedScores(flagged);
+
+    } catch (error) {
+      console.warn('⚠️ Failed to load demo data:', error);
+    }
+  }, [gamesService, selectedGame]);
 
   const initializeServices = useCallback(async () => {
     try {
@@ -77,22 +83,7 @@ function Phase4LeaderboardDemo() {
     } finally {
       setIsLoading(false);
     }
-  }, [gamesService, leaderboardService]);
-
-  const loadDemoData = useCallback(async () => {
-    try {
-      // Get anomaly stats for demo game
-      const stats = await gamesService.getGameAnomalyStats(selectedGame);
-      setAnomalyStats(stats);
-
-      // Get flagged scores
-      const flagged = await gamesService.getFlaggedGameScores(selectedGame, 5);
-      setFlaggedScores(flagged);
-
-    } catch (error) {
-      console.warn('⚠️ Failed to load demo data:', error);
-    }
-  }, [gamesService, selectedGame]);
+  }, [gamesService, leaderboardService, loadDemoData]);
 
   const handleSubmitScore = useCallback(async () => {
     if (!testScore || isNaN(Number(testScore))) {
@@ -220,6 +211,16 @@ function Phase4LeaderboardDemo() {
       loadDemoData();
     }
   }, [selectedGame, isLoading, loadDemoData]);
+  
+  // Early return for theme loading
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+        <Text style={{ marginTop: 16, fontSize: 16, color: '#6B7280' }}>Loading theme...</Text>
+      </View>
+    );
+  }
 
   const renderGameSelector = () => (
     <View style={styles.selectorContainer}>
@@ -451,7 +452,7 @@ function Phase4LeaderboardDemo() {
 
 
 
-type ThemeColors = ReturnType<typeof getStyles> extends StyleSheet.NamedStyles<infer T> ? AppColors : AppColors;
+
 
 const getStyles = (colors: AppColors) => StyleSheet.create({
   container: {
