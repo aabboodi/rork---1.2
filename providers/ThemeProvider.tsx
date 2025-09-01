@@ -27,7 +27,7 @@ if (!DEFAULT_LIGHT || !DEFAULT_LIGHT.colors || !DEFAULT_LIGHT.colors.background)
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const sys = useColorScheme();
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
-  const [ready] = useState(true); // Start as ready with defaults
+  const [ready, setReady] = useState(false); // Start as not ready until theme is loaded
 
   // Initialize theme from storage
   useEffect(() => {
@@ -46,6 +46,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Ensure we always have a valid mode even if storage fails
         if (isMounted) {
           setModeState('system');
+        }
+      } finally {
+        // Always set ready to true after initialization attempt
+        if (isMounted) {
+          setReady(true);
         }
       }
     };
@@ -145,7 +150,7 @@ export function useThemeSafe() {
     return {
       theme: DEFAULT_LIGHT,
       setMode: () => {},
-      ready: true,
+      ready: false, // Not ready if we're using fallback
       toggleTheme: () => {},
     };
   }

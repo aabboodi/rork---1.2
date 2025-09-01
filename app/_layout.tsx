@@ -4,7 +4,7 @@ import { Stack } from "expo-router";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
-import { I18nManager, Alert, AppState, Platform } from "react-native";
+import { I18nManager, Alert, AppState, Platform, View, Text } from "react-native";
 import { useAuthStore } from "@/store/authStore";
 import { ThemeProvider, useThemeSafe } from "@/providers/ThemeProvider";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
@@ -987,19 +987,25 @@ function RootLayoutNav() {
   const { isAuthenticated, logout } = useAuthStore();
   const [sessionValid, setSessionValid] = useState(true);
   
-  // Ensure theme is available before rendering
-  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
-    return null; // Don't render until theme is ready
-  }
-  
-  const { theme } = themeContext;
-
+  // Always call hooks first, before any early returns
   useEffect(() => {
     // Enhanced authentication check with session validation and incident logging
     if (isAuthenticated) {
       validateSession();
     }
   }, [isAuthenticated]);
+  
+  // Ensure theme is available and ready before rendering
+  if (!themeContext || !themeContext.ready || !themeContext.theme || !themeContext.theme.colors || !themeContext.theme.colors.background) {
+    // Show a simple loading screen with hardcoded colors while theme loads
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <Text style={{ fontSize: 16, color: '#6B7280' }}>Loading...</Text>
+      </View>
+    );
+  }
+  
+  const { theme } = themeContext;
 
   const validateSession = async () => {
     try {
