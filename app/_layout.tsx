@@ -1172,11 +1172,14 @@ function RootLayoutNav() {
     // Enhanced authentication check with session validation and incident logging
     if (isAuthenticated && !isValidating) {
       setIsValidating(true);
-      validateSession().finally(() => {
-        if (isMounted) {
-          setIsValidating(false);
-        }
-      });
+      // Use setTimeout to defer validation to avoid state updates during render
+      setTimeout(() => {
+        validateSession().finally(() => {
+          if (isMounted) {
+            setIsValidating(false);
+          }
+        });
+      }, 0);
     }
     
     return () => {

@@ -72,13 +72,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
   const [ready, setReady] = useState(true); // Start as ready with default theme to prevent undefined errors
   const [initError, setInitError] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
 
   // Initialize theme from storage
   useEffect(() => {
     let isMounted = true;
     
     const initializeTheme = async () => {
+      if (isInitializing) return; // Prevent multiple initializations
+      
       try {
+        setIsInitializing(true);
         // Try to get persisted theme mode from AsyncStorage
         const AsyncStorage = await import('@react-native-async-storage/async-storage');
         const storedMode = await AsyncStorage.default.getItem('theme-mode');
@@ -95,16 +99,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Theme is already ready with defaults, just ensure it stays ready
         if (isMounted) {
           setReady(true);
+          setIsInitializing(false);
         }
       }
     };
     
-    initializeTheme();
+    // Only initialize once
+    if (!isInitializing) {
+      initializeTheme();
+    }
     
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isInitializing]);
 
   const theme = useMemo<AppTheme>(() => {
     try {
@@ -114,7 +122,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Ensure theme always has valid colors with comprehensive validation
       if (!selectedTheme || !selectedTheme.colors || !selectedTheme.colors.background) {
         console.warn('Invalid theme detected, using SAFE_FALLBACK_THEME');
-        setInitError('Theme validation failed - using fallback');
         return SAFE_FALLBACK_THEME;
       }
       
@@ -123,34 +130,37 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       for (const colorKey of requiredColors) {
         if (!selectedTheme.colors[colorKey as keyof typeof selectedTheme.colors]) {
           console.warn(`Missing color ${colorKey}, using SAFE_FALLBACK_THEME`);
-          setInitError(`Missing color property: ${colorKey}`);
           return SAFE_FALLBACK_THEME;
         }
-      }
-      
-      // Clear any previous errors if theme is valid
-      if (initError) {
-        setInitError(null);
       }
       
       return selectedTheme;
     } catch (error) {
       console.error('Error computing theme:', error);
-      setInitError(error instanceof Error ? error.message : 'Unknown theme error');
       return SAFE_FALLBACK_THEME;
     }
-  }, [mode, sys, initError]);
+  }, [mode, sys]);
+  
+  // Handle error state separately to avoid state updates during render
+  useEffect(() => {
+    if (!theme || !theme.colors || !theme.colors.background) {
+      setInitError('Theme validation failed - using fallback');
+    } else if (initError) {
+      setInitError(null);
+    }
+  }, [theme, initError]);
 
   // ضبط خلفية النظام لمنع وميض أبيض/أسود
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
     
     const updateSystemUI = async () => {
       // Only update if component is mounted, theme is ready, and background color exists
-      if (isMounted && ready && theme?.colors?.background) {
+      if (isMounted && ready && theme?.colors?.background && !isInitializing) {
         try {
           // Add a small delay to ensure the theme is fully initialized
-          setTimeout(async () => {
+          timeoutId = setTimeout(async () => {
             if (isMounted && theme?.colors?.background) {
               await SystemUI.setBackgroundColorAsync(theme.colors.background);
             }
@@ -165,8 +175,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     return () => {
       isMounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [theme?.colors?.background, ready]);
+  }, [theme?.colors?.background, ready, isInitializing]);
 
   const setMode = useCallback(async (newMode: AppTheme['mode']) => {
     try {

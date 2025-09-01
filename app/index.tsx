@@ -2,14 +2,14 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
-import { useThemeStore } from '@/store/themeStore';
+import { useThemeSafe } from '@/providers/ThemeProvider';
 import { translations } from '@/constants/i18n';
 import { Phone, Shield, Key } from 'lucide-react-native';
 
 export default function IndexScreen() {
   const router = useRouter();
   const { isAuthenticated, language } = useAuthStore();
-  const { colors } = useThemeStore();
+  const themeContext = useThemeSafe();
   const t = translations[language];
 
   useEffect(() => {
@@ -17,7 +17,14 @@ export default function IndexScreen() {
     if (isAuthenticated) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
+  
+  // Ensure theme is available before rendering
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
+    return null; // Don't render until theme is ready
+  }
+  
+  const { colors } = themeContext.theme;
 
   const handleLogin = () => {
     router.push('/auth/otp');
