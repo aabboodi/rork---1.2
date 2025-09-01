@@ -723,4 +723,5 @@ const getStyles = (colors: AppColors) => StyleSheet.create({
   },
 });
 
+// Fix: Add proper default export
 export default Phase4LeaderboardDemo;

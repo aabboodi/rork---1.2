@@ -127,4 +127,15 @@ export const DEFAULT_DARK: AppTheme = {
   },
 };
 
+// Validate that themes are properly defined at module load time
+if (!DEFAULT_LIGHT || !DEFAULT_LIGHT.colors || !DEFAULT_LIGHT.colors.background) {
+  console.error('DEFAULT_LIGHT theme is not properly defined!', DEFAULT_LIGHT);
+  throw new Error('DEFAULT_LIGHT theme is missing required properties');
+}
+
+if (!DEFAULT_DARK || !DEFAULT_DARK.colors || !DEFAULT_DARK.colors.background) {
+  console.error('DEFAULT_DARK theme is not properly defined!', DEFAULT_DARK);
+  throw new Error('DEFAULT_DARK theme is missing required properties');
+}
+
 // لا تصدّر أي شيء يقرأ من Zustand هنا. هذا الملف يجب يبقى نقيًا من الاعتمادات.

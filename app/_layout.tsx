@@ -995,12 +995,22 @@ function RootLayoutNav() {
     }
   }, [isAuthenticated]);
   
-  // Ensure theme is available and ready before rendering
-  if (!themeContext || !themeContext.ready || !themeContext.theme || !themeContext.theme.colors || !themeContext.theme.colors.background) {
+  // Ensure theme is available with comprehensive fallback
+  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
     // Show a simple loading screen with hardcoded colors while theme loads
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <Text style={{ fontSize: 16, color: '#6B7280' }}>Loading...</Text>
+        <Text style={{ fontSize: 16, color: '#6B7280' }}>Loading theme...</Text>
+      </View>
+    );
+  }
+  
+  // Additional safety check for background color specifically
+  if (!themeContext.theme.colors.background) {
+    console.error('Theme background color is undefined, using fallback');
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <Text style={{ fontSize: 16, color: '#6B7280' }}>Theme error - using fallback</Text>
       </View>
     );
   }
@@ -1217,6 +1227,7 @@ function RootLayoutNav() {
           <Stack.Screen name="accessibility" options={{ headerShown: true, presentation: 'card' }} />
           <Stack.Screen name="accessibility-showcase" options={{ headerShown: true, presentation: 'card' }} />
           <Stack.Screen name="security/activity" options={{ headerShown: true, presentation: 'card' }} />
+          <Stack.Screen name="phase4-leaderboard-demo" options={{ headerShown: true, presentation: 'card' }} />
 
         </>
       )}

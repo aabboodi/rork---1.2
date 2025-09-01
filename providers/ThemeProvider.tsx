@@ -27,7 +27,7 @@ if (!DEFAULT_LIGHT || !DEFAULT_LIGHT.colors || !DEFAULT_LIGHT.colors.background)
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const sys = useColorScheme();
   const [mode, setModeState] = useState<AppTheme['mode']>('system');
-  const [ready, setReady] = useState(false); // Start as not ready until theme is loaded
+  const [ready, setReady] = useState(true); // Start as ready with default theme to prevent undefined errors
 
   // Initialize theme from storage
   useEffect(() => {
@@ -48,7 +48,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setModeState('system');
         }
       } finally {
-        // Always set ready to true after initialization attempt
+        // Theme is already ready with defaults, just ensure it stays ready
         if (isMounted) {
           setReady(true);
         }
@@ -94,9 +94,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let isMounted = true;
     
     const updateSystemUI = async () => {
-      if (isMounted && theme?.colors?.background) {
+      // Only update if component is mounted, theme is ready, and background color exists
+      if (isMounted && ready && theme?.colors?.background) {
         try {
-          await SystemUI.setBackgroundColorAsync(theme.colors.background);
+          // Add a small delay to ensure the theme is fully initialized
+          setTimeout(async () => {
+            if (isMounted && theme?.colors?.background) {
+              await SystemUI.setBackgroundColorAsync(theme.colors.background);
+            }
+          }, 100);
         } catch {
           // Silently ignore SystemUI errors
         }
@@ -108,7 +114,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       isMounted = false;
     };
-  }, [theme?.colors?.background]);
+  }, [theme?.colors?.background, ready]);
 
   const setMode = useCallback(async (newMode: AppTheme['mode']) => {
     try {
