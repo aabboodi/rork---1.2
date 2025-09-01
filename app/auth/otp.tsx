@@ -23,7 +23,8 @@ export default function OTPScreen() {
   const [otp, setOtp] = useState('');
   const [countdown, setCountdown] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
-  const [securityStatus, setSecurityStatus] = useState<any>(null);
+  type SecurityStatus = { device?: { isSecure?: boolean; riskLevel?: string } };
+  const [securityStatus, setSecurityStatus] = useState<SecurityStatus | null>(null);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [isSpecialUser, setIsSpecialUser] = useState(false);
@@ -311,14 +312,16 @@ export default function OTPScreen() {
             )}
           </View>
           
-          {securityStatus && (
+          {securityStatus?.device && (
             <View style={styles.deviceStatus}>
               <Text style={styles.deviceStatusLabel}>Device Security:</Text>
-              <Text style={[
-                styles.deviceStatusText,
-                { color: securityStatus.device.isSecure ? Colors.secure : Colors.warning }
-              ]}>
-                {securityStatus.device.isSecure ? 'Secure' : `Risk: ${securityStatus.device.riskLevel}`}
+              <Text
+                style={[
+                  styles.deviceStatusText,
+                  { color: (securityStatus?.device?.isSecure ?? false) ? Colors.secure : Colors.warning },
+                ]}
+              >
+                {(securityStatus?.device?.isSecure ?? false) ? 'Secure' : `Risk: ${securityStatus?.device?.riskLevel ?? 'Unknown'}`}
               </Text>
             </View>
           )}
