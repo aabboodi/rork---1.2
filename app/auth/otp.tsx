@@ -41,70 +41,62 @@ export default function OTPScreen() {
   }, []);
 
   useEffect(() => {
-    // Check OTP system status
-    const otpEnabled = isOTPEnabled();
-    setOtpSystemEnabled(otpEnabled);
-    
-    // Check if this is a special user
-    const canBypass = hasOTPBypass(phoneNumber);
-    const role = getUserRole(phoneNumber);
-    
-    setIsSpecialUser(canBypass);
-    setUserRole(role);
-    
-    console.log(`OTP Screen - Phone: ${phoneNumber}, Can bypass: ${canBypass}, Role: ${role}, OTP System: ${otpEnabled}`);
-    
-    // If OTP is disabled system-wide, show message
-    if (!otpEnabled) {
-      Alert.alert(
-        'OTP Disabled',
-        'OTP verification has been disabled by the administrator. You can proceed without OTP.',
-        [
-          {
-            text: 'Continue',
-            onPress: handleOTPDisabledBypass
-          }
-        ]
-      );
-    } else if (canBypass) {
-      // If special user and OTP is enabled, show bypass option
-      const roleMessage = role === 'main_admin' ? 'Main Administrator' : 
-                         role === 'admin' ? 'Administrator' : 'Privileged User';
-      
-      Alert.alert(
-        'Special Access Detected',
-        `You are logged in as ${roleMessage}. You can bypass OTP verification.`,
-        [
-          {
-            text: 'Use OTP',
-            style: 'cancel'
-          },
-          {
-            text: 'Bypass OTP',
-            onPress: handleSpecialUserBypass
-          }
-        ]
-      );
+    let mounted = true;
+
+    try {
+      const otpEnabled = typeof isOTPEnabled === 'function' ? isOTPEnabled() : true;
+      if (mounted) setOtpSystemEnabled(otpEnabled);
+
+      const canBypass = typeof hasOTPBypass === 'function' ? hasOTPBypass(phoneNumber) : false;
+      const role = typeof getUserRole === 'function' ? getUserRole(phoneNumber) : 'regular';
+
+      if (mounted) {
+        setIsSpecialUser(canBypass);
+        setUserRole(role);
+      }
+
+      console.log(`OTP Screen - Phone: ${phoneNumber}, Can bypass: ${canBypass}, Role: ${role}, OTP System: ${otpEnabled}`);
+
+      if (!otpEnabled) {
+        Alert.alert(
+          'OTP Disabled',
+          'OTP verification has been disabled by the administrator. You can proceed without OTP.',
+          [
+            { text: 'Continue', onPress: handleOTPDisabledBypass }
+          ]
+        );
+      } else if (canBypass) {
+        const roleMessage = role === 'main_admin' ? 'Main Administrator' : role === 'admin' ? 'Administrator' : 'Privileged User';
+        Alert.alert(
+          'Special Access Detected',
+          `You are logged in as ${roleMessage}. You can bypass OTP verification.`,
+          [
+            { text: 'Use OTP', style: 'cancel' },
+            { text: 'Bypass OTP', onPress: handleSpecialUserBypass }
+          ]
+        );
+      }
+    } catch (e) {
+      console.warn('OTP initialization checks failed:', e);
     }
-    
-    // Initialize security status and screen protection
+
     const initSecurity = async () => {
       try {
         const securityManager = SecurityManager.getInstance();
         const screenProtection = ScreenProtectionService.getInstance();
-        
-        // Enable screen protection for OTP screen
-        await screenProtection.protectSensitiveScreen('otp');
-        
-        // Get security status
+
+        if (screenProtection && typeof screenProtection.protectSensitiveScreen === 'function') {
+          await screenProtection.protectSensitiveScreen('otp');
+        }
+
         const rawStatus = securityManager.getSecurityStatus?.();
-        const nextStatus: SecurityStatus = rawStatus && rawStatus.device ? {
+        const nextStatus: SecurityStatus = rawStatus && (rawStatus as any).device ? {
           device: {
-            isSecure: !!rawStatus.device.isSecure,
-            riskLevel: rawStatus.device.riskLevel ?? 'Unknown',
+            isSecure: !!(rawStatus as any).device.isSecure,
+            riskLevel: (rawStatus as any).device.riskLevel ?? 'Unknown',
           }
         } : defaultSecurityStatus;
-        setSecurityStatus(nextStatus);
+        if (mounted) setSecurityStatus(nextStatus);
       } catch (error) {
         console.error('Security initialization failed:', error);
       }
@@ -112,15 +104,19 @@ export default function OTPScreen() {
 
     initSecurity();
 
-    // Cleanup screen protection when component unmounts
     return () => {
+      mounted = false;
       const cleanup = async () => {
-        const screenProtection = ScreenProtectionService.getInstance();
-        await screenProtection.unprotectScreen('otp');
+        try {
+          const screenProtection = ScreenProtectionService.getInstance();
+          if (screenProtection && typeof screenProtection.unprotectScreen === 'function') {
+            await screenProtection.unprotectScreen('otp');
+          }
+        } catch {}
       };
       cleanup();
     };
-  }, [phoneNumber]);
+  }, [phoneNumber, isOTPEnabled]);
 
   const handleOTPDisabledBypass = async () => {
     setIsLoading(true);

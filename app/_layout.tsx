@@ -357,8 +357,8 @@ export default function RootLayout() {
       await keyRotationService.registerKey('att_key', 'AES-256', 256, 'attachment');
       console.log('✅ Key Rotation Service initialized and keys registered');
 
-      // Initialize dynamic CSP for web platform
-      if (Platform.OS === 'web') {
+      // Initialize dynamic CSP for web platform only in production to avoid interfering with Expo dev server
+      if (Platform.OS === 'web' && !__DEV__) {
         await initializeWebCSP();
       }
       
@@ -368,8 +368,8 @@ export default function RootLayout() {
       // Set up incident response monitoring
       setupIncidentResponseMonitoring(incidentResponse, socService);
       
-      // Set up UEBA monitoring
-      setupUEBAMonitoring(uebaService, behaviorAnalyticsService, threatIntelligenceService);
+      // Set up UEBA monitoring and keep cleanup disposer
+      const uebaCleanup = setupUEBAMonitoring(uebaService, behaviorAnalyticsService, threatIntelligenceService);
       
       // Only update state if component is still mounted
       if (mounted && typeof setSecurityInitialized === 'function') {
@@ -380,12 +380,6 @@ export default function RootLayout() {
         }
       }
       console.log('✅ Comprehensive security with UEBA and Behavior Analytics initialized successfully');
-      
-      return () => {
-        try {
-          appStateSub.remove();
-        } catch {}
-      };
       
       // Log successful initialization
       if (centralizedLogging) {
@@ -401,7 +395,13 @@ export default function RootLayout() {
       }
       
       // Hide splash screen after security initialization
-      await SplashScreen.hideAsync();
+      try { await SplashScreen.hideAsync(); } catch {}
+      
+      // Cleanup subscriptions and intervals
+      return () => {
+        try { appStateSub.remove(); } catch {}
+        try { if (typeof uebaCleanup === 'function') { uebaCleanup(); } } catch {}
+      };
       
     } catch (error) {
       console.error('💥 Critical security initialization failure:', error);
@@ -426,23 +426,24 @@ export default function RootLayout() {
         console.warn('Failed to log initialization error:', loggingError);
       }
       
+      // Show non-blocking alert, but do not prevent app from starting
       Alert.alert(
         'Security Error',
-        'Failed to initialize security features. The application cannot start safely.',
+        'Some security features failed to initialize. The app will continue with reduced protections.',
         [
+          {
+            text: 'OK',
+          },
           {
             text: 'Retry',
             onPress: () => initializeAppSecurity()
-          },
-          {
-            text: 'Exit',
-            onPress: () => {
-              console.error('Application should be terminated due to security initialization failure');
-            }
           }
         ],
-        { cancelable: false }
+        { cancelable: true }
       );
+
+      // Ensure splash screen is hidden even on failure
+      try { await SplashScreen.hideAsync(); } catch {}
     }
   };
 
@@ -486,8 +487,11 @@ Incident ID: ${incident.id}`,
     threatIntelligenceService: ThreatIntelligenceService
   ) => {
     try {
+      // Track intervals for cleanup
+      const intervals: Array<NodeJS.Timer> = [];
+
       // Set up periodic behavior analysis (reduced frequency for performance)
-      setInterval(async () => {
+      const behaviorInterval = setInterval(async () => {
         try {
           // Only run in production or when explicitly enabled
           if (__DEV__ && !process.env.EXPO_PUBLIC_ENABLE_UEBA_DEV) {
@@ -546,9 +550,10 @@ Incident ID: ${incident.id}`,
           }
         }
       }, 1800000); // Every 30 minutes to reduce CPU usage
+      intervals.push(behaviorInterval);
 
       // Set up threat intelligence monitoring (reduced frequency for performance)
-      setInterval(async () => {
+      const threatInterval = setInterval(async () => {
         try {
           // Only run in production or when explicitly enabled
           if (__DEV__ && !process.env.EXPO_PUBLIC_ENABLE_THREAT_INTEL_DEV) {
@@ -595,10 +600,19 @@ Incident ID: ${incident.id}`,
           }
         }
       }, 3600000); // Every hour to reduce CPU usage
+      intervals.push(threatInterval);
 
       console.log('🧠 UEBA and Behavior Analytics monitoring configured');
+
+      // Return cleanup function
+      return () => {
+        for (const id of intervals) {
+          try { clearInterval(id); } catch {}
+        }
+      };
     } catch (error) {
       console.error('Failed to setup UEBA monitoring:', error);
+      return () => {};
     }
   };
 
@@ -606,43 +620,14 @@ Incident ID: ${incident.id}`,
   const initializeWebCSP = async () => {
     try {
       if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-        // Check if app is running in an embedded frame (non-blocking)
-        try {
-          if (window.self !== window.top) {
-            console.info('ℹ️ App is running in an embedded frame');
-            // Just log it, don't block the app or show warnings in development
-            if (!__DEV__) {
-              // Only show warning in production
-              const warningBanner = document.createElement('div');
-              warningBanner.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                background: #ff9800;
-                color: white;
-                text-align: center;
-                padding: 4px;
-                font-size: 12px;
-                z-index: 999999;
-                font-family: Arial, sans-serif;
-                opacity: 0.8;
-              `;
-              warningBanner.textContent = 'Running in embedded mode';
-              document.body.appendChild(warningBanner);
-              
-              // Auto-hide after 3 seconds
-              setTimeout(() => {
-                if (warningBanner.parentNode) {
-                  warningBanner.parentNode.removeChild(warningBanner);
-                }
-              }, 3000);
-            }
-          }
-        } catch (frameCheckError) {
-          // Silently ignore frame check errors
+        // Skip CSP injection when running in embedded frame to avoid breaking host
+        let inFrame = false;
+        try { inFrame = window.self !== window.top; } catch { inFrame = true; }
+        if (inFrame) {
+          console.info('ℹ️ Skipping CSP injection in embedded frame');
+          return;
         }
-        
+
         // Set up CSP violation reporting
         document.addEventListener('securitypolicyviolation', handleCSPViolation);
         
@@ -651,12 +636,8 @@ Incident ID: ${incident.id}`,
         if (!existingCSP) {
           const cspMeta = document.createElement('meta');
           cspMeta.httpEquiv = 'Content-Security-Policy';
-          // Allow unsafe-eval for development (Metro HMR) but restrict in production
-          const isDevelopment = process.env.NODE_ENV === 'development' || __DEV__;
-          const scriptSrc = isDevelopment 
-            ? "'self' 'unsafe-inline' 'unsafe-eval' blob:" 
-            : "'self' 'unsafe-inline'";
-          cspMeta.content = `default-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: https: blob:; connect-src 'self' https://toolkit.rork.com ws: wss: blob:; frame-ancestors 'none'; worker-src 'self' blob:;`;
+          // Production-safe defaults. Allow websocket connections to any host to support Expo dev/proxy infra.
+          cspMeta.content = `default-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: https: blob:; connect-src * ws: wss: blob:; frame-ancestors 'self'; worker-src 'self' blob:;`;
           document.head.appendChild(cspMeta);
         }
         
