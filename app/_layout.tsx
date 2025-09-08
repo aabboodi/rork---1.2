@@ -29,6 +29,17 @@ import SecureStorage from "@/services/security/SecureStorage";
 import SystemMonitoringService from "@/services/monitoring/SystemMonitoringService";
 import KeyRotationService from "@/services/security/KeyRotationService";
 
+if (__DEV__) {
+  try {
+    // Polyfill for RN devtools API mismatch causing getDevServer errors on Hermes/Android
+    // @ts-ignore
+    const devModule: any = require('react-native/Libraries/Core/Devtools/getDevServer');
+    if (devModule && typeof devModule.getDevServer !== 'function') {
+      devModule.getDevServer = () => devModule;
+    }
+  } catch {}
+}
+
 export const unstable_settings = {
   initialRouteName: "index",
 };
@@ -1213,38 +1224,37 @@ function RootLayoutNav() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {!shouldShowAuthenticatedScreens ? (
-        <>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
-          <Stack.Screen name="auth/permissions" options={{ headerShown: false }} />
-        </>
-      ) : (
-        <>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="chat/[id]" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="wallet/send" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="wallet/receive" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="profile/edit" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="profile/settings" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/incident-response" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/logging" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/soc" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/devsecops" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/ueba" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/access-control" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/notifications" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/ota" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/dynamic-permissions" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/root-detection" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="dashboard" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="accessibility" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="accessibility-showcase" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="security/activity" options={{ headerShown: true, presentation: 'card' }} />
-          <Stack.Screen name="phase4-leaderboard-demo" options={{ headerShown: true, presentation: 'card' }} />
-
-        </>
-      )}
+      {
+        !shouldShowAuthenticatedScreens
+          ? [
+              <Stack.Screen key="index" name="index" options={{ headerShown: false }} />,
+              <Stack.Screen key="auth/otp" name="auth/otp" options={{ headerShown: false }} />,
+              <Stack.Screen key="auth/permissions" name="auth/permissions" options={{ headerShown: false }} />,
+            ]
+          : [
+              <Stack.Screen key="(tabs)" name="(tabs)" options={{ headerShown: false }} />,
+              <Stack.Screen key="chat/[id]" name="chat/[id]" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="wallet/send" name="wallet/send" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="wallet/receive" name="wallet/receive" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="profile/edit" name="profile/edit" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="profile/settings" name="profile/settings" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/incident-response" name="security/incident-response" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/logging" name="security/logging" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/soc" name="security/soc" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/devsecops" name="security/devsecops" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/ueba" name="security/ueba" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/access-control" name="security/access-control" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/notifications" name="security/notifications" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/ota" name="security/ota" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/dynamic-permissions" name="security/dynamic-permissions" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/root-detection" name="security/root-detection" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="dashboard" name="dashboard" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="accessibility" name="accessibility" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="accessibility-showcase" name="accessibility-showcase" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="security/activity" name="security/activity" options={{ headerShown: true, presentation: 'card' }} />,
+              <Stack.Screen key="phase4-leaderboard-demo" name="phase4-leaderboard-demo" options={{ headerShown: true, presentation: 'card' }} />,
+            ]
+      }
     </Stack>
   );
 }
