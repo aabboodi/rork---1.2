@@ -29,26 +29,16 @@ import SecureStorage from "@/services/security/SecureStorage";
 import SystemMonitoringService from "@/services/monitoring/SystemMonitoringService";
 import KeyRotationService from "@/services/security/KeyRotationService";
 
-// Force RTL layout for Arabic
-I18nManager.allowRTL(true);
-I18nManager.forceRTL(true);
-
 export const unstable_settings = {
   initialRouteName: "index",
 };
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
-
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     ...FontAwesome.font,
   });
-  const [securityInitialized, setSecurityInitialized] = useState(true);
+  const [securityInitialized, setSecurityInitialized] = useState(false);
   const [securityBlocked, setSecurityBlocked] = useState(false);
-
 
   useEffect(() => {
     if (error) {
@@ -57,32 +47,48 @@ export default function RootLayout() {
     }
   }, [error]);
 
+  // Ensure RTL is only enforced once and avoid issues on web
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      try {
+        I18nManager.allowRTL(true);
+        I18nManager.forceRTL(true);
+      } catch {}
+    }
+  }, []);
+
+  // Always hide splash once fonts are loaded (safety net)
+  useEffect(() => {
+    if (loaded) {
+      try { SplashScreen.hideAsync(); } catch {}
+    }
+  }, [loaded]);
+
   useEffect(() => {
     let mounted = true;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    
+
     const initializeWithMountedCheck = async () => {
       if (mounted) {
         try {
           await initializeAppSecurity(mounted);
         } catch (error) {
           console.error('Security initialization failed:', error);
-          // Don't update state if component is unmounted
           if (mounted) {
             setSecurityBlocked(true);
           }
         }
       }
     };
-    
+
     if (loaded && mounted) {
       timeoutId = setTimeout(() => {
         if (mounted) {
           initializeWithMountedCheck();
         }
-      }, 100);
+      }, 50);
     }
-    
+
     return () => {
       mounted = false;
       if (timeoutId) {
@@ -90,8 +96,6 @@ export default function RootLayout() {
       }
     };
   }, [loaded]);
-  
-
 
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
   const initializeAppSecurity = async (mounted: boolean = true) => {
