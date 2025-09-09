@@ -305,7 +305,7 @@ class SecurityAuditor {
     }
 
     // Check for API security middleware
-    if (fs.existsExists('services/security/APISecurityMiddleware.ts')) {
+    if (fs.existsSync('services/security/APISecurityMiddleware.ts')) {
       this.passed.push('✅ API security middleware found');
     } else {
       this.warnings.push('⚠️ API security middleware not found');
@@ -330,7 +330,7 @@ class SecurityAuditor {
   async checkDeviceBinding() {
     console.log('📱 Checking device binding...');
 
-    if (fs.existsExists('services/security/DeviceBindingService.ts')) {
+    if (fs.existsSync('services/security/DeviceBindingService.ts')) {
       const content = fs.readFileSync('services/security/DeviceBindingService.ts', 'utf8');
       
       if (content.includes('validateDeviceBinding') && content.includes('deviceFingerprint')) {
@@ -386,7 +386,7 @@ class SecurityAuditor {
     }
 
     // Check CryptoService for hardware-backed operations
-    if (fs.existsExists('services/security/CryptoService.ts')) {
+    if (fs.existsSync('services/security/CryptoService.ts')) {
       const content = fs.readFileSync('services/security/CryptoService.ts', 'utf8');
       
       if (content.includes('hardwareAcceleration') && content.includes('hardwareProtected')) {
@@ -402,7 +402,7 @@ class SecurityAuditor {
     console.log('🔑 Checking Keychain/Keystore protection...');
 
     // Check SecureStorage for Keychain integration
-    if (fs.existsExists('services/security/SecureStorage.ts')) {
+    if (fs.existsSync('services/security/SecureStorage.ts')) {
       const content = fs.readFileSync('services/security/SecureStorage.ts', 'utf8');
       
       if (content.includes('KeychainOptions') && content.includes('setItemInKeychain')) {
@@ -433,7 +433,7 @@ class SecurityAuditor {
     }
 
     // Check SecurityManager for Secure Enclave integration
-    if (fs.existsExists('services/security/SecurityManager.ts')) {
+    if (fs.existsSync('services/security/SecurityManager.ts')) {
       const content = fs.readFileSync('services/security/SecurityManager.ts', 'utf8');
       
       if (content.includes('enableSecureEnclave') && content.includes('enableKeychainProtection')) {
