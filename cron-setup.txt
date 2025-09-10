@@ -1,0 +1,7 @@
+
+# Add this to your crontab for quarterly automation
+# Run on the first day of each quarter at 2 AM
+0 2 1 1,4,7,10 * /path/to/your/project/quarterly-pentest.sh
+
+# To edit crontab:
+# crontab -e
