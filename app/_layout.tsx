@@ -29,17 +29,6 @@ import SecureStorage from "@/services/security/SecureStorage";
 import SystemMonitoringService from "@/services/monitoring/SystemMonitoringService";
 import KeyRotationService from "@/services/security/KeyRotationService";
 
-if (__DEV__) {
-  try {
-    // Polyfill for RN devtools API mismatch causing getDevServer errors on Hermes/Android
-    // @ts-ignore
-    const devModule: any = require('react-native/Libraries/Core/Devtools/getDevServer');
-    if (devModule && typeof devModule.getDevServer !== 'function') {
-      devModule.getDevServer = () => devModule;
-    }
-  } catch {}
-}
-
 export const unstable_settings = {
   initialRouteName: "index",
 };
@@ -77,34 +66,25 @@ export default function RootLayout() {
 
   useEffect(() => {
     let mounted = true;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const initializeWithMountedCheck = async () => {
-      if (mounted) {
+      if (mounted && loaded) {
         try {
           await initializeAppSecurity(mounted);
         } catch (error) {
           console.error('Security initialization failed:', error);
-          if (mounted) {
-            setSecurityBlocked(true);
-          }
+          // Don't block app startup on security init failure
         }
       }
     };
 
-    if (loaded && mounted) {
-      timeoutId = setTimeout(() => {
-        if (mounted) {
-          initializeWithMountedCheck();
-        }
-      }, 50);
+    if (loaded) {
+      // Initialize security in background without blocking
+      initializeWithMountedCheck();
     }
 
     return () => {
       mounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
     };
   }, [loaded]);
 
