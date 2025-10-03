@@ -23,9 +23,9 @@ export default function OTPScreen() {
   const [otp, setOtp] = useState('');
   const [countdown, setCountdown] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
-  interface SecurityStatus { device: { isSecure: boolean; riskLevel: string } }
-  const defaultSecurityStatus: SecurityStatus = { device: { isSecure: false, riskLevel: 'Unknown' } };
-  const [securityStatus, setSecurityStatus] = useState<SecurityStatus>(defaultSecurityStatus);
+  interface SecurityStatusDisplay { isSecure: boolean; riskLevel: string }
+  const defaultSecurityStatus: SecurityStatusDisplay = { isSecure: false, riskLevel: 'Unknown' };
+  const [securityStatus, setSecurityStatus] = useState<SecurityStatusDisplay>(defaultSecurityStatus);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [isSpecialUser, setIsSpecialUser] = useState(false);
@@ -90,11 +90,9 @@ export default function OTPScreen() {
         }
 
         const rawStatus = securityManager.getSecurityStatus?.();
-        const nextStatus: SecurityStatus = rawStatus && (rawStatus as any).device ? {
-          device: {
-            isSecure: !!(rawStatus as any).device.isSecure,
-            riskLevel: (rawStatus as any).device.riskLevel ?? 'Unknown',
-          }
+        const nextStatus: SecurityStatusDisplay = rawStatus ? {
+          isSecure: !!rawStatus.isSecure,
+          riskLevel: rawStatus.riskLevel ?? 'Unknown',
         } : defaultSecurityStatus;
         if (mounted) setSecurityStatus(nextStatus);
       } catch (error) {
@@ -320,11 +318,11 @@ export default function OTPScreen() {
             <Text
               style={[
                 styles.deviceStatusText,
-                { color: securityStatus.device.isSecure ? Colors.secure : Colors.warning },
+                { color: securityStatus.isSecure ? Colors.secure : Colors.warning },
               ]}
               testID="otp-device-status-text"
             >
-              {securityStatus.device.isSecure ? 'Secure' : `Risk: ${securityStatus.device.riskLevel}`}
+              {securityStatus.isSecure ? 'Secure' : `Risk: ${securityStatus.riskLevel}`}
             </Text>
           </View>
         </View>
