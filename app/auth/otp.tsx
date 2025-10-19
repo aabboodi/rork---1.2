@@ -23,8 +23,14 @@ export default function OTPScreen() {
   const [otp, setOtp] = useState('');
   const [countdown, setCountdown] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
-  interface SecurityStatusDisplay { isSecure: boolean; riskLevel: string }
-  const defaultSecurityStatus: SecurityStatusDisplay = { isSecure: false, riskLevel: 'Unknown' };
+  interface SecurityStatusDisplay { 
+    isSecure: boolean; 
+    riskLevel: string;
+  }
+  const defaultSecurityStatus: SecurityStatusDisplay = { 
+    isSecure: false, 
+    riskLevel: 'Unknown' 
+  };
   const [securityStatus, setSecurityStatus] = useState<SecurityStatusDisplay>(defaultSecurityStatus);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -318,11 +324,11 @@ export default function OTPScreen() {
             <Text
               style={[
                 styles.deviceStatusText,
-                { color: securityStatus.isSecure ? Colors.secure : Colors.warning },
+                { color: securityStatus?.isSecure ? Colors.secure : Colors.warning },
               ]}
               testID="otp-device-status-text"
             >
-              {securityStatus.isSecure ? 'Secure' : `Risk: ${securityStatus.riskLevel}`}
+              {securityStatus?.isSecure ? 'Secure' : `Risk: ${securityStatus?.riskLevel || 'Unknown'}`}
             </Text>
           </View>
         </View>
