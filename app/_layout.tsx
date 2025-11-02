@@ -91,15 +91,19 @@ export default function RootLayout() {
   // Initialize comprehensive security with UEBA and Behavior Analytics integration
   const initializeAppSecurity = async (mounted: boolean = true) => {
     try {
-      console.log('🚀 Initializing comprehensive security with UEBA and Behavior Analytics...');
+      if (__DEV__) {
+        console.log('🚀 Initializing security services...');
+      }
       
       // Phase 1: Initialize core security services with fallbacks
       let securityManager: any;
       try {
         securityManager = SecurityManager.getInstance();
-        console.log('✅ SecurityManager initialized successfully');
+        if (__DEV__) {
+          console.log('✅ SecurityManager initialized');
+        }
       } catch (error) {
-        console.error('💥 SecurityManager initialization failed:', error);
+        console.error('SecurityManager initialization failed:', error);
         if (mounted) {
           setSecurityBlocked(true);
         }
@@ -218,7 +222,9 @@ export default function RootLayout() {
         console.warn('⚠️ SecurityNotificationService failed, continuing without it');
       }
       
-      console.log('📊 Initializing monitoring services...');
+      if (__DEV__) {
+        console.log('📊 Initializing monitoring services...');
+      }
       if (systemMonitoring) {
         try {
           await systemMonitoring.startMonitoring();
@@ -235,7 +241,9 @@ export default function RootLayout() {
         }
       }
       
-      console.log('🚨 Initializing incident response services...');
+      if (__DEV__) {
+        console.log('🚨 Initializing incident response services...');
+      }
       if (incidentResponse) {
         try {
           await incidentResponse.initialize();
@@ -252,7 +260,9 @@ export default function RootLayout() {
         }
       }
       
-      console.log('🧠 Initializing UEBA and Behavior Analytics services...');
+      if (__DEV__) {
+        console.log('🧠 Initializing UEBA and Behavior Analytics services...');
+      }
       if (uebaService) {
         try {
           await uebaService.initialize();
@@ -277,10 +287,14 @@ export default function RootLayout() {
         }
       }
       
-      console.log('🔔 Initializing Security Notification Service...');
+      if (__DEV__) {
+        console.log('🔔 Initializing Security Notification Service...');
+      }
       // Security notification service is already initialized in constructor
       
-      console.log('🔧 Initializing DevSecOps integration...');
+      if (__DEV__) {
+        console.log('🔧 Initializing DevSecOps integration...');
+      }
       try {
         await DevSecOpsIntegrationService.getInstance().initializeDevSecOps();
       } catch (error) {
@@ -345,12 +359,16 @@ export default function RootLayout() {
       }
       
       // Initialize Key Rotation Service and register keys
-      console.log('🔑 Initializing Key Rotation Service...');
+      if (__DEV__) {
+        console.log('🔑 Initializing Key Rotation Service...');
+      }
       const keyRotationService = KeyRotationService.getInstance();
       await keyRotationService.initialize();
       await keyRotationService.registerKey('msg_key', 'AES-256', 256, 'message');
       await keyRotationService.registerKey('att_key', 'AES-256', 256, 'attachment');
-      console.log('✅ Key Rotation Service initialized and keys registered');
+      if (__DEV__) {
+        console.log('✅ Key Rotation Service initialized');
+      }
 
       // Initialize dynamic CSP for web platform only in production to avoid interfering with Expo dev server
       if (Platform.OS === 'web' && !__DEV__) {
@@ -374,7 +392,9 @@ export default function RootLayout() {
           console.warn('Failed to update security initialized state:', stateError);
         }
       }
-      console.log('✅ Comprehensive security with UEBA and Behavior Analytics initialized successfully');
+      if (__DEV__) {
+        console.log('✅ Security services initialized');
+      }
       
       // Log successful initialization
       if (centralizedLogging) {
@@ -399,7 +419,7 @@ export default function RootLayout() {
       };
       
     } catch (error) {
-      console.error('💥 Critical security initialization failure:', error);
+      console.error('Security initialization failure:', error);
       if (mounted) {
         try { 
           setSecurityBlocked(true); 
