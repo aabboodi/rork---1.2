@@ -19,10 +19,10 @@ export default function OTPScreen() {
   const { language, setAuthenticated, isOTPEnabled } = useAuthStore();
   const t = translations[language];
   
-  const phoneNumber = params.phoneNumber as string;
-  const [otp, setOtp] = useState('');
-  const [countdown, setCountdown] = useState(60);
-  const [isLoading, setIsLoading] = useState(false);
+  const phoneNumber = params.phoneNumber as string | undefined;
+  const [otp, setOtp] = useState<string>(''); // FIX: explicit typing
+  const [countdown, setCountdown] = useState<number>(60); // FIX: explicit typing
+  const [isLoading, setIsLoading] = useState<boolean>(false); // FIX: explicit typing
   interface SecurityStatusDisplay { 
     isSecure: boolean; 
     riskLevel: string;
@@ -32,11 +32,11 @@ export default function OTPScreen() {
     riskLevel: 'Unknown' 
   };
   const [securityStatus, setSecurityStatus] = useState<SecurityStatusDisplay>(defaultSecurityStatus);
-  const [mfaRequired, setMfaRequired] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [isSpecialUser, setIsSpecialUser] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState<boolean>(false); // FIX: explicit typing
+  const [biometricAvailable, setBiometricAvailable] = useState<boolean>(false); // FIX: explicit typing
+  const [isSpecialUser, setIsSpecialUser] = useState<boolean>(false); // FIX: explicit typing
   const [userRole, setUserRole] = useState<string>('regular');
-  const [otpSystemEnabled, setOtpSystemEnabled] = useState(true);
+  const [otpSystemEnabled, setOtpSystemEnabled] = useState<boolean>(true); // FIX: explicit typing
   
   useEffect(() => {
     const timer = setInterval(() => {
@@ -47,14 +47,24 @@ export default function OTPScreen() {
   }, []);
 
   useEffect(() => {
+    // FIX: guard when phoneNumber is missing to avoid downstream errors
+    if (!phoneNumber) {
+      Alert.alert('Missing phone', 'Phone number is required to continue', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+      return;
+    }
+  }, [phoneNumber]);
+
+  useEffect(() => {
     let mounted = true;
 
     try {
       const otpEnabled = typeof isOTPEnabled === 'function' ? isOTPEnabled() : true;
       if (mounted) setOtpSystemEnabled(otpEnabled);
 
-      const canBypass = typeof hasOTPBypass === 'function' ? hasOTPBypass(phoneNumber) : false;
-      const role = typeof getUserRole === 'function' ? getUserRole(phoneNumber) : 'regular';
+      const canBypass = typeof hasOTPBypass === 'function' ? hasOTPBypass(phoneNumber || '') : false;
+      const role = typeof getUserRole === 'function' ? getUserRole(phoneNumber || '') : 'regular';
 
       if (mounted) {
         setIsSpecialUser(canBypass);
@@ -127,24 +137,14 @@ export default function OTPScreen() {
     
     try {
       const securityManager = SecurityManager.getInstance();
-      
-      // Create user ID
-      const userId = securityManager.getCryptoService().hash(phoneNumber).substring(0, 16);
-      
-      // Initialize user security components
+      const pn = phoneNumber || '';
+      const userId = securityManager.getCryptoService().hash(pn).substring(0, 16);
       await securityManager.getKeyManager().generateUserKeyPair(userId);
       await securityManager.getMFAService().initializeMFA(userId);
-      
-      // Create secure session
       const sessionManager = securityManager.getSessionManager();
-      const session = await sessionManager.createSession(userId, phoneNumber, true);
-      
-      // Set authentication state
-      await setAuthenticated(userId, phoneNumber, session.accessToken);
-      
+      const session = await sessionManager.createSession(userId, pn, true);
+      await setAuthenticated(userId, pn, session.accessToken);
       console.log('User authenticated with OTP disabled by admin');
-      
-      // Navigate to permissions
       router.push('/auth/permissions');
     } catch (error) {
       console.error('OTP disabled authentication failed:', error);
@@ -159,24 +159,14 @@ export default function OTPScreen() {
     
     try {
       const securityManager = SecurityManager.getInstance();
-      
-      // Create user ID
-      const userId = securityManager.getCryptoService().hash(phoneNumber).substring(0, 16);
-      
-      // Initialize user security components
+      const pn = phoneNumber || '';
+      const userId = securityManager.getCryptoService().hash(pn).substring(0, 16);
       await securityManager.getKeyManager().generateUserKeyPair(userId);
       await securityManager.getMFAService().initializeMFA(userId);
-      
-      // Create secure session
       const sessionManager = securityManager.getSessionManager();
-      const session = await sessionManager.createSession(userId, phoneNumber, true);
-      
-      // Set authentication state
-      await setAuthenticated(userId, phoneNumber, session.accessToken);
-      
+      const session = await sessionManager.createSession(userId, pn, true);
+      await setAuthenticated(userId, pn, session.accessToken);
       console.log(`Special user ${userRole} authenticated successfully`);
-      
-      // Navigate to permissions
       router.push('/auth/permissions');
     } catch (error) {
       console.error('Special user authentication failed:', error);
@@ -193,9 +183,8 @@ export default function OTPScreen() {
     
     try {
       const securityManager = SecurityManager.getInstance();
-      
-      // Enhanced secure authentication with all security features
-      const authResult = await securityManager.authenticateUser(phoneNumber, otp, {
+      const pn = phoneNumber || '';
+      const authResult = await securityManager.authenticateUser(pn, otp, {
         enableMFA: true,
         enableBiometrics: true,
         skipDeviceCheck: false
@@ -204,19 +193,13 @@ export default function OTPScreen() {
       if (authResult.success && authResult.userId) {
         setMfaRequired(authResult.mfaRequired || false);
         setBiometricAvailable(authResult.biometricAvailable || false);
-        
-        // Set authentication state with session token
-        await setAuthenticated(authResult.userId, phoneNumber, authResult.sessionToken);
-        
-        // Check if MFA is required
+        await setAuthenticated(authResult.userId, pn, authResult.sessionToken);
         if (authResult.mfaRequired) {
-          // Navigate to MFA verification
           router.push({
             pathname: '/auth/mfa',
             params: { userId: authResult.userId }
           });
         } else {
-          // Navigate to permissions
           router.push('/auth/permissions');
         }
       } else {
@@ -233,13 +216,11 @@ export default function OTPScreen() {
   const handleResend = () => {
     if (countdown > 0) return;
     
-    // Check if OTP is enabled
     if (!otpSystemEnabled) {
       Alert.alert('OTP Disabled', 'OTP verification is currently disabled by the administrator.');
       return;
     }
     
-    // Simulate API call to resend OTP
     setCountdown(60);
     Alert.alert(t.success, 'Verification code resent securely');
   };
@@ -248,7 +229,6 @@ export default function OTPScreen() {
     <SafeAreaView style={styles.container} testID="otp-safe-area">
       <StatusBar style="dark" />
       
-      {/* Enhanced Security Indicator */}
       <View style={styles.securityIndicator} testID="otp-security-indicator">
         <Shield size={20} color={Colors.secure} />
         <Text style={styles.securityText}>Secure Connection</Text>
@@ -262,9 +242,7 @@ export default function OTPScreen() {
           </>
         )}
         {!otpSystemEnabled && (
-          <Text style={[styles.securityText, { color: Colors.warning }]}>
-            OTP Disabled
-          </Text>
+          <Text style={[styles.securityText, { color: Colors.warning }]}>OTP Disabled</Text>
         )}
       </View>
       
@@ -276,7 +254,7 @@ export default function OTPScreen() {
           <Text style={styles.subtitle}>
             {!otpSystemEnabled 
               ? 'OTP verification has been disabled. You can proceed without verification.'
-              : `${t.otpSent} ${phoneNumber}`
+              : `${t.otpSent} ${phoneNumber ?? ''}`
             }
           </Text>
           {isSpecialUser && (
@@ -289,7 +267,6 @@ export default function OTPScreen() {
           )}
         </View>
         
-        {/* Enhanced Security Features Display */}
         <View style={styles.securityInfo} testID="otp-security-info">
           <Text style={styles.securityLabel}>Security Features Active:</Text>
           <View style={styles.securityFeatures}>
@@ -324,7 +301,7 @@ export default function OTPScreen() {
             <Text
               style={[
                 styles.deviceStatusText,
-                { color: securityStatus?.isSecure ? Colors.secure : Colors.warning },
+                { color: securityStatus?.isSecure ? Colors.secure : Colors.warning }, // FIX: optional chaining
               ]}
               testID="otp-device-status-text"
             >
@@ -333,7 +310,6 @@ export default function OTPScreen() {
           </View>
         </View>
         
-        {/* Show OTP input only if OTP is enabled */}
         {otpSystemEnabled && (
           <OTPInput
             length={6}
@@ -390,7 +366,6 @@ export default function OTPScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Security Notice */}
         <View style={styles.securityNotice} testID="otp-security-notice">
           <Text style={styles.noticeText}>
             🔒 Your data is protected with military-grade encryption and advanced security measures.
