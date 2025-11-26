@@ -127,24 +127,64 @@ class OfflineSyncService {
                     incrementRetry(action.id);
                 }
             }
+
+            updateLastSyncTime();
+            setSyncing(false);
         }
 
-        updateLastSyncTime();
-        setSyncing(false);
+  // Perform the actual action based on type and resource
+  private async performAction(action: SyncAction): Promise<void> {
+        const { database } = await import('../../model/database');
+        const { User, Message, Post } = await import('../../model/index');
+
+        try {
+            if (action.type === 'CREATE') {
+                await database.write(async () => {
+                    if (action.resource === 'users') {
+                        await database.get<typeof User>('users').create(user => {
+                            user.username = action.payload.username;
+                            user.publicKey = action.payload.publicKey;
+                            user.avatarUrl = action.payload.avatarUrl;
+                        });
+                    } else if (action.resource === 'messages') {
+                        await database.get<typeof Message>('messages').create(message => {
+                            message.conversationId = action.payload.conversationId;
+                            message.senderId = action.payload.senderId;
+                            message.content = action.payload.content;
+                            message.timestamp = new Date(action.payload.timestamp);
+                            message.status = 'pending';
+                            message.type = action.payload.type || 'text';
+                        });
+                    } else if (action.resource === 'posts') {
+                        await database.get<typeof Post>('posts').create(post => {
+                            post.authorId = action.payload.authorId;
+                            post.content = action.payload.content;
+                            post.mediaUrl = action.payload.mediaUrl;
+                            post.mediaType = action.payload.mediaType || 'text';
+                            post.likesCount = 0;
+                            post.commentsCount = 0;
+                            post.timestamp = new Date(action.payload.timestamp);
+                        });
+                    }
+                });
+            } else if (action.type === 'UPDATE') {
+                // Handle updates
+            }
+
+            // Simulate network sync if online
+            if (useSyncStore.getState().isOnline) {
+                await this.syncToBackend(action);
+            }
+        } catch (error) {
+            console.error('Database action failed:', error);
+            throw error;
+        }
     }
 
-    // Perform the actual API call based on action type
-    private async performAction(action: SyncAction): Promise<void> {
-        // This method should be extended to handle different resources and types
-        // For now, it's a placeholder that simulates an API call
-
-        // In a real implementation, this would switch on action.resource and call appropriate services
-        // e.g., if (action.resource === 'messages') await ChatService.sendMessage(action.payload);
-
+    // Simulate backend sync (placeholder)
+    private async syncToBackend(action: SyncAction): Promise<void> {
         return new Promise((resolve, reject) => {
-            // Simulate network request
             setTimeout(() => {
-                // Randomly fail to simulate unstable network
                 if (Math.random() > 0.9) {
                     reject(new Error('Simulated network error'));
                 } else {
