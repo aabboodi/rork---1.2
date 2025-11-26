@@ -127,13 +127,14 @@ class OfflineSyncService {
                     incrementRetry(action.id);
                 }
             }
-
-            updateLastSyncTime();
-            setSyncing(false);
         }
 
-  // Perform the actual action based on type and resource
-  private async performAction(action: SyncAction): Promise<void> {
+        updateLastSyncTime();
+        setSyncing(false);
+    }
+
+    // Perform the actual action based on type and resource
+    private async performAction(action: SyncAction): Promise<void> {
         const { database } = await import('../../model/database');
         const { User, Message, Post } = await import('../../model/index');
 
@@ -168,7 +169,29 @@ class OfflineSyncService {
                     }
                 });
             } else if (action.type === 'UPDATE') {
-                // Handle updates
+                await database.write(async () => {
+                    if (action.resource === 'users') {
+                        const user = await database.get<typeof User>('users').find(action.payload.id);
+                        await user.update(u => {
+                            if (action.payload.username) u.username = action.payload.username;
+                            if (action.payload.avatarUrl) u.avatarUrl = action.payload.avatarUrl;
+                            if (action.payload.publicKey) u.publicKey = action.payload.publicKey;
+                        });
+                    } else if (action.resource === 'messages') {
+                        const message = await database.get<typeof Message>('messages').find(action.payload.id);
+                        await message.update(m => {
+                            if (action.payload.status) m.status = action.payload.status;
+                            if (action.payload.content) m.content = action.payload.content;
+                        });
+                    } else if (action.resource === 'posts') {
+                        const post = await database.get<typeof Post>('posts').find(action.payload.id);
+                        await post.update(p => {
+                            if (action.payload.content) p.content = action.payload.content;
+                            if (action.payload.likesCount !== undefined) p.likesCount = action.payload.likesCount;
+                            if (action.payload.commentsCount !== undefined) p.commentsCount = action.payload.commentsCount;
+                        });
+                    }
+                });
             }
 
             // Simulate network sync if online

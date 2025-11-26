@@ -52,7 +52,7 @@ export interface SignalKeyBundle {
 }
 
 // Legacy support for existing code
-export interface PublicKeyBundle extends SignalKeyBundle {}
+export interface PublicKeyBundle extends SignalKeyBundle { }
 
 // Signal Protocol Session for E2EE
 export interface SignalSession {
@@ -61,7 +61,7 @@ export interface SignalSession {
   participantId: string;
   deviceId: string;
   status: 'initiated' | 'key_exchange' | 'verification_pending' | 'verified' | 'established' | 'failed' | 'expired';
-  
+
   // Signal Protocol specific fields
   sessionState: {
     rootKey: string; // Root key for Double Ratchet
@@ -73,204 +73,13 @@ export interface SignalSession {
     previousCounter: number; // Previous chain counter
     sessionVersion: number; // Session version
   };
-  
+
   // Double Ratchet state
   ratchetState: {
     dhRatchetKey: string; // Current DH ratchet key pair
     dhRatchetKeyRemote: string; // Remote DH ratchet public key
     rootKey: string; // Current root key
     sendingChainKey: string; // Current sending chain key
-    receivingChainKey: string; // Current receiving chain key
-    sendingChainLength: number; // Sending chain length
-    receivingChainLength: number; // Receiving chain length
-    previousSendingChainLength: number; // Previous sending chain length
-  };
-  
-  keyFingerprint?: string;
-  verificationMethod?: 'fingerprint' | 'face' | 'manual' | 'auto' | 'qr_code';
-  createdAt: number;
-  lastActivity: number;
-  expiresAt: number;
-  rotationCount: number;
-  securityLevel: 'standard' | 'high' | 'maximum';
-  
-  // Perfect Forward Secrecy
-  perfectForwardSecrecy: boolean;
-  messageCounter: number;
-  skippedMessageKeysCount: number;
-}
-
-// Legacy support for existing code
-export interface KeyExchangeSession extends Omit<SignalSession, 'sessionState' | 'ratchetState'> {
-  sharedSecret?: string;
-  sessionKey?: string;
-}
-
-// Key verification result
-export interface KeyVerificationResult {
-  verified: boolean;
-  method: 'fingerprint' | 'face' | 'manual' | 'auto' | 'qr_code';
-  confidence: number;
-  timestamp: number;
-  verificationData?: {
-    biometricHash?: string;
-    deviceFingerprint?: string;
-    locationVerified?: boolean;
-  };
-  error?: string;
-  warningFlags?: string[];
-}
-
-// Signal Protocol encrypted message structure
-export interface SignalMessage {
-  // Signal Protocol message header
-  header: {
-    senderRatchetKey: string; // Sender's current ratchet public key
-    previousCounter: number; // Previous chain length
-    messageNumber: number; // Message number in current chain
-  };
-  
-  // Encrypted message content
-  encryptedContent: string; // AES-256-CBC encrypted content
-  messageMAC: string; // HMAC-SHA256 authentication
-  
-  // Signal Protocol specific fields
-  messageType: 'prekey' | 'signal'; // Message type
-  sessionId: string;
-  senderKeyFingerprint: string;
-  timestamp: number;
-  
-  // Perfect Forward Secrecy
-  ephemeralKey?: string; // For PreKey messages
-  baseKey?: string; // For PreKey messages
-  identityKey?: string; // For PreKey messages
-  
-  // Additional security
-  algorithm: 'Signal-Protocol-v3';
-  protocolVersion: number;
-  keyRotationFlag?: boolean;
-  forwardSecrecyLevel: number;
-}
-
-// Legacy support for existing code
-export interface E2EEMessage extends Omit<SignalMessage, 'header'> {
-  iv: string;
-  sessionKeyId: string;
-  sequenceNumber: number;
-}
-
-// Signal Protocol key metadata for storage and management
-export interface SignalKeyMetadata {
-  keyId: string;
-  algorithm: 'X25519' | 'Ed25519' | 'AES-256' | 'HMAC-SHA256';
-  purpose: 'Identity' | 'SignedPreKey' | 'OneTimePreKey' | 'EphemeralKey' | 'RatchetKey' | 'ChainKey' | 'MessageKey' | 'RootKey';
-  createdAt: number;
-  expiresAt?: number;
-  fingerprint: string;
-  verified: boolean;
-  rotationSchedule?: number;
-  usageCount?: number;
-  lastUsed?: number;
-  securityLevel: 'standard' | 'high' | 'maximum';
-  deviceBound: boolean;
-  
-  // Signal Protocol specific
-  keyPairType: 'identity' | 'signed_prekey' | 'onetime_prekey' | 'ephemeral';
-  publicKey: string;
-  privateKey?: string; // Only stored for own keys
-  signature?: string; // For signed pre-keys
-  registrationId?: number;
-}
-
-// Legacy support for existing code
-export interface KeyMetadata extends SignalKeyMetadata {}
-
-// Signal Protocol message key for Perfect Forward Secrecy
-export interface SignalMessageKey {
-  keyId: string;
-  messageKey: string; // Derived message key
-  macKey: string; // Derived MAC key
-  iv: string; // Initialization vector
-  createdAt: number;
-  expiresAt: number;
-  chatId: string;
-  participantId: string;
-  messageNumber: number; // Message number in chain
-  chainKey: string; // Chain key used to derive this message key
-  algorithm: 'AES-256-CBC';
-  derivationMethod: 'HKDF-SHA256';
-  forwardSecrecy: boolean;
-  used: boolean; // Whether this key has been used
-}
-
-// Signal Protocol chain key for key derivation
-export interface SignalChainKey {
-  keyId: string;
-  chainKey: string;
-  counter: number;
-  chatId: string;
-  participantId: string;
-  direction: 'sending' | 'receiving';
-  createdAt: number;
-  lastUsed: number;
-  algorithm: 'HMAC-SHA256';
-}
-
-// Legacy support for existing code
-export interface SessionKey extends Omit<SignalMessageKey, 'messageKey' | 'macKey' | 'iv' | 'messageNumber' | 'chainKey' | 'used'> {
-  key: string;
-  rotationNumber: number;
-  derivationMethod: string;
-}
-
-// Key fingerprint verification
-export interface KeyFingerprintVerification {
-  fingerprint: string;
-  verificationMethod: 'visual' | 'qr_code' | 'biometric' | 'voice' | 'manual';
-  verifiedAt: number;
-  verifiedBy: string;
-  confidence: number;
-  additionalVerifiers?: string[];
-  verificationLocation?: {
-    latitude: number;
-    longitude: number;
-    accuracy: number;
-  };
-}
-
-// Signal Protocol configuration
-export interface SignalProtocolConfig {
-  protocolName: 'Signal-Protocol';
-  version: '3.0';
-  features: {
-    perfectForwardSecrecy: boolean; // Double Ratchet provides PFS
-    postQuantumResistant: boolean; // Currently false, but extensible
-    deniableAuthentication: boolean; // Signal Protocol provides deniability
-    keyRotation: boolean; // Automatic key rotation with Double Ratchet
-    sessionHealing: boolean; // Self-healing sessions
-    asyncMessaging: boolean; // Support for offline messaging
-    groupMessaging: boolean; // Sender Keys for group messaging
-  };
-  cryptographicPrimitives: {
-    keyAgreement: 'X25519'; // Elliptic Curve Diffie-Hellman
-    signing: 'Ed25519'; // EdDSA signatures
-    encryption: 'AES-256-CBC'; // Symmetric encryption
-    mac: 'HMAC-SHA256'; // Message authentication
-    kdf: 'HKDF-SHA256'; // Key derivation function
-    hash: 'SHA-256'; // Hash function
-  };
-  securityLevel: number; // 1-10 scale
-  complianceStandards: string[];
-}
-
-// Legacy support for existing code
-export interface SecureKeyExchangeProtocol extends Omit<SignalProtocolConfig, 'cryptographicPrimitives'> {
-  protocolName: 'Signal' | 'Double_Ratchet' | 'ECDH_X25519' | 'Custom_Enhanced';
-}
-
-// ===== DATA LOSS PREVENTION (DLP) TYPES =====
-
-// DLP Policy Types
 export interface DLPPolicy {
   id: string;
   name: string;
@@ -294,7 +103,7 @@ export interface DLPRule {
   category: DLPCategory;
 }
 
-export type DLPCategory = 
+export type DLPCategory =
   | 'pii' // Personal Identifiable Information
   | 'financial' // Financial data
   | 'medical' // Medical records
@@ -379,34 +188,34 @@ export interface ImmutableTransaction {
   status: 'pending' | 'completed' | 'failed' | 'cancelled';
   type: string;
   note: string;
-  
+
   // Immutable ledger properties
   blockIndex: number; // Position in the blockchain-like structure
   previousTransactionHash: string; // Hash of previous transaction (blockchain concept)
   transactionHash: string; // SHA-256 hash of this transaction
   merkleRoot: string; // Merkle tree root for batch verification
-  
+
   // Digital signature and cryptographic proof
   digitalSignature: TransactionDigitalSignature;
   cryptographicProof: CryptographicProof;
-  
+
   // ACID compliance properties
   acidCompliance: ACIDComplianceRecord;
-  
+
   // Audit and compliance
   auditTrail: TransactionAuditRecord[];
   complianceFlags: ComplianceFlag[];
-  
+
   // Immutability guarantees
   immutabilityProof: ImmutabilityProof;
   chainIntegrityHash: string; // Hash that includes all previous transactions
-  
+
   // Loan-related fields (if applicable)
   loanId?: string;
   isLoanPayment?: boolean;
   paymentNumber?: number;
   totalPayments?: number;
-  
+
   // Advanced security
   antiTamperingSeal: AntiTamperingSeal;
   consensusValidation?: ConsensusValidation;
@@ -472,7 +281,7 @@ export interface ACIDComplianceRecord {
     rollbackCapable: boolean;
     atomicOperations: AtomicOperation[];
   };
-  
+
   // Consistency - Database remains in valid state
   consistency: {
     preTransactionState: string; // Hash of state before transaction
@@ -480,7 +289,7 @@ export interface ACIDComplianceRecord {
     consistencyRulesValidated: boolean;
     constraintViolations: string[];
   };
-  
+
   // Isolation - Concurrent transactions don't interfere
   isolation: {
     isolationLevel: 'read_uncommitted' | 'read_committed' | 'repeatable_read' | 'serializable';
@@ -488,7 +297,7 @@ export interface ACIDComplianceRecord {
     lockType: 'shared' | 'exclusive' | 'intent';
     concurrentTransactions: string[];
   };
-  
+
   // Durability - Committed transactions survive system failures
   durability: {
     persistedToStorage: boolean;
@@ -497,7 +306,7 @@ export interface ACIDComplianceRecord {
     durabilityTimestamp: number;
     storageLocations: string[];
   };
-  
+
   acidValidationTimestamp: number;
   acidComplianceVersion: string;
 }
@@ -722,7 +531,7 @@ export interface ABACContext {
     dayOfWeek: number;
     timestamp: number;
   };
-  
+
   // Location context
   location?: {
     allowedCountries?: string[];
@@ -733,7 +542,7 @@ export interface ABACContext {
     longitude?: number;
     accuracy?: number;
   };
-  
+
   // Device security context
   deviceSecurity?: {
     minimumSecurityLevel: 'low' | 'medium' | 'high' | 'maximum';
@@ -744,7 +553,7 @@ export interface ABACContext {
     biometricEnabled?: boolean;
     deviceFingerprint?: string;
   };
-  
+
   // Network security context
   networkSecurity?: {
     allowedNetworks?: string[];
@@ -754,7 +563,7 @@ export interface ABACContext {
     encryptionLevel?: 'none' | 'low' | 'medium' | 'high';
     trustLevel?: 'untrusted' | 'limited' | 'trusted' | 'verified';
   };
-  
+
   // Content sensitivity context
   contentSensitivity?: {
     maxSensitivityLevel: 'public' | 'internal' | 'confidential' | 'restricted';
@@ -762,7 +571,7 @@ export interface ABACContext {
     dataClassification?: string;
     retentionPolicy?: string;
   };
-  
+
   // Enhanced context fields
   userBehavior?: {
     averageSessionDuration?: number;
@@ -772,14 +581,14 @@ export interface ABACContext {
     anomalyScore?: number;
     recentActivity?: any[];
   };
-  
+
   resourceSensitivity?: {
     sensitivityLevel?: 'public' | 'internal' | 'confidential' | 'restricted';
     dataClassification?: string;
     accessHistory?: any[];
     ownershipInfo?: any;
   };
-  
+
   sessionContext?: {
     sessionDuration?: number;
     biometricVerified?: boolean;
@@ -788,7 +597,7 @@ export interface ABACContext {
     sessionId?: string;
     lastActivity?: number;
   };
-  
+
   // Social context
   socialContext?: {
     relationshipLevel?: 'none' | 'acquaintance' | 'friend' | 'close_friend' | 'family';
@@ -796,7 +605,7 @@ export interface ABACContext {
     trustScore?: number;
     interactionHistory?: any[];
   };
-  
+
   // Risk context
   riskContext?: {
     riskScore?: number;
@@ -804,7 +613,7 @@ export interface ABACContext {
     anomalyFlags?: string[];
     threatLevel?: 'low' | 'medium' | 'high' | 'critical';
   };
-  
+
   // Additional context
   [key: string]: any;
 }
@@ -892,7 +701,7 @@ export interface SelfDestructMessage {
 }
 
 // Legacy support
-export interface ExpiringMessage extends SelfDestructMessage {}
+export interface ExpiringMessage extends SelfDestructMessage { }
 
 export interface ExpirationPolicy {
   type: 'time_based' | 'view_based' | 'download_based' | 'forward_based' | 'screenshot_based' | 'interaction_based' | 'location_based' | 'device_based';
@@ -2082,6 +1891,7 @@ export interface Message {
   timestamp: number;
   status: 'sent' | 'delivered' | 'read';
   type: 'text' | 'image' | 'video' | 'voice' | 'file' | 'money';
+  fileType?: string;
   mediaUrl?: string;
   fileName?: string;
   fileSize?: number;
@@ -2379,7 +2189,7 @@ export interface WatchTimeMetrics {
 }
 
 // Legacy Reel interface for backward compatibility
-export interface Reel extends Clip {}
+export interface Reel extends Clip { }
 
 export interface FriendSuggestion {
   user: User;

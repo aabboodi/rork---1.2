@@ -28,13 +28,13 @@ export default function ChatScreen() {
   const { userId, language } = useAuthStore();
   const { balances, addTransaction, updateBalance } = useWalletStore();
   const t = translations[language];
-  
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [chat, setChat] = useState(mockChats.find(c => c.id === id));
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  
+
   // Enhanced E2EE state
   const [encryptionEnabled, setEncryptionEnabled] = useState(true);
   const [e2eeStatus, setE2eeStatus] = useState<'disabled' | 'pending' | 'established' | 'verified' | 'warning'>('pending');
@@ -42,14 +42,14 @@ export default function ChatScreen() {
   const [keyFingerprint, setKeyFingerprint] = useState<string>('');
   const [verificationPending, setVerificationPending] = useState(false);
   const [securityLevel, setSecurityLevel] = useState<'standard' | 'high' | 'maximum'>('high');
-  
+
   // DLP state
   const [dlpEnabled, setDlpEnabled] = useState(true);
   const [dlpWarning, setDlpWarning] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [dlpScanResult, setDlpScanResult] = useState<DLPScanResult | null>(null);
   const [showSensitiveContent, setShowSensitiveContent] = useState(false);
-  
+
   const [securityManager] = useState(() => SecurityManager.getInstance());
   const [keyManager] = useState(() => KeyManager.getInstance());
   const [biometricAuth] = useState(() => BiometricAuthService.getInstance());
@@ -58,10 +58,10 @@ export default function ChatScreen() {
   const [e2eeService] = useState(() => E2EEService.getInstance());
   const [socialEngineeringService] = useState(() => SocialEngineeringProtectionService.getInstance());
   const [useE2EEInterface, setUseE2EEInterface] = useState(true);
-  
+
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
-  
+
   useEffect(() => {
     initializeChat();
     initializeDLP();
@@ -72,13 +72,13 @@ export default function ChatScreen() {
       initiateE2EESetup();
     }
   }, [chat, encryptionEnabled]);
-  
+
   // CRITICAL: Initialize chat with Signal Protocol E2EE setup and DLP
   const initializeChat = async () => {
     try {
       // Load messages for this chat
       const chatMessages = mockMessages.filter(m => m.chatId === id);
-      
+
       // Decrypt messages if they are encrypted using Signal Protocol
       const decryptedMessages = await Promise.all(
         chatMessages.map(async (message) => {
@@ -87,17 +87,17 @@ export default function ChatScreen() {
               const sessionKey = keyManager.getSessionKey(id as string);
               if (sessionKey) {
                 const cryptoService = securityManager.getCryptoService();
-                
+
                 // Get Double Ratchet state for Signal Protocol decryption
                 const doubleRatchetState = await getDoubleRatchetState(id as string);
-                
+
                 const decryptedContent = await cryptoService.decryptE2EEMessage(
                   message.e2eeMessage,
                   sessionKey.key,
                   doubleRatchetState
                 );
-                return { 
-                  ...message, 
+                return {
+                  ...message,
                   content: decryptedContent,
                   verificationStatus: 'verified' as const,
                   protocolVersion: message.e2eeMessage.protocolVersion || 3
@@ -105,17 +105,17 @@ export default function ChatScreen() {
               }
             } catch (error) {
               console.error('Signal Protocol message decryption failed:', error);
-              return { 
-                ...message, 
-                content: '[Signal Protocol Encrypted Message - Decryption Failed]', 
-                verificationStatus: 'warning' as const 
+              return {
+                ...message,
+                content: '[Signal Protocol Encrypted Message - Decryption Failed]',
+                verificationStatus: 'warning' as const
               };
             }
           }
           return message;
         })
       );
-      
+
       setMessages(decryptedMessages.sort((a, b) => a.timestamp - b.timestamp));
     } catch (error) {
       console.error('Failed to initialize Signal Protocol chat:', error);
@@ -158,20 +158,20 @@ export default function ChatScreen() {
       }
 
       setE2eeStatus('pending');
-      
+
       // Check if Signal Protocol key exchange session already exists
       let session = keyManager.getKeyExchangeStatus(id as string);
-      
+
       if (!session || session.status === 'failed') {
         // Initiate new Signal Protocol key exchange
         session = await keyManager.initiateKeyExchange(id as string, participantId);
         setKeyExchangeSession(session);
-        
+
         if (session.status === 'key_exchange') {
           setKeyFingerprint(session.keyFingerprint || '');
           setVerificationPending(true);
           setE2eeStatus('pending');
-          
+
           // Show Signal Protocol key verification prompt
           showKeyVerificationPrompt(session.keyFingerprint || '');
         }
@@ -198,7 +198,7 @@ export default function ChatScreen() {
   // CRITICAL: Show Signal Protocol key verification prompt with biometric option
   const showKeyVerificationPrompt = (fingerprint: string) => {
     const formattedFingerprint = fingerprint.substring(0, 32).replace(/(.{4})/g, '$1 ').trim();
-    
+
     Alert.alert(
       'Verify Signal Protocol Encryption Key',
       `To ensure secure Signal Protocol communication, please verify the encryption key fingerprint:
@@ -207,20 +207,20 @@ ${formattedFingerprint}
 
 This should match the fingerprint shown on ${getDisplayName()}'s device. Signal Protocol uses end-to-end encryption with Perfect Forward Secrecy.`,
       [
-        { 
-          text: 'Cancel', 
+        {
+          text: 'Cancel',
           style: 'cancel',
           onPress: () => {
             setE2eeStatus('warning');
             setVerificationPending(false);
           }
         },
-        { 
-          text: 'Verify with Biometric', 
+        {
+          text: 'Verify with Biometric',
           onPress: () => verifyKeyWithBiometric(fingerprint)
         },
-        { 
-          text: 'Manual Verify', 
+        {
+          text: 'Manual Verify',
           onPress: () => verifyKeyManually(fingerprint)
         }
       ]
@@ -231,21 +231,21 @@ This should match the fingerprint shown on ${getDisplayName()}'s device. Signal 
   const verifyKeyWithBiometric = async (fingerprint: string) => {
     try {
       setVerificationPending(true);
-      
+
       const verificationResult = await keyManager.verifyKeyFingerprint(
         id as string,
         fingerprint,
         'fingerprint'
       );
-      
+
       if (verificationResult.verified) {
         // Establish secure session
         const sessionEstablished = await keyManager.establishSecureSession(id as string);
-        
+
         if (sessionEstablished) {
           setE2eeStatus('verified');
           setVerificationPending(false);
-          
+
           Alert.alert(
             'Encryption Verified',
             'End-to-end encryption has been successfully established. Your messages are now fully protected.',
@@ -257,7 +257,7 @@ This should match the fingerprint shown on ${getDisplayName()}'s device. Signal 
       } else {
         setE2eeStatus('warning');
         setVerificationPending(false);
-        
+
         Alert.alert(
           'Verification Failed',
           verificationResult.error || 'Key verification failed. Please try again or verify manually.',
@@ -271,7 +271,7 @@ This should match the fingerprint shown on ${getDisplayName()}'s device. Signal 
       console.error('Biometric key verification failed:', error);
       setE2eeStatus('warning');
       setVerificationPending(false);
-      
+
       Alert.alert(
         'Verification Error',
         'Biometric verification failed. Please try manual verification.',
@@ -287,7 +287,7 @@ This should match the fingerprint shown on ${getDisplayName()}'s device. Signal 
   const verifyKeyManually = async (fingerprint: string) => {
     try {
       const formattedFingerprint = fingerprint.substring(0, 32).replace(/(.{4})/g, '$1 ').trim();
-      
+
       Alert.alert(
         'Manual Key Verification',
         `Please confirm that this fingerprint matches exactly with ${getDisplayName()}'s device:
@@ -296,8 +296,8 @@ ${formattedFingerprint}
 
 Only confirm if the fingerprints match exactly.`,
         [
-          { 
-            text: 'They Don\'t Match', 
+          {
+            text: 'They Don\'t Match',
             style: 'destructive',
             onPress: () => {
               setE2eeStatus('warning');
@@ -309,22 +309,22 @@ Only confirm if the fingerprints match exactly.`,
               );
             }
           },
-          { 
-            text: 'They Match', 
+          {
+            text: 'They Match',
             onPress: async () => {
               const verificationResult = await keyManager.verifyKeyFingerprint(
                 id as string,
                 fingerprint,
                 'manual'
               );
-              
+
               if (verificationResult.verified) {
                 const sessionEstablished = await keyManager.establishSecureSession(id as string);
-                
+
                 if (sessionEstablished) {
                   setE2eeStatus('verified');
                   setVerificationPending(false);
-                  
+
                   Alert.alert(
                     'Encryption Verified',
                     'End-to-end encryption has been successfully established.',
@@ -389,7 +389,7 @@ Only confirm if the fingerprints match exactly.`,
     if (scanResult.violations.length > 0) {
       setDlpScanResult(scanResult);
       setPendingMessage(originalContent);
-      
+
       if (scanResult.requiresUserConfirmation) {
         showDLPConfirmationDialog(scanResult, originalContent);
         return false;
@@ -409,7 +409,7 @@ Only confirm if the fingerprints match exactly.`,
 
   // Show DLP confirmation dialog
   const showDLPConfirmationDialog = (scanResult: DLPScanResult, originalContent: string) => {
-    const violationSummary = scanResult.violations.map(v => 
+    const violationSummary = scanResult.violations.map(v =>
       `• ${v.category.toUpperCase()}: ${v.matches.length} match(es)`
     ).join('\n');
 
@@ -421,8 +421,8 @@ ${violationSummary}
 
 What would you like to do?`,
       [
-        { 
-          text: 'Cancel', 
+        {
+          text: 'Cancel',
           style: 'cancel',
           onPress: () => {
             setDlpScanResult(null);
@@ -430,8 +430,8 @@ What would you like to do?`,
             setDlpWarning(null);
           }
         },
-        { 
-          text: 'Send Redacted', 
+        {
+          text: 'Send Redacted',
           onPress: () => {
             if (scanResult.sanitizedContent) {
               setInputText(scanResult.sanitizedContent);
@@ -439,14 +439,14 @@ What would you like to do?`,
             }
           }
         },
-        { 
-          text: 'Send Encrypted', 
+        {
+          text: 'Send Encrypted',
           onPress: () => {
             proceedWithMessage(originalContent, true);
           }
         },
-        { 
-          text: 'Send Anyway', 
+        {
+          text: 'Send Anyway',
           style: 'destructive',
           onPress: () => {
             proceedWithMessage(originalContent);
@@ -461,18 +461,18 @@ What would you like to do?`,
     setDlpScanResult(null);
     setPendingMessage(null);
     setDlpWarning(null);
-    
+
     await sendMessageInternal(content, forceEncrypt);
   };
 
   // CRITICAL: Send Signal Protocol encrypted message with DLP scanning
   const sendMessage = async () => {
     if (!inputText.trim()) return;
-    
+
     try {
       // First, scan content with DLP
       const scanResult = await scanMessageContent(inputText.trim());
-      
+
       // Handle DLP result
       const canProceed = handleDLPScanResult(scanResult, inputText.trim());
       if (!canProceed) {
@@ -481,7 +481,7 @@ What would you like to do?`,
 
       // Proceed with sending
       await sendMessageInternal(inputText.trim());
-      
+
     } catch (error) {
       console.error('Failed to send message:', error);
       Alert.alert('Error', 'Failed to send message');
@@ -499,13 +499,13 @@ What would you like to do?`,
       // Encrypt message if Signal Protocol E2EE is enabled and established or forced
       if ((encryptionEnabled && e2eeStatus === 'verified' && !chat?.isGroup && !chat?.isChannel) || forceEncrypt) {
         const sessionKey = keyManager.getSessionKey(id as string);
-        
+
         if (sessionKey && userId) {
           const cryptoService = securityManager.getCryptoService();
-          
+
           // Get Double Ratchet state for Signal Protocol encryption
           const doubleRatchetState = await getDoubleRatchetState(id as string);
-          
+
           e2eeMessage = await cryptoService.encryptE2EEMessage(
             content,
             sessionKey.key,
@@ -513,11 +513,11 @@ What would you like to do?`,
             keyFingerprint,
             doubleRatchetState
           );
-          
+
           messageContent = '[Signal Protocol Encrypted Message]'; // Display placeholder
           encrypted = true;
           verificationStatus = 'verified';
-          
+
           // Update Double Ratchet state after encryption
           if (doubleRatchetState) {
             await updateDoubleRatchetState(id as string, doubleRatchetState);
@@ -540,10 +540,10 @@ What would you like to do?`,
         forwardSecrecyLevel: encrypted ? 10 : 0, // Higher level for Signal Protocol
         protocolVersion: encrypted ? 3 : undefined, // Signal Protocol v3
       };
-      
+
       setMessages([...messages, newMessage]);
       setInputText('');
-      
+
       // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -585,7 +585,7 @@ What would you like to do?`,
       warning: '⚠️'
     };
 
-    const protocolInfo = e2eeStatus === 'verified' ? 
+    const protocolInfo = e2eeStatus === 'verified' ?
       '\n\nProtocol: Signal Protocol v3\nFeatures: Perfect Forward Secrecy, Double Ratchet, X3DH Key Agreement' : '';
 
     Alert.alert(
@@ -597,13 +597,13 @@ ${keyFingerprint ? `Key Fingerprint: ${keyFingerprint.substring(0, 16)}...` : ''
 ${e2eeStatus === 'verified' ? 'Your messages are protected with Signal Protocol end-to-end encryption. Only you and the recipient can read them.' : ''}${protocolInfo}`,
       [
         { text: 'OK' },
-        ...(keyFingerprint ? [{ 
-          text: 'Show Full Fingerprint', 
-          onPress: () => showFullFingerprint() 
+        ...(keyFingerprint ? [{
+          text: 'Show Full Fingerprint',
+          onPress: () => showFullFingerprint()
         }] : []),
-        ...(e2eeStatus === 'pending' || e2eeStatus === 'warning' ? [{ 
-          text: 'Retry Signal Protocol Setup', 
-          onPress: () => initiateE2EESetup() 
+        ...(e2eeStatus === 'pending' || e2eeStatus === 'warning' ? [{
+          text: 'Retry Signal Protocol Setup',
+          onPress: () => initiateE2EESetup()
         }] : [])
       ]
     );
@@ -612,7 +612,7 @@ ${e2eeStatus === 'verified' ? 'Your messages are protected with Signal Protocol 
   // Show DLP information
   const showDLPInfo = () => {
     const dlpStatus = dlpService.getDLPStatus();
-    
+
     Alert.alert(
       'Data Loss Prevention (DLP)',
       `Status: ${dlpEnabled ? 'Enabled' : 'Disabled'}
@@ -630,9 +630,9 @@ DLP protects against accidental sharing of sensitive information like:
 Messages are scanned in real-time before sending.`,
       [
         { text: 'OK' },
-        { 
-          text: dlpEnabled ? 'Disable DLP' : 'Enable DLP', 
-          onPress: () => toggleDLP() 
+        {
+          text: dlpEnabled ? 'Disable DLP' : 'Enable DLP',
+          onPress: () => toggleDLP()
         }
       ]
     );
@@ -659,7 +659,7 @@ Messages are scanned in real-time before sending.`,
   // Show full key fingerprint
   const showFullFingerprint = () => {
     const formattedFingerprint = keyFingerprint.replace(/(.{4})/g, '$1 ').trim();
-    
+
     Alert.alert(
       'Encryption Key Fingerprint',
       `${formattedFingerprint}
@@ -667,40 +667,46 @@ Messages are scanned in real-time before sending.`,
 This fingerprint should match exactly with the one shown on ${getDisplayName()}'s device. If they don't match, do not continue the conversation.`,
       [
         { text: 'OK' },
-        { text: 'Copy', onPress: () => {
-          // In a real app, copy to clipboard
-          Alert.alert('Copied', 'Fingerprint copied to clipboard');
-        }}
+        {
+          text: 'Copy', onPress: () => {
+            // In a real app, copy to clipboard
+            Alert.alert('Copied', 'Fingerprint copied to clipboard');
+          }
+        }
       ]
     );
   };
-  
+
   const handleVoiceCall = () => {
     Alert.alert(
       t.voiceCall,
       `${t.voiceCall} ${getDisplayName()}`,
       [
         { text: t.cancel, style: 'cancel' },
-        { text: t.voiceCall, onPress: () => {
-          Alert.alert(t.success, 'جاري الاتصال...');
-        }}
+        {
+          text: t.voiceCall, onPress: () => {
+            Alert.alert(t.success, 'جاري الاتصال...');
+          }
+        }
       ]
     );
   };
-  
+
   const handleVideoCall = () => {
     Alert.alert(
       t.videoCall,
       `${t.videoCall} ${getDisplayName()}`,
       [
         { text: t.cancel, style: 'cancel' },
-        { text: t.videoCall, onPress: () => {
-          Alert.alert(t.success, 'جاري الاتصال بالفيديو...');
-        }}
+        {
+          text: t.videoCall, onPress: () => {
+            Alert.alert(t.success, 'جاري الاتصال بالفيديو...');
+          }
+        }
       ]
     );
   };
-  
+
   const handleProfileView = () => {
     if (chat?.isChannel) {
       Alert.alert(
@@ -736,22 +742,24 @@ ${user.bio || ''}
 ${user.workPlace || ''}`,
           [
             { text: t.cancel, style: 'cancel' },
-            { text: t.viewProfile, onPress: () => {
-              router.push(`/profile/${user.id}`);
-            }}
+            {
+              text: t.viewProfile, onPress: () => {
+                router.push(`/profile/${user.id}`);
+              }
+            }
           ]
         );
       }
     }
   };
-  
+
   const handleMoreOptions = () => {
-    const options = chat?.isChannel 
+    const options = chat?.isChannel
       ? [t.channelInfo, t.shareChannel, t.muteChat, t.reportUser, t.cancel]
       : chat?.isGroup
-      ? [t.groupInfo, t.groupMembers, t.muteChat, t.leaveGroup, t.cancel]
-      : [t.viewProfile, 'Encryption Info', 'DLP Settings', t.muteChat, t.clearChat, t.blockUser, t.reportUser, t.cancel];
-    
+        ? [t.groupInfo, t.groupMembers, t.muteChat, t.leaveGroup, t.cancel]
+        : [t.viewProfile, 'Encryption Info', 'DLP Settings', t.muteChat, t.clearChat, t.blockUser, t.reportUser, t.cancel];
+
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -774,7 +782,7 @@ ${user.workPlace || ''}`,
       );
     }
   };
-  
+
   const handleOptionSelect = (index: number) => {
     if (chat?.isChannel) {
       switch (index) {
@@ -802,15 +810,15 @@ ${user.workPlace || ''}`,
       }
     }
   };
-  
+
   const handleChannelInfo = () => {
     Alert.alert(t.channelInfo, `معلومات القناة: ${chat?.groupName}`);
   };
-  
+
   const handleShareChannel = () => {
     Alert.alert(t.shareChannel, 'تم نسخ رابط القناة');
   };
-  
+
   const handleChannelAction = () => {
     if (chat?.channelOwner === userId) {
       Alert.alert(t.channelInfo, 'إعدادات القناة');
@@ -818,59 +826,63 @@ ${user.workPlace || ''}`,
       Alert.alert(t.subscribe, 'تم الاشتراك في القناة');
     }
   };
-  
+
   const handleGroupMembers = () => {
     const membersList = chat?.participants.map(p => p.displayName).join('\n') || '';
     Alert.alert(t.groupMembers, membersList);
   };
-  
+
   const handleGroupSettings = () => {
     Alert.alert(t.groupInfo, 'إعدادات المجموعة');
   };
-  
+
   const handleMuteChat = () => {
     Alert.alert(t.success, 'تم كتم المحادثة');
   };
-  
+
   const handleClearChat = () => {
     Alert.alert(
       t.clearChat,
       'هل تريد مسح جميع الرسائل؟',
       [
         { text: t.cancel, style: 'cancel' },
-        { text: t.clearChat, style: 'destructive', onPress: () => {
-          setMessages([]);
-          Alert.alert(t.success, 'تم مسح المحادثة');
-        }}
+        {
+          text: t.clearChat, style: 'destructive', onPress: () => {
+            setMessages([]);
+            Alert.alert(t.success, 'تم مسح المحادثة');
+          }
+        }
       ]
     );
   };
-  
+
   const handleBlockUser = () => {
     Alert.alert(t.success, 'تم حظر المستخدم');
   };
-  
+
   const handleReportUser = () => {
     Alert.alert(t.success, 'تم الإبلاغ عن المستخدم');
   };
-  
+
   const handleLeaveGroup = () => {
     Alert.alert(
       t.leaveGroup,
       'هل تريد مغادرة المجموعة؟',
       [
         { text: t.cancel, style: 'cancel' },
-        { text: t.leaveGroup, style: 'destructive', onPress: () => {
-          Alert.alert(t.success, 'تم مغادرة المجموعة');
-          router.back();
-        }}
+        {
+          text: t.leaveGroup, style: 'destructive', onPress: () => {
+            Alert.alert(t.success, 'تم مغادرة المجموعة');
+            router.back();
+          }
+        }
       ]
     );
   };
-  
+
   const handleAttachment = () => {
     const options = [t.camera, t.gallery, t.document, t.location, t.contact, t.cancel];
-    
+
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -892,11 +904,11 @@ ${user.workPlace || ''}`,
       );
     }
   };
-  
+
   const handleAttachmentSelect = (index: number) => {
     const types = ['camera', 'gallery', 'document', 'location', 'contact'];
     const type = types[index];
-    
+
     if (type) {
       const newMessage: Message = {
         id: Date.now().toString(),
@@ -907,14 +919,14 @@ ${user.workPlace || ''}`,
         status: 'sent',
         type: type as any,
       };
-      
+
       setMessages([...messages, newMessage]);
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
   };
-  
+
   const handleVoiceRecording = () => {
     if (isRecording) {
       setIsRecording(false);
@@ -928,7 +940,7 @@ ${user.workPlace || ''}`,
         type: 'voice',
         duration: 5,
       };
-      
+
       setMessages([...messages, newMessage]);
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -938,32 +950,32 @@ ${user.workPlace || ''}`,
       Alert.alert('تسجيل صوتي', 'بدء التسجيل...');
     }
   };
-  
+
   const sendMoney = () => {
     Alert.alert(
       'إرسال أموال',
       'اختر المبلغ والعملة',
       [
         { text: 'إلغاء', style: 'cancel' },
-        { 
-          text: '100 ريال', 
+        {
+          text: '100 ريال',
           onPress: () => handleMoneySend(100, 'SAR')
         },
-        { 
-          text: '50 درهم', 
+        {
+          text: '50 درهم',
           onPress: () => handleMoneySend(50, 'AED')
         },
       ]
     );
   };
-  
+
   const handleMoneySend = (amount: number, currency: string) => {
     const balance = balances.find(b => b.currency === currency);
     if (!balance || balance.amount < amount) {
       Alert.alert('خطأ', 'رصيد غير كافٍ');
       return;
     }
-    
+
     const moneyMessage: Message = {
       id: Date.now().toString(),
       chatId: id as string,
@@ -973,10 +985,10 @@ ${user.workPlace || ''}`,
       status: 'sent',
       type: 'money',
     };
-    
+
     setMessages([...messages, moneyMessage]);
     updateBalance(currency, -amount);
-    
+
     Alert.alert('نجاح', 'تم إرسال الأموال بنجاح');
   };
 
@@ -999,11 +1011,11 @@ ${user.workPlace || ''}`,
   // Get DLP status icon
   const getDLPIcon = () => {
     if (!dlpEnabled) return null;
-    
+
     if (dlpWarning) {
       return <AlertTriangle size={14} color={Colors.error} />;
     }
-    
+
     return <Shield size={14} color={Colors.success} />;
   };
 
@@ -1018,7 +1030,7 @@ ${user.workPlace || ''}`,
         return Colors.medium;
     }
   };
-  
+
   // Render message content with social engineering protection
   const renderMessageContent = (item: Message, isCurrentUser: boolean) => {
     const hasLinks = item.content && (item.content.includes('http') || item.content.includes('www.'));
@@ -1043,10 +1055,10 @@ ${user.workPlace || ''}`,
     if (hasLinks) {
       const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
       const links = item.content.match(urlRegex) || [];
-      
+
       return (
         <View>
-          <Text 
+          <Text
             style={[
               styles.messageText,
               !isCurrentUser && styles.otherUserText,
@@ -1072,7 +1084,7 @@ ${user.workPlace || ''}`,
     }
 
     return (
-      <Text 
+      <Text
         style={[
           styles.messageText,
           !isCurrentUser && styles.otherUserText,
@@ -1086,7 +1098,7 @@ ${user.workPlace || ''}`,
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isCurrentUser = item.senderId === userId || item.senderId === '0';
-    
+
     return (
       <View
         style={[
@@ -1129,12 +1141,12 @@ ${user.workPlace || ''}`,
               <ImageIcon size={16} color={isCurrentUser ? Colors.dark : 'white'} />
             </View>
           )}
-          
+
           {/* Render message content with social engineering protection */}
           {renderMessageContent(item, isCurrentUser)}
-          
+
           <View style={styles.messageFooter}>
-            <Text 
+            <Text
               style={[
                 styles.messageTime,
                 !isCurrentUser && styles.otherUserTime,
@@ -1142,7 +1154,7 @@ ${user.workPlace || ''}`,
             >
               {formatTime(item.timestamp)}
             </Text>
-            
+
             {/* Forward secrecy level indicator */}
             {item.forwardSecrecyLevel && item.forwardSecrecyLevel > 0 && (
               <View style={styles.forwardSecrecyIndicator}>
@@ -1154,31 +1166,31 @@ ${user.workPlace || ''}`,
       </View>
     );
   };
-  
+
   const getDisplayName = () => {
     if (!chat) return '';
-    
+
     if (chat.isGroup || chat.isChannel) {
       return chat.groupName;
     }
     return chat.participants[0]?.displayName || '';
   };
-  
+
   const getAvatar = () => {
     if (!chat) return '';
-    
+
     if (chat.isGroup || chat.isChannel) {
       return chat.groupPicture;
     }
     return chat.participants[0]?.profilePicture || '';
   };
-  
+
   const getOnlineStatus = () => {
     if (!chat || chat.isGroup) return '';
     if (chat.isChannel) return `${chat.channelSubscribers || 0} مشترك`;
     return chat.participants[0]?.isOnline ? t.online : `${t.lastSeen} منذ 5 دقائق`;
   };
-  
+
   const getChatIcon = () => {
     if (chat?.isChannel) {
       return <Radio size={16} color="white" style={styles.chatTypeIcon} />;
@@ -1188,12 +1200,12 @@ ${user.workPlace || ''}`,
     }
     return null;
   };
-  
+
   const handleInputFocus = () => {
     setIsTyping(true);
     inputRef.current?.focus();
   };
-  
+
   // Use new E2EE interface for private chats
   if (useE2EEInterface && !chat?.isGroup && !chat?.isChannel && chat?.participants[0]) {
     return (
@@ -1221,18 +1233,18 @@ ${user.workPlace || ''}`,
           headerShown: false,
         }}
       />
-      
+
       {/* Custom Header with Security and DLP Indicators */}
       <View style={styles.customHeader}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color="white" />
           </TouchableOpacity>
-          
+
           <TouchableOpacity onPress={handleProfileView} style={styles.profileSection}>
             <Image source={{ uri: getAvatar() }} style={styles.headerAvatar} />
             {getChatIcon()}
-            
+
             <View style={styles.headerInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.headerName}>{getDisplayName()}</Text>
@@ -1243,7 +1255,7 @@ ${user.workPlace || ''}`,
             </View>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerButton} onPress={handleVideoCall}>
             <Video size={22} color="white" />
@@ -1256,7 +1268,7 @@ ${user.workPlace || ''}`,
           </TouchableOpacity>
         </View>
       </View>
-      
+
       {/* Enhanced Encryption Status Banner */}
       {encryptionEnabled && !chat?.isGroup && !chat?.isChannel && (
         <TouchableOpacity style={[styles.encryptionBanner, { backgroundColor: getEncryptionBannerColor() }]} onPress={showE2EEInfo}>
@@ -1265,7 +1277,7 @@ ${user.workPlace || ''}`,
             {getEncryptionStatusText()}
           </Text>
           {verificationPending && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.verifyButton}
               onPress={() => showKeyVerificationPrompt(keyFingerprint)}
             >
@@ -1298,7 +1310,7 @@ ${user.workPlace || ''}`,
           </TouchableOpacity>
         </View>
       )}
-      
+
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1312,18 +1324,18 @@ ${user.workPlace || ''}`,
           contentContainerStyle={styles.messagesContainer}
           onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
         />
-        
+
         {isTyping && (
           <View style={styles.typingIndicator}>
             <Text style={styles.typingText}>{t.typing}</Text>
           </View>
         )}
-        
+
         <View style={styles.inputContainer}>
           <TouchableOpacity style={styles.attachButton} onPress={handleAttachment}>
             <Paperclip size={24} color={Colors.medium} />
           </TouchableOpacity>
-          
+
           <TextInput
             ref={inputRef}
             style={styles.input}
@@ -1335,7 +1347,7 @@ ${user.workPlace || ''}`,
             onFocus={handleInputFocus}
             onBlur={() => setIsTyping(false)}
           />
-          
+
           {inputText.trim() ? (
             <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
               <Send size={20} color="white" />
@@ -1345,13 +1357,13 @@ ${user.workPlace || ''}`,
               <TouchableOpacity style={styles.actionButton} onPress={sendMoney}>
                 <Wallet size={24} color={Colors.primary} />
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.actionButton} onPress={handleAttachment}>
                 <ImageIcon size={24} color={Colors.medium} />
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.actionButton, isRecording && styles.recordingButton]} 
+
+              <TouchableOpacity
+                style={[styles.actionButton, isRecording && styles.recordingButton]}
                 onPress={handleVoiceRecording}
               >
                 <Mic size={24} color={isRecording ? 'white' : Colors.medium} />
@@ -1529,49 +1541,42 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 6,
   },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.whatsappGray,
-  },
-  messagesContainer: {
-    padding: 12,
-    paddingBottom: 20,
-  },
-  messageContainer: {
-    marginVertical: 2,
-    maxWidth: '80%',
-  },
-  currentUserMessage: {
-    alignSelf: 'flex-end',
-  },
-  otherUserMessage: {
-    alignSelf: 'flex-start',
-  },
   messageBubble: {
-    borderRadius: 8,
+    borderRadius: 16,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingBottom: 20,
     position: 'relative',
+    maxWidth: '100%',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 1.00,
+    elevation: 1,
   },
   currentUserBubble: {
     backgroundColor: Colors.whatsappLight,
+    borderTopRightRadius: 0,
   },
   otherUserBubble: {
     backgroundColor: 'white',
+    borderTopLeftRadius: 0,
   },
   moneyBubble: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#E8F5E9',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
   },
   voiceBubble: {
-    backgroundColor: Colors.accent,
+    backgroundColor: '#E3F2FD',
   },
   messageHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute',
-    top: 4,
-    right: 4,
+    marginBottom: 4,
   },
   encryptionIndicator: {
     marginRight: 4,
@@ -1586,31 +1591,31 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
-    color: Colors.dark,
-    flex: 1,
-    marginTop: 16,
+    color: '#000',
+    lineHeight: 22,
   },
   otherUserText: {
-    color: Colors.dark,
+    color: '#000',
   },
   moneyText: {
-    color: 'white',
+    color: '#2E7D32',
     fontWeight: '600',
   },
   messageFooter: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    justifyContent: 'space-between',
     position: 'absolute',
     bottom: 4,
-    right: 12,
-    left: 12,
+    right: 8,
   },
-  messageTime: {
-    fontSize: 10,
-    color: Colors.medium,
+  container: {
+    flex: 1,
+    backgroundColor: Colors.whatsappGray,
   },
-  otherUserTime: {
+  messagesContainer: {
+    padding: 12,
+    paddingBottom: 20,
     color: Colors.medium,
   },
   forwardSecrecyIndicator: {

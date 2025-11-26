@@ -24,4 +24,6 @@ export default {
   failed: '#F44336',
   scanning: '#9C27B0',
   white: '#FFFFFF',
+  whatsappGray: '#ECE5DD',
+  whatsappLight: '#DCF8C6',
 };

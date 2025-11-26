@@ -1,307 +1,131 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { Stack } from 'expo-router';
-import {
-  Shield,
-  Activity,
-  Users,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Eye,
-  Lock,
-  Smartphone,
-  Wifi,
-  Database,
-  Bell
-} from 'lucide-react-native';
-import ComprehensiveDashboard from '@/components/ComprehensiveDashboard';
-import SecurityAlertBanner from '@/components/SecurityAlertBanner';
-import SecurityBreachService from '@/services/security/SecurityBreachService';
-import { formatRelativeTime } from '@/utils/formatRelativeTime';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-const { width } = Dimensions.get('window');
+export default function Dashboard() {
+  const router = useRouter();
 
-export default function DashboardScreen() {
-  const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
-  const [securityHealth, setSecurityHealth] = useState(100);
-  const [criticalCount, setCriticalCount] = useState(0);
-  
-  const breachService = SecurityBreachService.getInstance();
+  const QuickAction = ({ icon, label, onPress, color }: { icon: string; label: string; onPress: () => void; color: string }) => (
+    <TouchableOpacity onPress={onPress} style={styles.quickActionContainer}>
+      <LinearGradient
+        colors={[color, color + '80']}
+        style={styles.quickActionIcon}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Ionicons name={icon as any} size={24} color="white" />
+      </LinearGradient>
+      <Text style={styles.quickActionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
 
-  useEffect(() => {
-    loadSecurityData();
-    const interval = setInterval(loadSecurityData, 30000); // Update every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadSecurityData = async () => {
-    try {
-      const alerts = breachService.getAlerts({ limit: 5 });
-      const breaches = breachService.getBreaches({ limit: 3 });
-      const health = breachService.getSecurityHealthScore();
-      const critical = breachService.getCriticalBreachesCount();
-      
-      // Combine and sort by timestamp
-      const combined = [...alerts, ...breaches]
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 5);
-      
-      setRecentAlerts(combined);
-      setSecurityHealth(health);
-      setCriticalCount(critical);
-    } catch (error) {
-      console.error('Failed to load security data:', error);
-    }
-  };
-
-  const quickActions = [
-    {
-      title: 'Security Breach Dashboard',
-      icon: Shield,
-      color: '#007AFF',
-      route: '/security/breach-dashboard',
-      badge: criticalCount > 0 ? criticalCount : undefined
-    },
-    {
-      title: 'System Alerts',
-      icon: Bell,
-      color: '#FF9500',
-      route: '/security/system-alerts'
-    },
-    {
-      title: 'Security Overview',
-      icon: Activity,
-      color: '#34C759',
-      route: '/security/overview'
-    },
-    {
-      title: 'Performance Monitor',
-      icon: TrendingUp,
-      color: '#AF52DE',
-      route: '/monitoring/performance'
-    }
-  ];
-
-  const getAlertIcon = (item: any) => {
-    if ('severity' in item) {
-      // It's a breach
-      switch (item.severity) {
-        case 'critical': return AlertTriangle;
-        case 'high': return Shield;
-        case 'medium': return Clock;
-        case 'low': return CheckCircle;
-        default: return AlertTriangle;
-      }
-    } else {
-      // It's an alert
-      switch (item.priority) {
-        case 'critical': return AlertTriangle;
-        case 'error': return Shield;
-        case 'warning': return Clock;
-        case 'info': return CheckCircle;
-        default: return Bell;
-      }
-    }
-  };
-
-  const getAlertColor = (item: any) => {
-    if ('severity' in item) {
-      // It's a breach
-      switch (item.severity) {
-        case 'critical': return '#FF3B30';
-        case 'high': return '#FF9500';
-        case 'medium': return '#FFCC00';
-        case 'low': return '#34C759';
-        default: return '#8E8E93';
-      }
-    } else {
-      // It's an alert
-      switch (item.priority) {
-        case 'critical': return '#FF3B30';
-        case 'error': return '#FF9500';
-        case 'warning': return '#FFCC00';
-        case 'info': return '#007AFF';
-        default: return '#8E8E93';
-      }
-    }
-  };
-
-  const getHealthColor = (score: number) => {
-    if (score >= 80) return '#34C759';
-    if (score >= 60) return '#FFCC00';
-    if (score >= 40) return '#FF9500';
-    return '#FF3B30';
-  };
+  const RecentChat = ({ name, message, time, avatar }: { name: string; message: string; time: string; avatar: string }) => (
+    <TouchableOpacity style={styles.recentChatContainer} onPress={() => router.push('/chat')}>
+      <Image source={{ uri: avatar }} style={styles.avatar} />
+      <View style={styles.chatContent}>
+        <Text style={styles.chatName}>{name}</Text>
+        <Text style={styles.chatMessage} numberOfLines={1}>{message}</Text>
+      </View>
+      <Text style={styles.chatTime}>{time}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Security Dashboard',
-          headerShown: false
-        }} 
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={['#1a2a6c', '#b21f1f', '#fdbb2d']}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       />
-      
-      <SecurityAlertBanner />
-      
-      <ScrollView style={styles.scrollView}>
-        {/* Header */}
-        <LinearGradient
-          colors={['#1C1C1E', '#2C2C2E']}
-          style={styles.header}
-        >
-          <Text style={styles.headerTitle}>Security Dashboard</Text>
-          <Text style={styles.headerSubtitle}>Real-time monitoring and alerts</Text>
-          
-          {/* Security Health Score */}
-          <View style={styles.healthContainer}>
-            <View style={styles.healthScore}>
-              <Text style={styles.healthValue}>{securityHealth}%</Text>
-              <Text style={styles.healthLabel}>Security Health</Text>
+
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>Good Evening,</Text>
+              <Text style={styles.username}>Alex Doe</Text>
             </View>
-            <View style={styles.healthIndicator}>
-              <View 
-                style={[
-                  styles.healthBar,
-                  { 
-                    width: `${securityHealth}%`,
-                    backgroundColor: getHealthColor(securityHealth)
-                  }
-                ]} 
+            <TouchableOpacity onPress={() => router.push('/profile')}>
+              <Image
+                source={{ uri: 'https://i.pravatar.cc/150?img=11' }}
+                style={styles.profileImage}
               />
-            </View>
-          </View>
-        </LinearGradient>
-
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            {quickActions.map((action, index) => {
-              const IconComponent = action.icon;
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.quickActionCard}
-                  onPress={() => router.push(action.route as any)}
-                >
-                  <View style={[styles.quickActionIcon, { backgroundColor: `${action.color}20` }]}>
-                    <IconComponent size={24} color={action.color} />
-                    {action.badge && (
-                      <View style={styles.actionBadge}>
-                        <Text style={styles.actionBadgeText}>{action.badge}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.quickActionTitle}>{action.title}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Recent Security Events */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Security Events</Text>
-            <TouchableOpacity onPress={() => router.push('/security/breach-dashboard')}>
-              <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          
-          {recentAlerts.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Shield size={32} color="#8E8E93" />
-              <Text style={styles.emptyText}>No recent security events</Text>
-            </View>
-          ) : (
-            recentAlerts.map((item, index) => {
-              const IconComponent = getAlertIcon(item);
-              const alertColor = getAlertColor(item);
-              const isBreach = 'severity' in item;
-              
-              return (
-                <TouchableOpacity 
-                  key={item.id || index} 
-                  style={styles.alertCard}
-                  onPress={() => router.push('/security/breach-dashboard')}
-                >
-                  <View style={styles.alertHeader}>
-                    <View style={[styles.alertIcon, { backgroundColor: `${alertColor}20` }]}>
-                      <IconComponent size={20} color={alertColor} />
-                    </View>
-                    <View style={styles.alertInfo}>
-                      <Text style={styles.alertTitle}>
-                        {isBreach ? item.description : item.title}
-                      </Text>
-                      <Text style={styles.alertDescription}>
-                        {isBreach 
-                          ? `${item.type.replace('_', ' ')} - ${item.affectedResources?.join(', ') || 'System'}`
-                          : item.message
-                        }
-                      </Text>
-                      <Text style={styles.alertTimestamp}>
-                        {formatRelativeTime(item.timestamp)}
-                      </Text>
-                    </View>
-                    <View style={[styles.severityBadge, { backgroundColor: alertColor }]}>
-                      <Text style={styles.severityText}>
-                        {isBreach ? item.severity.toUpperCase() : item.priority.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  {isBreach && !item.resolved && (
-                    <View style={styles.unresolvedIndicator}>
-                      <Text style={styles.unresolvedText}>Unresolved</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
 
-        {/* System Status Cards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>System Status</Text>
-          <View style={styles.statusGrid}>
-            <View style={styles.statusCard}>
-              <Lock size={24} color="#34C759" />
-              <Text style={styles.statusValue}>Secure</Text>
-              <Text style={styles.statusLabel}>Encryption</Text>
+          {/* Wallet Card */}
+          <BlurView intensity={80} tint="dark" style={styles.walletCard}>
+            <View style={styles.walletHeader}>
+              <Text style={styles.walletLabel}>Total Balance</Text>
+              <Ionicons name="eye-off-outline" size={20} color="rgba(255,255,255,0.6)" />
             </View>
-            
-            <View style={styles.statusCard}>
-              <Wifi size={24} color="#007AFF" />
-              <Text style={styles.statusValue}>Active</Text>
-              <Text style={styles.statusLabel}>Network Monitor</Text>
+            <Text style={styles.balance}>$12,450.00</Text>
+            <View style={styles.walletActions}>
+              <TouchableOpacity style={styles.walletButton}>
+                <Ionicons name="arrow-up" size={20} color="white" />
+                <Text style={styles.walletButtonText}>Send</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.walletButton}>
+                <Ionicons name="add" size={20} color="white" />
+                <Text style={styles.walletButtonText}>Top Up</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.walletButton}>
+                <Ionicons name="qr-code" size={20} color="white" />
+                <Text style={styles.walletButtonText}>Scan</Text>
+              </TouchableOpacity>
             </View>
-            
-            <View style={styles.statusCard}>
-              <Database size={24} color="#AF52DE" />
-              <Text style={styles.statusValue}>Protected</Text>
-              <Text style={styles.statusLabel}>Data Integrity</Text>
-            </View>
-            
-            <View style={styles.statusCard}>
-              <Eye size={24} color="#FF9500" />
-              <Text style={styles.statusValue}>Monitoring</Text>
-              <Text style={styles.statusLabel}>Threat Detection</Text>
-            </View>
+          </BlurView>
+
+          {/* Quick Actions */}
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickActionsGrid}>
+            <QuickAction icon="chatbubble-ellipses" label="New Chat" color="#4facfe" onPress={() => router.push('/chat')} />
+            <QuickAction icon="people" label="Groups" color="#00f260" onPress={() => router.push('/groups')} />
+            <QuickAction icon="videocam" label="Live" color="#f093fb" onPress={() => router.push('/feed')} />
+            <QuickAction icon="game-controller" label="Games" color="#ff9a9e" onPress={() => { }} />
           </View>
-        </View>
 
-        {/* Comprehensive Dashboard */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Detailed Analytics</Text>
-          <ComprehensiveDashboard />
-        </View>
-      </ScrollView>
+          {/* Recent Chats */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Chats</Text>
+            <TouchableOpacity onPress={() => router.push('/chat')}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          <BlurView intensity={50} tint="dark" style={styles.recentChatsList}>
+            <RecentChat
+              name="Sarah Williams"
+              message="Hey! Are we still on for dinner?"
+              time="2m ago"
+              avatar="https://i.pravatar.cc/150?img=5"
+            />
+            <View style={styles.divider} />
+            <RecentChat
+              name="Crypto Group"
+              message="John: Bitcoin is rallying again! 🚀"
+              time="15m ago"
+              avatar="https://i.pravatar.cc/150?img=8"
+            />
+            <View style={styles.divider} />
+            <RecentChat
+              name="Mom"
+              message="Call me when you're free."
+              time="1h ago"
+              avatar="https://i.pravatar.cc/150?img=9"
+            />
+          </BlurView>
+
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
@@ -309,208 +133,162 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7'
   },
-  scrollView: {
-    flex: 1
+  safeArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
   },
   header: {
-    padding: 20,
-    paddingTop: 60
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  headerTitle: {
+  greeting: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    fontFamily: Platform.select({ ios: 'System', android: 'Roboto' }),
+  },
+  username: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4
+    color: 'white',
   },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.8,
-    marginBottom: 20
+  profileImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
-  healthContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16
+  walletCard: {
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 32,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  healthScore: {
+  walletHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12
+    marginBottom: 8,
   },
-  healthValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF'
-  },
-  healthLabel: {
+  walletLabel: {
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.8
   },
-  healthIndicator: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
-    overflow: 'hidden'
+  balance: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 24,
   },
-  healthBar: {
-    height: '100%',
-    borderRadius: 4
+  walletActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  section: {
-    padding: 16,
-    marginBottom: 8
+  walletButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  walletButtonText: {
+    color: 'white',
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 16,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  quickActionContainer: {
+    alignItems: 'center',
+  },
+  quickActionIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.30,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  quickActionLabel: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 16
+  seeAll: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
   },
-  viewAllText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '500'
+  recentChatsList: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  quickActionsGrid: {
+  recentChatContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12
-  },
-  quickActionCard: {
-    width: (width - 44) / 2,
-    backgroundColor: 'white',
-    borderRadius: 12,
+    alignItems: 'center',
     padding: 16,
-    alignItems: 'center'
   },
-  quickActionIcon: {
+  avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    position: 'relative'
+    marginRight: 16,
   },
-  actionBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#FF3B30',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: 'center'
+  chatContent: {
+    flex: 1,
   },
-  actionBadgeText: {
+  chatName: {
     color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold'
-  },
-  quickActionTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1C1C1E',
-    textAlign: 'center'
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-    backgroundColor: 'white',
-    borderRadius: 12
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    marginTop: 8
-  },
-  alertCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  alertIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12
-  },
-  alertInfo: {
-    flex: 1
-  },
-  alertTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 2
+    marginBottom: 4,
   },
-  alertDescription: {
+  chatMessage: {
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 4
   },
-  alertTimestamp: {
+  chatTime: {
+    color: 'rgba(255,255,255,0.4)',
     fontSize: 12,
-    color: '#8E8E93'
   },
-  severityBadge: {
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginLeft: 80,
   },
-  severityText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: '600'
-  },
-  unresolvedIndicator: {
-    marginTop: 8,
-    alignSelf: 'flex-start'
-  },
-  unresolvedText: {
-    fontSize: 12,
-    color: '#FF3B30',
-    fontWeight: '500'
-  },
-  statusGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12
-  },
-  statusCard: {
-    width: (width - 44) / 2,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center'
-  },
-  statusValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginTop: 8,
-    marginBottom: 4
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
-    textAlign: 'center'
-  }
 });
