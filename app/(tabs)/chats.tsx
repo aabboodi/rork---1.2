@@ -1,823 +1,390 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, Text, Alert, ActionSheetIOS, Platform, RefreshControl, Animated } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { Search, MessageCircle, Archive, Settings, Users, Radio, Plus, Trash2, Filter, Shield, Key, Lock } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { mockChats, mockGroups, mockChannels } from '@/mocks/chats';
-import { Chat, ChatType } from '@/types';
-import { translations } from '@/constants/i18n';
-import { useAuthStore } from '@/store/authStore';
-import { useThemeSafe } from '@/providers/ThemeProvider';
-import ChatItem from '@/components/ChatItem';
-import SecurityManager from '@/services/security/SecurityManager';
-import KeyManager from '@/services/security/KeyManager';
-import DLPService from '@/services/security/DLPService';
-import AnimatedNotificationBanner from '@/components/AnimatedNotificationBanner';
-import { MicroInteractions } from '@/utils/microInteractions';
+import { MessageCircle, Pin, Archive, Check, CheckCheck, Mic, Camera, Video, File } from 'lucide-react-native';
+import Colors from '@/constants/colors';
+import { formatTimeAgo } from '@/utils/dateUtils';
 
-export default function ChatsScreen() {
+interface Chat {
+  id: string;
+  user: {
+    id: string;
+    name: string;
+    picture: string;
+    isOnline: boolean;
+  };
+  lastMessage: {
+    content: string;
+    senderId: string;
+    timestamp: number;
+    type: 'text' | 'image' | 'video' | 'voice' | 'file' | 'money';
+    status: 'sent' | 'delivered' | 'read';
+    encrypted: boolean;
+  };
+  unreadCount: number;
+  isPinned: boolean;
+  isArchived: boolean;
+  isMuted: boolean;
+  isGroup: boolean;
+  groupName?: string;
+  groupPicture?: string;
+  participants?: number;
+}
+
+const mockChats: Chat[] = [
+  {
+    id: 'chat_1',
+    user: {
+      id: 'user_1',
+      name: 'أحمد محمد',
+      picture: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+      isOnline: true,
+    },
+    lastMessage: {
+      content: 'مرحباً! كيف حالك؟',
+      senderId: 'user_1',
+      timestamp: Date.now() - 300000,
+      type: 'text',
+      status: 'read',
+      encrypted: true,
+    },
+    unreadCount: 0,
+    isPinned: true,
+    isArchived: false,
+    isMuted: false,
+    isGroup: false,
+  },
+  {
+    id: 'chat_2',
+    user: {
+      id: 'user_2',
+      name: 'سارة علي',
+      picture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face',
+      isOnline: false,
+    },
+    lastMessage: {
+      content: 'شكراً على المساعدة!',
+      senderId: 'user_0',
+      timestamp: Date.now() - 3600000,
+      type: 'text',
+      status: 'delivered',
+      encrypted: true,
+    },
+    unreadCount: 3,
+    isPinned: false,
+    isArchived: false,
+    isMuted: false,
+    isGroup: false,
+  },
+  {
+    id: 'chat_3',
+    user: {
+      id: 'group_1',
+      name: 'فريق العمل',
+      picture: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&h=150&fit=crop',
+      isOnline: false,
+    },
+    lastMessage: {
+      content: 'محمد: اجتماع غداً الساعة 10',
+      senderId: 'user_3',
+      timestamp: Date.now() - 7200000,
+      type: 'text',
+      status: 'read',
+      encrypted: true,
+    },
+    unreadCount: 0,
+    isPinned: true,
+    isArchived: false,
+    isMuted: false,
+    isGroup: true,
+    groupName: 'فريق العمل',
+    participants: 12,
+  },
+  {
+    id: 'chat_4',
+    user: {
+      id: 'user_4',
+      name: 'خالد السعيد',
+      picture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
+      isOnline: true,
+    },
+    lastMessage: {
+      content: '📷 صورة',
+      senderId: 'user_4',
+      timestamp: Date.now() - 86400000,
+      type: 'image',
+      status: 'read',
+      encrypted: true,
+    },
+    unreadCount: 0,
+    isPinned: false,
+    isArchived: false,
+    isMuted: true,
+    isGroup: false,
+  },
+  {
+    id: 'chat_5',
+    user: {
+      id: 'user_5',
+      name: 'فاطمة أحمد',
+      picture: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+      isOnline: false,
+    },
+    lastMessage: {
+      content: '🎤 رسالة صوتية',
+      senderId: 'user_5',
+      timestamp: Date.now() - 172800000,
+      type: 'voice',
+      status: 'delivered',
+      encrypted: true,
+    },
+    unreadCount: 1,
+    isPinned: false,
+    isArchived: false,
+    isMuted: false,
+    isGroup: false,
+  },
+];
+
+export default function ChatListScreen() {
   const router = useRouter();
-  const { language } = useAuthStore();
-  const themeContext = useThemeSafe();
-  
-  // Ensure theme is available before rendering
-  if (!themeContext || !themeContext.theme || !themeContext.theme.colors) {
-    return null; // Don't render until theme is ready
-  }
-  
-  const { theme } = themeContext;
-  const colors = theme.colors;
-  const t = translations[language];
-  
-  // Debug: Log theme status
-  React.useEffect(() => {
-    console.log('ChatsScreen theme status:', {
-      hasTheme: !!theme,
-      hasColors: !!colors,
-      hasBackground: !!colors?.background,
-      themeMode: theme?.mode
-    });
-  }, [theme, colors]);
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<ChatType>('conversation');
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [selectedChats, setSelectedChats] = useState<string[]>([]);
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'unread' | 'pinned' | 'encrypted' | 'dlp_protected'>('all');
-  const [notification, setNotification] = useState<{
-    visible: boolean;
-    type: 'success' | 'error' | 'warning' | 'info';
-    title: string;
-    message?: string;
-  }>({ visible: false, type: 'info', title: '' });
-  
-  // Animation values
-  const headerAnim = useRef(new Animated.Value(1)).current;
-  const searchAnim = useRef(new Animated.Value(1)).current;
-  const listAnim = useRef(new Animated.Value(1)).current;
-  
-  // Enhanced E2EE and DLP state
-  const [securityManager] = useState(() => SecurityManager.getInstance());
-  const [keyManager] = useState(() => KeyManager.getInstance());
-  const [dlpService] = useState(() => DLPService.getInstance());
-  const [e2eeStatus, setE2eeStatus] = useState({
-    totalSessions: 0,
-    establishedSessions: 0,
-    verifiedKeys: 0
-  });
-  const [dlpStatus, setDlpStatus] = useState({
-    enabled: false,
-    policiesCount: 0,
-    recentViolations: 0
-  });
-  
-  React.useEffect(() => {
-    loadSecurityStatus();
-    initializeDLP();
-    
-    // Entrance animations
-    MicroInteractions.createEntranceAnimation(headerAnim, new Animated.Value(1), 0).start();
-    MicroInteractions.createEntranceAnimation(searchAnim, new Animated.Value(1), 100).start();
-    MicroInteractions.createEntranceAnimation(listAnim, new Animated.Value(1), 200).start();
-  }, []);
 
-  const loadSecurityStatus = () => {
-    try {
-      const status = keyManager.getE2EEStatus();
-      setE2eeStatus(status);
-    } catch (error) {
-      console.error('Failed to load E2EE status:', error);
-    }
-  };
-
-  const initializeDLP = async () => {
-    try {
-      await dlpService.initialize();
-      const status = dlpService.getDLPStatus();
-      setDlpStatus(status);
-    } catch (error) {
-      console.error('Failed to initialize DLP:', error);
-    }
-  };
-  
-  const getFilteredData = () => {
-    let filteredData = chats.filter(chat => chat.chatType === activeTab);
-    
-    // Apply status filter
-    if (filterStatus === 'unread') {
-      filteredData = filteredData.filter(chat => chat.unreadCount > 0);
-    } else if (filterStatus === 'pinned') {
-      filteredData = filteredData.filter(chat => chat.isPinned);
-    } else if (filterStatus === 'encrypted') {
-      filteredData = filteredData.filter(chat => chat.encryptionEnabled || chat.e2eeStatus === 'verified');
-    } else if (filterStatus === 'dlp_protected') {
-      // Filter chats that have DLP protection enabled
-      filteredData = filteredData.filter(chat => !chat.isGroup && !chat.isChannel);
-    }
-    
-    // Apply search filter
-    if (searchQuery) {
-      filteredData = filteredData.filter((chat) => {
-        const displayName = chat.isGroup || chat.isChannel
-          ? chat.groupName?.toLowerCase()
-          : chat.participants[0]?.displayName?.toLowerCase();
-        
-        return displayName?.includes(searchQuery.toLowerCase());
-      });
-    }
-    
-    return filteredData;
-  };
-  
-  const getUnreadCount = (type: ChatType) => {
-    return chats.filter(chat => chat.chatType === type && chat.unreadCount > 0).length;
-  };
-
-  const getEncryptedCount = (type: ChatType) => {
-    return chats.filter(chat => 
-      chat.chatType === type && 
-      (chat.encryptionEnabled || chat.e2eeStatus === 'verified')
-    ).length;
-  };
-
-  const getDLPProtectedCount = (type: ChatType) => {
-    // For now, assume all direct conversations can have DLP protection
-    return chats.filter(chat => 
-      chat.chatType === type && 
-      !chat.isGroup && 
-      !chat.isChannel
-    ).length;
-  };
-  
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    MicroInteractions.triggerHapticFeedback('light');
-    
-    // Refresh animation
-    Animated.sequence([
-      MicroInteractions.createScaleAnimation(listAnim, 0.98, 200),
-      MicroInteractions.createScaleAnimation(listAnim, 1, 200)
-    ]).start();
-    
-    // Simulate refresh and reload security status
-    setTimeout(() => {
-      setRefreshing(false);
-      loadSecurityStatus();
-      initializeDLP();
-      
-      // Show success notification
-      setNotification({
-        visible: true,
-        type: 'success',
-        title: 'تم التحديث',
-        message: 'تم تحديث المحادثات والحالة الأمنية'
-      });
-      
-      console.log('Chats refreshed with security status');
-    }, 1000);
-  }, []);
-  
-  const handleCreateNew = () => {
-    MicroInteractions.triggerHapticFeedback('medium');
-    
-    const options = [t.newChat, t.newGroup, t.newChannel, 'New Encrypted Chat', 'New DLP Protected Chat', t.cancel];
-    
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: options.length - 1,
-        },
-        (buttonIndex) => {
-          handleCreateOption(buttonIndex);
-        }
-      );
+  const handleChatPress = (chatId: string) => {
+    if (selectedChats.length > 0) {
+      // Selection mode
+      toggleChatSelection(chatId);
     } else {
-      Alert.alert(
-        'إنشاء جديد',
-        'اختر نوع المحادثة',
-        [
-          { text: t.newChat, onPress: () => handleCreateOption(0) },
-          { text: t.newGroup, onPress: () => handleCreateOption(1) },
-          { text: t.newChannel, onPress: () => handleCreateOption(2) },
-          { text: 'New Encrypted Chat', onPress: () => handleCreateOption(3) },
-          { text: 'New DLP Protected Chat', onPress: () => handleCreateOption(4) },
-          { text: t.cancel, style: 'cancel' }
-        ]
-      );
-    }
-  };
-  
-  const handleCreateOption = (index: number) => {
-    switch (index) {
-      case 0: // New Chat
-        router.push('/contacts');
-        break;
-      case 1: // New Group
-        router.push('/groups/create');
-        break;
-      case 2: // New Channel
-        router.push('/channels/create');
-        break;
-      case 3: // New Encrypted Chat
-        handleCreateEncryptedChat();
-        break;
-      case 4: // New DLP Protected Chat
-        handleCreateDLPProtectedChat();
-        break;
-    }
-  };
-
-  const handleCreateEncryptedChat = () => {
-    Alert.alert(
-      'New Encrypted Chat',
-      'Create a new end-to-end encrypted conversation with enhanced security.',
-      [
-        { text: t.cancel, style: 'cancel' },
-        { 
-          text: 'Create', 
-          onPress: () => {
-            router.push('/contacts?encrypted=true');
-          }
-        }
-      ]
-    );
-  };
-
-  const handleCreateDLPProtectedChat = () => {
-    Alert.alert(
-      'New DLP Protected Chat',
-      'Create a new conversation with Data Loss Prevention to protect sensitive information.',
-      [
-        { text: t.cancel, style: 'cancel' },
-        { 
-          text: 'Create', 
-          onPress: () => {
-            router.push('/contacts?dlp=true');
-          }
-        }
-      ]
-    );
-  };
-  
-  const handleArchive = () => {
-    MicroInteractions.triggerHapticFeedback('medium');
-    
-    // Archive animation
-    Animated.stagger(50, 
-      selectedChats.map(() => 
-        Animated.timing(new Animated.Value(1), {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        })
-      )
-    ).start();
-    
-    setNotification({
-      visible: true,
-      type: 'success',
-      title: 'تم الأرشفة',
-      message: `تم أرشفة ${selectedChats.length} محادثة`
-    });
-    
-    setSelectedChats([]);
-    setIsSelectionMode(false);
-  };
-  
-  const handleChatSettings = () => {
-    router.push('/chats/settings');
-  };
-
-  const handleE2EEStatus = () => {
-    const statusMessage = `🔒 Total Sessions: ${e2eeStatus.totalSessions}
-✅ Established: ${e2eeStatus.establishedSessions}
-🔑 Verified Keys: ${e2eeStatus.verifiedKeys}
-
-📡 Signal Protocol: Active
-🛡️ Double Ratchet: Enabled
-⚡ Perfect Forward Secrecy: Yes
-
-Your messages are protected with Signal Protocol - the same encryption used by Signal, WhatsApp, and other secure messaging apps.`;
-    
-    Alert.alert(
-      'End-to-End Encryption Status',
-      statusMessage,
-      [
-        { text: 'OK' },
-        { text: 'Manage Keys', onPress: () => router.push('/chats/settings') },
-        { text: 'Learn More', onPress: handleLearnMoreE2EE }
-      ]
-    );
-  };
-
-  const handleDLPStatus = () => {
-    const statusMessage = `🛡️ DLP Status: ${dlpStatus.enabled ? 'Enabled' : 'Disabled'}
-📋 Active Policies: ${dlpStatus.policiesCount}
-⚠️ Recent Violations: ${dlpStatus.recentViolations}
-
-Data Loss Prevention protects against accidental sharing of:
-• National ID numbers
-• Credit card information
-• Phone numbers and emails
-• Passwords and tokens
-• Bank account numbers
-
-Messages are scanned in real-time before sending.`;
-    
-    Alert.alert(
-      'Data Loss Prevention Status',
-      statusMessage,
-      [
-        { text: 'OK' },
-        { text: 'DLP Dashboard', onPress: () => router.push('/security/dlp') },
-        { text: dlpStatus.enabled ? 'Disable DLP' : 'Enable DLP', onPress: toggleDLP }
-      ]
-    );
-  };
-
-  const toggleDLP = async () => {
-    try {
-      if (dlpStatus.enabled) {
-        await dlpService.disableDLP();
-        Alert.alert('DLP Disabled', 'Data Loss Prevention has been disabled.');
-      } else {
-        await dlpService.enableDLP();
-        Alert.alert('DLP Enabled', 'Data Loss Prevention has been enabled.');
-      }
-      await initializeDLP();
-    } catch (error) {
-      console.error('Failed to toggle DLP:', error);
-      Alert.alert('Error', 'Failed to toggle DLP settings');
-    }
-  };
-
-  const handleLearnMoreE2EE = () => {
-    Alert.alert(
-      'Signal Protocol Security',
-      `The Signal Protocol provides:
-
-🔐 End-to-End Encryption
-Only you and the recipient can read messages
-
-🔄 Perfect Forward Secrecy
-Past messages stay secure even if keys are compromised
-
-🛡️ Future Secrecy
-Sessions can heal from key compromises
-
-🚫 Deniable Authentication
-Messages cannot be proven to come from you
-
-⚡ Asynchronous Messaging
-Secure messaging even when offline`,
-      [{ text: 'OK' }]
-    );
-  };
-  
-  const handleFilter = () => {
-    const options = ['جميع المحادثات', 'غير المقروءة', 'المثبتة', 'المشفرة', 'محمية بـ DLP', t.cancel];
-    
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: options.length - 1,
-        },
-        (buttonIndex) => {
-          handleFilterOption(buttonIndex);
-        }
-      );
-    } else {
-      Alert.alert(
-        'تصفية المحادثات',
-        'اختر نوع التصفية',
-        [
-          { text: 'جميع المحادثات', onPress: () => handleFilterOption(0) },
-          { text: 'غير المقروءة', onPress: () => handleFilterOption(1) },
-          { text: 'المثبتة', onPress: () => handleFilterOption(2) },
-          { text: 'المشفرة', onPress: () => handleFilterOption(3) },
-          { text: 'محمية بـ DLP', onPress: () => handleFilterOption(4) },
-          { text: t.cancel, style: 'cancel' }
-        ]
-      );
-    }
-  };
-  
-  const handleFilterOption = (index: number) => {
-    switch (index) {
-      case 0:
-        setFilterStatus('all');
-        break;
-      case 1:
-        setFilterStatus('unread');
-        break;
-      case 2:
-        setFilterStatus('pinned');
-        break;
-      case 3:
-        setFilterStatus('encrypted');
-        break;
-      case 4:
-        setFilterStatus('dlp_protected');
-        break;
-    }
-  };
-  
-  const handleDeleteSelected = () => {
-    MicroInteractions.triggerHapticFeedback('heavy');
-    
-    Alert.alert(
-      'حذف المحادثات',
-      `هل تريد حذف ${selectedChats.length} محادثة؟`,
-      [
-        { text: t.cancel, style: 'cancel' },
-        { 
-          text: t.delete, 
-          style: 'destructive', 
-          onPress: () => {
-            // Delete animation
-            Animated.stagger(50, 
-              selectedChats.map(() => 
-                Animated.parallel([
-                  Animated.timing(new Animated.Value(1), {
-                    toValue: 0,
-                    duration: 200,
-                    useNativeDriver: true,
-                  }),
-                  Animated.timing(new Animated.Value(0), {
-                    toValue: 50,
-                    duration: 200,
-                    useNativeDriver: true,
-                  })
-                ])
-              )
-            ).start();
-            
-            setChats(chats.filter(chat => !selectedChats.includes(chat.id)));
-            setSelectedChats([]);
-            setIsSelectionMode(false);
-            
-            setNotification({
-              visible: true,
-              type: 'success',
-              title: 'تم الحذف',
-              message: 'تم حذف المحادثات المحددة'
-            });
-          }
-        }
-      ]
-    );
-  };
-  
-  const handleChatLongPress = (chatId: string) => {
-    MicroInteractions.triggerHapticFeedback('heavy');
-    
-    if (!isSelectionMode) {
-      setIsSelectionMode(true);
-      setSelectedChats([chatId]);
-      
-      // Selection mode animation
-      Animated.timing(headerAnim, {
-        toValue: 0.95,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        Animated.timing(headerAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      });
-    }
-  };
-  
-  const handleChatSelect = (chatId: string) => {
-    if (isSelectionMode) {
-      MicroInteractions.triggerHapticFeedback('light');
-      
-      if (selectedChats.includes(chatId)) {
-        const newSelected = selectedChats.filter(id => id !== chatId);
-        setSelectedChats(newSelected);
-        if (newSelected.length === 0) {
-          setIsSelectionMode(false);
-        }
-      } else {
-        setSelectedChats([...selectedChats, chatId]);
-      }
-    } else {
-      MicroInteractions.triggerHapticFeedback('medium');
+      // Normal mode - open chat
       router.push(`/chat/${chatId}`);
     }
   };
-  
-  const getTabTitle = (type: ChatType) => {
-    switch (type) {
-      case 'conversation':
-        return t.conversations;
-      case 'group':
-        return t.groups;
-      case 'channel':
-        return t.channels;
-      default:
-        return '';
-    }
+
+  const handleChatLongPress = (chatId: string) => {
+    toggleChatSelection(chatId);
   };
-  
-  const getTabIcon = (type: ChatType, isActive: boolean) => {
-    const color = isActive ? colors.primary : colors.textSecondary;
-    const size = 18;
-    
+
+  const toggleChatSelection = (chatId: string) => {
+    setSelectedChats(prev =>
+      prev.includes(chatId)
+        ? prev.filter(id => id !== chatId)
+        : [...prev, chatId]
+    );
+  };
+
+  const handlePinChat = (chatId: string) => {
+    setChats(chats.map(chat =>
+      chat.id === chatId ? { ...chat, isPinned: !chat.isPinned } : chat
+    ));
+  };
+
+  const handleArchiveChat = (chatId: string) => {
+    setChats(chats.map(chat =>
+      chat.id === chatId ? { ...chat, isArchived: !chat.isArchived } : chat
+    ));
+    Alert.alert('تم', 'تم أرشفة المحادثة');
+  };
+
+  const handleMuteChat = (chatId: string) => {
+    setChats(chats.map(chat =>
+      chat.id === chatId ? { ...chat, isMuted: !chat.isMuted } : chat
+    ));
+  };
+
+  const handleDeleteChat = (chatId: string) => {
+    Alert.alert(
+      'حذف المحادثة',
+      'هل تريد حذف هذه المحادثة؟',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: () => {
+            setChats(chats.filter(chat => chat.id !== chatId));
+          },
+        },
+      ]
+    );
+  };
+
+  const getMessageIcon = (type: string) => {
     switch (type) {
-      case 'conversation':
-        return <MessageCircle size={size} color={color} />;
-      case 'group':
-        return <Users size={size} color={color} />;
-      case 'channel':
-        return <Radio size={size} color={color} />;
+      case 'image':
+        return <Camera size={14} color={Colors.medium} />;
+      case 'video':
+        return <Video size={14} color={Colors.medium} />;
+      case 'voice':
+        return <Mic size={14} color={Colors.medium} />;
+      case 'file':
+        return <File size={14} color={Colors.medium} />;
       default:
         return null;
     }
   };
-  
-  const getEmptyMessage = () => {
-    switch (activeTab) {
-      case 'conversation':
-        return 'لا توجد محادثات';
-      case 'group':
-        return 'لا توجد مجموعات';
-      case 'channel':
-        return 'لا توجد قنوات';
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'sent':
+        return <Check size={16} color={Colors.medium} />;
+      case 'delivered':
+        return <CheckCheck size={16} color={Colors.medium} />;
+      case 'read':
+        return <CheckCheck size={16} color={Colors.primary} />;
       default:
-        return '';
-    }
-  };
-  
-  const getFabIcon = () => {
-    switch (activeTab) {
-      case 'conversation':
-        return <MessageCircle size={24} color="white" />;
-      case 'group':
-        return <Users size={24} color="white" />;
-      case 'channel':
-        return <Radio size={24} color="white" />;
-      default:
-        return <Plus size={24} color="white" />;
+        return null;
     }
   };
 
-  const getFilterStatusText = () => {
-    switch (filterStatus) {
-      case 'unread':
-        return 'المحادثات غير المقروءة';
-      case 'pinned':
-        return 'المحادثات المثبتة';
-      case 'encrypted':
-        return 'المحادثات المشفرة';
-      case 'dlp_protected':
-        return 'المحادثات محمية بـ DLP';
-      default:
-        return '';
-    }
-  };
-  
-  const renderChatItem = ({ item }: { item: Chat }) => (
-    <ChatItem 
-      chat={item} 
-      isSelected={selectedChats.includes(item.id)}
-      isSelectionMode={isSelectionMode}
-      onPress={() => handleChatSelect(item.id)}
-      onLongPress={() => handleChatLongPress(item.id)}
-    />
-  );
-  
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Animated Notification Banner */}
-      <AnimatedNotificationBanner
-        visible={notification.visible}
-        type={notification.type}
-        title={notification.title}
-        message={notification.message}
-        onDismiss={() => setNotification(prev => ({ ...prev, visible: false }))}
-        position="top"
-      />
-      {/* Header */}
-      <Animated.View style={[styles.header, { transform: [{ scale: headerAnim }], backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <View style={styles.headerLeft}>
-          {isSelectionMode ? (
-            <View style={styles.selectionHeader}>
-              <TouchableOpacity 
-                onPress={() => {
-                  setIsSelectionMode(false);
-                  setSelectedChats([]);
-                }}
-                style={styles.headerButton}
-              >
-                <Text style={[styles.cancelText, { color: colors.primary }]}>{t.cancel}</Text>
-              </TouchableOpacity>
-              <Text style={[styles.selectionCount, { color: colors.text }]}>
-                {selectedChats.length} محدد
+  const renderChatItem = ({ item }: { item: Chat }) => {
+    const isSelected = selectedChats.includes(item.id);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.chatItem,
+          item.isPinned && styles.pinnedChatItem,
+          isSelected && styles.selectedChatItem,
+        ]}
+        onPress={() => handleChatPress(item.id)}
+        onLongPress={() => handleChatLongPress(item.id)}
+        activeOpacity={0.7}
+      >
+        {/* Avatar */}
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{ uri: item.user.picture }}
+            style={styles.avatar}
+          />
+          {item.user.isOnline && !item.isGroup && (
+            <View style={styles.onlineBadge} />
+          )}
+          {item.unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>
+                {item.unreadCount > 99 ? '99+' : item.unreadCount}
               </Text>
             </View>
-          ) : (
-            <View style={styles.titleContainer}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>{t.chats}</Text>
-              {e2eeStatus.establishedSessions > 0 && (
-                <TouchableOpacity style={[styles.e2eeIndicator, { backgroundColor: colors.success + '20' }]} onPress={handleE2EEStatus}>
-                  <Shield size={16} color={colors.success} />
-                  <Text style={[styles.e2eeText, { color: colors.success }]}>{e2eeStatus.establishedSessions}</Text>
-                  <Text style={[styles.signalBadge, { color: colors.success, backgroundColor: colors.success + '30' }]}>Signal</Text>
-                </TouchableOpacity>
-              )}
-              {dlpStatus.enabled && (
-                <TouchableOpacity style={[styles.dlpIndicator, { backgroundColor: colors.primary + '20' }]} onPress={handleDLPStatus}>
-                  <Shield size={16} color={colors.primary} />
-                  <Text style={[styles.dlpText, { color: colors.primary }]}>DLP</Text>
-                </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Chat Info */}
+        <View style={styles.chatContent}>
+          <View style={styles.chatHeader}>
+            <View style={styles.nameRow}>
+              {item.isPinned && <Pin size={14} color={Colors.primary} style={styles.pinIcon} />}
+              <Text style={styles.chatName} numberOfLines={1}>
+                {item.isGroup ? item.groupName : item.user.name}
+              </Text>
+              {item.isGroup && (
+                <Text style={styles.participantsCount}>({item.participants})</Text>
               )}
             </View>
-          )}
-        </View>
-        
-        <View style={styles.headerRight}>
-          {isSelectionMode ? (
-            <>
-              <TouchableOpacity style={styles.headerButton} onPress={handleArchive}>
-                <Archive size={22} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerButton} onPress={handleDeleteSelected}>
-                <Trash2 size={22} color={colors.error} />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity style={styles.headerButton} onPress={handleFilter}>
-                <Filter size={22} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerButton} onPress={handleE2EEStatus}>
-                <Key size={22} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerButton} onPress={handleDLPStatus}>
-                <Shield size={22} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerButton} onPress={handleArchive}>
-                <Archive size={22} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerButton} onPress={handleChatSettings}>
-                <Settings size={22} color={colors.primary} />
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </Animated.View>
-      
-      {/* Search Bar */}
-      {!isSelectionMode && (
-        <Animated.View style={[styles.searchContainer, { transform: [{ scale: searchAnim }], backgroundColor: colors.backgroundSecondary }]}>
-          <Search size={18} color={colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder={t.search}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={colors.textSecondary}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearch}>
-              <Text style={[styles.clearSearchText, { color: colors.textSecondary }]}>×</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-      )}
-      
-      {/* Filter Status Indicator */}
-      {filterStatus !== 'all' && (
-        <View style={[styles.filterIndicator, { backgroundColor: colors.backgroundSecondary, borderBottomColor: colors.border }]}>
-          <View style={styles.filterContent}>
-            {filterStatus === 'encrypted' && <Lock size={14} color={colors.success} />}
-            {filterStatus === 'dlp_protected' && <Shield size={14} color={colors.primary} />}
-            <Text style={[styles.filterText, { color: colors.primary }]}>
-              {getFilterStatusText()}
+            <Text style={styles.timestamp}>
+              {formatTimeAgo(item.lastMessage.timestamp)}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => setFilterStatus('all')}>
-            <Text style={[styles.clearFilterText, { color: colors.textSecondary }]}>مسح التصفية</Text>
+
+          <View style={styles.messageRow}>
+            <View style={styles.messageContent}>
+              {item.lastMessage.senderId === 'user_0' && getStatusIcon(item.lastMessage.status)}
+              {getMessageIcon(item.lastMessage.type)}
+              <Text
+                style={[
+                  styles.lastMessage,
+                  item.unreadCount > 0 && styles.unreadMessage,
+                ]}
+                numberOfLines={1}
+              >
+                {item.lastMessage.content}
+              </Text>
+            </View>
+            <View style={styles.badges}>
+              {item.isMuted && (
+                <View style={styles.mutedIcon}>
+                  <Text style={styles.mutedText}>🔇</Text>
+                </View>
+              )}
+              {item.lastMessage.encrypted && (
+                <View style={styles.encryptedIcon}>
+                  <Text style={styles.encryptedText}>🔒</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Sort chats: pinned first, then by timestamp
+  const sortedChats = [...chats]
+    .filter(chat => !chat.isArchived)
+    .sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return b.lastMessage.timestamp - a.lastMessage.timestamp;
+    });
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>المحادثات</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => router.push('/chat/new')}
+          >
+            <MessageCircle size={24} color={Colors.primary} />
           </TouchableOpacity>
         </View>
-      )}
-      
-      {/* Sub-tabs */}
-      <View style={[styles.tabsContainer, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'conversation' && { borderBottomColor: colors.primary }]}
-          onPress={() => setActiveTab('conversation')}
-        >
-          {getTabIcon('conversation', activeTab === 'conversation')}
-          <Text style={[styles.tabText, { color: activeTab === 'conversation' ? colors.primary : colors.textSecondary }]}>
-            {getTabTitle('conversation')}
-          </Text>
-          {getUnreadCount('conversation') > 0 && (
-            <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
-              <Text style={styles.tabBadgeText}>{getUnreadCount('conversation')}</Text>
-            </View>
-          )}
-          {getEncryptedCount('conversation') > 0 && (
-            <View style={[styles.encryptedBadge, { backgroundColor: colors.success + '20' }]}>
-              <Lock size={10} color={colors.success} />
-            </View>
-          )}
-          {dlpStatus.enabled && getDLPProtectedCount('conversation') > 0 && (
-            <View style={[styles.dlpBadge, { backgroundColor: colors.primary + '20' }]}>
-              <Shield size={10} color={colors.primary} />
-            </View>
-          )}
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'group' && { borderBottomColor: colors.primary }]}
-          onPress={() => setActiveTab('group')}
-        >
-          {getTabIcon('group', activeTab === 'group')}
-          <Text style={[styles.tabText, { color: activeTab === 'group' ? colors.primary : colors.textSecondary }]}>
-            {getTabTitle('group')}
-          </Text>
-          {getUnreadCount('group') > 0 && (
-            <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
-              <Text style={styles.tabBadgeText}>{getUnreadCount('group')}</Text>
-            </View>
-          )}
-          {getEncryptedCount('group') > 0 && (
-            <View style={[styles.encryptedBadge, { backgroundColor: colors.success + '20' }]}>
-              <Lock size={10} color={colors.success} />
-            </View>
-          )}
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'channel' && { borderBottomColor: colors.primary }]}
-          onPress={() => setActiveTab('channel')}
-        >
-          {getTabIcon('channel', activeTab === 'channel')}
-          <Text style={[styles.tabText, { color: activeTab === 'channel' ? colors.primary : colors.textSecondary }]}>
-            {getTabTitle('channel')}
-          </Text>
-          {getUnreadCount('channel') > 0 && (
-            <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
-              <Text style={styles.tabBadgeText}>{getUnreadCount('channel')}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
       </View>
-      
-      {/* Enhanced Virtualized Chat List */}
-      <FlashList
-        data={getFilteredData()}
-        keyExtractor={(item) => item.id}
+
+      {/* Chat List */}
+      <FlatList
+        data={sortedChats}
         renderItem={renderChatItem}
-        estimatedItemSize={80}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        style={styles.chatList}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-          />
-        }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              {getEmptyMessage()}
-            </Text>
-            <TouchableOpacity style={[styles.emptyButton, { backgroundColor: colors.primary }]} onPress={handleCreateNew}>
-              <Text style={styles.emptyButtonText}>
-                {activeTab === 'conversation' && 'بدء محادثة جديدة'}
-                {activeTab === 'group' && 'إنشاء مجموعة جديدة'}
-                {activeTab === 'channel' && 'إنشاء قناة جديدة'}
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.emptyState}>
+            <MessageCircle size={48} color={Colors.medium} />
+            <Text style={styles.emptyText}>لا توجد محادثات</Text>
+            <Text style={styles.emptySubtext}>ابدأ محادثة جديدة</Text>
           </View>
         }
-        // Performance optimizations
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        initialNumToRender={15}
-        updateCellsBatchingPeriod={50}
-        // Accessibility
-        accessible={true}
-        accessibilityRole="list"
-        accessibilityLabel="قائمة المحادثات"
       />
-      
-      {/* Floating Action Button */}
-      {!isSelectionMode && (
-        <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={handleCreateNew}>
-          {getFabIcon()}
-        </TouchableOpacity>
+
+      {/* Selection Actions */}
+      {selectedChats.length > 0 && (
+        <View style={styles.selectionBar}>
+          <Text style={styles.selectionCount}>
+            {selectedChats.length} محددة
+          </Text>
+          <View style={styles.selectionActions}>
+            <TouchableOpacity
+              style={styles.selectionButton}
+              onPress={() => {
+                selectedChats.forEach(handleArchiveChat);
+                setSelectedChats([]);
+              }}
+            >
+              <Archive size={20} color={Colors.dark} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.selectionButton}
+              onPress={() => {
+                selectedChats.forEach(handleDeleteChat);
+                setSelectedChats([]);
+              }}
+            >
+              <Text style={styles.deleteText}>حذف</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -826,211 +393,199 @@ Secure messaging even when offline`,
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: Colors.card,
     borderBottomWidth: 1,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderBottomColor: Colors.border,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: 'bold',
+    color: Colors.dark,
   },
-  e2eeIndicator: {
+  headerActions: {
     flexDirection: 'row',
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 12,
   },
-  e2eeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
+  listContent: {
+    paddingBottom: 20,
   },
-  signalBadge: {
-    fontSize: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 6,
-    marginLeft: 4,
-    fontWeight: '700',
-  },
-  dlpIndicator: {
+  chatItem: {
     flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  pinnedChatItem: {
+    backgroundColor: Colors.primary + '05',
+  },
+  selectedChatItem: {
+    backgroundColor: Colors.primary + '15',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  onlineBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.success,
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
+    paddingHorizontal: 6,
   },
-  dlpText: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
+  unreadText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: 'white',
   },
-  selectionHeader: {
+  chatContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  cancelText: {
+  pinIcon: {
+    marginRight: 6,
+  },
+  chatName: {
     fontSize: 16,
     fontWeight: '600',
+    color: Colors.dark,
+    flex: 1,
+  },
+  participantsCount: {
+    fontSize: 14,
+    color: Colors.medium,
+    marginLeft: 4,
+  },
+  timestamp: {
+    fontSize: 12,
+    color: Colors.medium,
+    marginLeft: 8,
+  },
+  messageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  messageContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  lastMessage: {
+    fontSize: 14,
+    color: Colors.medium,
+    marginLeft: 6,
+    flex: 1,
+  },
+  unreadMessage: {
+    fontWeight: '600',
+    color: Colors.dark,
+  },
+  badges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mutedIcon: {
+    marginLeft: 4,
+  },
+  mutedText: {
+    fontSize: 12,
+  },
+  encryptedIcon: {
+    marginLeft: 4,
+  },
+  encryptedText: {
+    fontSize: 10,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.dark,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: Colors.medium,
+    marginTop: 8,
+  },
+  selectionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: Colors.card,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   selectionCount: {
     fontSize: 16,
     fontWeight: '600',
+    color: Colors.dark,
+  },
+  selectionActions: {
+    flexDirection: 'row',
+  },
+  selectionButton: {
     marginLeft: 16,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerButton: {
     padding: 8,
-    marginLeft: 4,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    margin: 12,
-    paddingHorizontal: 16,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 10,
+  deleteText: {
     fontSize: 16,
-  },
-  clearSearch: {
-    padding: 4,
-  },
-  clearSearchText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  filterIndicator: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-  },
-  filterContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  filterText: {
-    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 6,
-  },
-  clearFilterText: {
-    fontSize: 14,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    position: 'relative',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 6,
-  },
-  tabBadge: {
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-  tabBadgeText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  encryptedBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 8,
-    padding: 2,
-  },
-  dlpBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 24,
-    borderRadius: 8,
-    padding: 2,
-  },
-  chatList: {
-    flex: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 100,
-    paddingHorizontal: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  emptyButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  emptyButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    color: Colors.error,
   },
 });

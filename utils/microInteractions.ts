@@ -1,242 +1,409 @@
-import { Animated, Platform, Easing } from 'react-native';
+import { Animated, Easing } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
-// Ensure easing functions are properly defined with web compatibility
-const safeEasing = {
-  quad: (() => {
-    try {
-      return Platform.OS === 'web' ? 
-        (Easing.out && Easing.quad ? Easing.out(Easing.quad) : Easing.linear) : 
-        (Easing.quad || Easing.linear);
-    } catch (error) {
-      console.warn('Easing.quad not available, using linear:', error);
-      return Easing.linear;
-    }
-  })(),
-  back: (() => {
-    try {
-      return Platform.OS === 'web' ? 
-        (Easing.out && Easing.cubic ? Easing.out(Easing.cubic) : Easing.linear) : 
-        (Easing.back ? Easing.back(1.7) : Easing.linear);
-    } catch (error) {
-      console.warn('Easing.back not available, using linear:', error);
-      return Easing.linear;
-    }
-  })(),
-  linear: Easing.linear
-};
-
-// Micro-interaction utilities for smooth animations
+/**
+ * Micro-interactions utility for creating smooth animations and haptic feedback
+ */
 export class MicroInteractions {
-  // Smooth scale animation for touch feedback
-  static createScaleAnimation(animatedValue: Animated.Value, toValue: number = 0.95, duration: number = 100) {
+  /**
+   * Trigger haptic feedback
+   */
+  static triggerHapticFeedback(
+    style: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'medium'
+  ): void {
+    try {
+      switch (style) {
+        case 'light':
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          break;
+        case 'medium':
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          break;
+        case 'heavy':
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          break;
+        case 'success':
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          break;
+        case 'warning':
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          break;
+        case 'error':
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          break;
+      }
+    } catch (error) {
+      console.warn('Haptic feedback not supported:', error);
+    }
+  }
+
+  /**
+   * Create a bounce animation
+   */
+  static createBounceAnimation(
+    animatedValue: Animated.Value,
+    toValue: number = 1,
+    duration: number = 300
+  ): Animated.CompositeAnimation {
     return Animated.spring(animatedValue, {
       toValue,
+      friction: 3,
+      tension: 40,
       useNativeDriver: true,
-      tension: 300,
-      friction: 10,
     });
   }
 
-  // Smooth opacity animation
-  static createOpacityAnimation(animatedValue: Animated.Value, toValue: number, duration: number = 200) {
-    return Animated.timing(animatedValue, {
-      toValue,
-      duration,
-      useNativeDriver: true,
-      easing: safeEasing.quad,
-    });
-  }
-
-  // Bounce animation for success states
-  static createBounceAnimation(animatedValue: Animated.Value) {
-    return Animated.sequence([
-      Animated.timing(animatedValue, {
-        toValue: 1.1,
-        duration: 150,
+  /**
+   * Create a scale animation (press effect)
+   */
+  static createPressAnimation(
+    animatedValue: Animated.Value,
+    duration: number = 100
+  ): {
+    pressIn: Animated.CompositeAnimation;
+    pressOut: Animated.CompositeAnimation;
+  } {
+    return {
+      pressIn: Animated.timing(animatedValue, {
+        toValue: 0.95,
+        duration,
+        easing: Easing.inOut(Easing.ease),
         useNativeDriver: true,
-        easing: safeEasing.back,
       }),
-      Animated.timing(animatedValue, {
+      pressOut: Animated.spring(animatedValue, {
         toValue: 1,
-        duration: 150,
+        friction: 3,
         useNativeDriver: true,
-        easing: safeEasing.quad,
-      })
-    ]);
+      }),
+    };
   }
 
-  // Slide animation for notifications and alerts
-  static createSlideAnimation(animatedValue: Animated.Value, fromValue: number, toValue: number, duration: number = 300) {
-    animatedValue.setValue(fromValue);
+  /**
+   * Create a fade animation
+   */
+  static createFadeAnimation(
+    animatedValue: Animated.Value,
+    toValue: number,
+    duration: number = 300
+  ): Animated.CompositeAnimation {
     return Animated.timing(animatedValue, {
       toValue,
       duration,
+      easing: Easing.inOut(Easing.ease),
       useNativeDriver: true,
-      easing: safeEasing.quad,
     });
   }
 
-  // Pulse animation for attention-grabbing elements
-  static createPulseAnimation(animatedValue: Animated.Value, minValue: number = 0.8, maxValue: number = 1.2) {
+  /**
+   * Create a slide animation
+   */
+  static createSlideAnimation(
+    animatedValue: Animated.Value,
+    toValue: number,
+    duration: number = 300
+  ): Animated.CompositeAnimation {
+    return Animated.timing(animatedValue, {
+      toValue,
+      duration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+  }
+
+  /**
+   * Create a rotate animation
+   */
+  static createRotateAnimation(
+    animatedValue: Animated.Value,
+    toValue: number,
+    duration: number = 300
+  ): Animated.CompositeAnimation {
+    return Animated.timing(animatedValue, {
+      toValue,
+      duration,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    });
+  }
+
+  /**
+   * Create a pulse animation (for notifications)
+   */
+  static createPulseAnimation(
+    animatedValue: Animated.Value,
+    minScale: number = 1,
+    maxScale: number = 1.1,
+    duration: number = 1000
+  ): Animated.CompositeAnimation {
     return Animated.loop(
       Animated.sequence([
         Animated.timing(animatedValue, {
-          toValue: maxValue,
-          duration: 800,
+          toValue: maxScale,
+          duration: duration / 2,
+          easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
-          easing: safeEasing.quad,
         }),
         Animated.timing(animatedValue, {
-          toValue: minValue,
-          duration: 800,
+          toValue: minScale,
+          duration: duration / 2,
+          easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
-          easing: safeEasing.quad,
-        })
+        }),
       ])
     );
   }
 
-  // Shake animation for error states
-  static createShakeAnimation(animatedValue: Animated.Value) {
+  /**
+   * Create a shake animation (for errors)
+   */
+  static createShakeAnimation(
+    animatedValue: Animated.Value,
+    duration: number = 400
+  ): Animated.CompositeAnimation {
     return Animated.sequence([
-      Animated.timing(animatedValue, { toValue: 10, duration: 50, useNativeDriver: true }),
-      Animated.timing(animatedValue, { toValue: -10, duration: 50, useNativeDriver: true }),
-      Animated.timing(animatedValue, { toValue: 10, duration: 50, useNativeDriver: true }),
-      Animated.timing(animatedValue, { toValue: -10, duration: 50, useNativeDriver: true }),
-      Animated.timing(animatedValue, { toValue: 0, duration: 50, useNativeDriver: true }),
+      Animated.timing(animatedValue, {
+        toValue: 10,
+        duration: duration / 4,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animatedValue, {
+        toValue: -10,
+        duration: duration / 4,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animatedValue, {
+        toValue: 10,
+        duration: duration / 4,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animatedValue, {
+        toValue: 0,
+        duration: duration / 4,
+        useNativeDriver: true,
+      }),
     ]);
   }
 
-  // Rotation animation for loading states
-  static createRotationAnimation(animatedValue: Animated.Value) {
+  /**
+   * Create a parallax animation
+   */
+  static createParallaxAnimation(
+    scrollY: Animated.Value,
+    parallaxFactor: number = 0.5
+  ): Animated.AnimatedInterpolation<string | number> {
+    return scrollY.interpolate({
+      inputRange: [0, 100],
+      outputRange: [0, -100 * parallaxFactor],
+      extrapolate: 'extend',
+    });
+  }
+
+  /**
+   * Create a stagger animation (for lists)
+   */
+  static createStaggerAnimation(
+    items: any[],
+    animationFactory: (item: any, index: number) => Animated.CompositeAnimation,
+    staggerDelay: number = 50
+  ): Animated.CompositeAnimation {
+    return Animated.stagger(
+      staggerDelay,
+      items.map((item, index) => animationFactory(item, index))
+    );
+  }
+
+  /**
+   * Create a sequential animation
+   */
+  static createSequenceAnimation(
+    animations: Animated.CompositeAnimation[]
+  ): Animated.CompositeAnimation {
+    return Animated.sequence(animations);
+  }
+
+  /**
+   * Create a parallel animation
+   */
+  static createParallelAnimation(
+    animations: Animated.CompositeAnimation[]
+  ): Animated.CompositeAnimation {
+    return Animated.parallel(animations);
+  }
+
+  /**
+   * Create a spring animation (for natural movement)
+   */
+  static createSpringAnimation(
+    animatedValue: Animated.Value,
+    toValue: number,
+    config?: {
+      friction?: number;
+      tension?: number;
+      speed?: number;
+      bounciness?: number;
+    }
+  ): Animated.CompositeAnimation {
+    return Animated.spring(animatedValue, {
+      toValue,
+      friction: config?.friction || 7,
+      tension: config?.tension || 40,
+      speed: config?.speed,
+      bounciness: config?.bounciness,
+      useNativeDriver: true,
+    });
+  }
+
+  /**
+   * Create a timing animation with custom easing
+   */
+  static createTimingAnimation(
+    animatedValue: Animated.Value,
+    toValue: number,
+    duration: number = 300,
+    easing: ((value: number) => number) = Easing.inOut(Easing.ease)
+  ): Animated.CompositeAnimation {
+    return Animated.timing(animatedValue, {
+      toValue,
+      duration,
+      easing,
+      useNativeDriver: true,
+    });
+  }
+
+  /**
+   * Create a ripple effect animation
+   */
+  static createRippleAnimation(
+    scaleValue: Animated.Value,
+    opacityValue: Animated.Value,
+    duration: number = 600
+  ): Animated.CompositeAnimation {
+    return Animated.parallel([
+      Animated.timing(scaleValue, {
+        toValue: 2,
+        duration,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityValue, {
+        toValue: 0,
+        duration,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]);
+  }
+
+  /**
+   * Create a slide in from direction animation
+   */
+  static createSlideInAnimation(
+    animatedValue: Animated.Value,
+    direction: 'left' | 'right' | 'top' | 'bottom',
+    distance: number = 100,
+    duration: number = 300
+  ): Animated.CompositeAnimation {
+    const startValue = direction === 'left' || direction === 'top' ? -distance : distance;
+    animatedValue.setValue(startValue);
+
+    return Animated.timing(animatedValue, {
+      toValue: 0,
+      duration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+  }
+
+  /**
+   * Create a loading spinner animation
+   */
+  static createSpinAnimation(
+    animatedValue: Animated.Value
+  ): Animated.CompositeAnimation {
     return Animated.loop(
       Animated.timing(animatedValue, {
         toValue: 1,
         duration: 1000,
+        easing: Easing.linear,
         useNativeDriver: true,
-        easing: safeEasing.linear,
       })
     );
   }
 
-  // Stagger animation for list items
-  static createStaggerAnimation(animatedValues: Animated.Value[], delay: number = 100) {
-    return Animated.stagger(
-      delay,
-      animatedValues.map(value => 
-        Animated.timing(value, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-          easing: safeEasing.quad,
-        })
-      )
-    );
-  }
-
-  // Haptic feedback simulation
-  static triggerHapticFeedback(type: 'light' | 'medium' | 'heavy' = 'light') {
-    if (Platform.OS === 'web') {
-      // Web vibration API fallback
-      if (navigator.vibrate) {
-        const duration = type === 'light' ? 10 : type === 'medium' ? 20 : 50;
-        navigator.vibrate(duration);
-      }
-    }
-    // Note: For native platforms, you would use expo-haptics here
-    // but we're avoiding it for web compatibility
-  }
-
-  // Smooth color transition
-  static createColorTransition(animatedValue: Animated.Value, fromColor: string, toColor: string) {
+  /**
+   * Interpolate rotation
+   */
+  static interpolateRotation(
+    animatedValue: Animated.Value
+  ): Animated.AnimatedInterpolation<string> {
     return animatedValue.interpolate({
       inputRange: [0, 1],
-      outputRange: [fromColor, toColor],
+      outputRange: ['0deg', '360deg'],
     });
   }
 
-  // Elastic animation for playful interactions
-  static createElasticAnimation(animatedValue: Animated.Value, toValue: number = 1) {
-    return Animated.spring(animatedValue, {
+  /**
+   * Create a smooth transition for layout changes
+   */
+  static createLayoutTransition(
+    animatedValue: Animated.Value,
+    toValue: number,
+    duration: number = 300
+  ): Animated.CompositeAnimation {
+    return Animated.timing(animatedValue, {
       toValue,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 3,
+      duration,
+      easing: Easing.bezier(0.4, 0.0, 0.2, 1),
+      useNativeDriver: false, // Layout animations can't use native driver
     });
-  }
-
-  // Smooth entrance animation
-  static createEntranceAnimation(scaleValue: Animated.Value, opacityValue: Animated.Value, delay: number = 0) {
-    scaleValue.setValue(0.8);
-    opacityValue.setValue(0);
-    
-    return Animated.parallel([
-      Animated.timing(scaleValue, {
-        toValue: 1,
-        duration: 400,
-        delay,
-        useNativeDriver: true,
-        easing: safeEasing.back,
-      }),
-      Animated.timing(opacityValue, {
-        toValue: 1,
-        duration: 300,
-        delay,
-        useNativeDriver: true,
-        easing: safeEasing.quad,
-      })
-    ]);
-  }
-
-  // Smooth exit animation
-  static createExitAnimation(scaleValue: Animated.Value, opacityValue: Animated.Value) {
-    return Animated.parallel([
-      Animated.timing(scaleValue, {
-        toValue: 0.8,
-        duration: 200,
-        useNativeDriver: true,
-        easing: safeEasing.quad,
-      }),
-      Animated.timing(opacityValue, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-        easing: safeEasing.quad,
-      })
-    ]);
   }
 }
 
-// Pre-configured animation presets
+/**
+ * Common animation presets
+ */
 export const AnimationPresets = {
-  // Button press animation
+  // Quick tap feedback
+  quickTap: {
+    duration: 100,
+    scaleDecrease: 0.97,
+  },
+
+  // Button press
   buttonPress: {
-    scale: { from: 1, to: 0.95, duration: 100 },
-    opacity: { from: 1, to: 0.8, duration: 100 }
+    duration: 150,
+    scaleDecrease: 0.95,
   },
-  
-  // Success feedback
-  success: {
-    scale: { from: 1, to: 1.1, duration: 150 },
-    bounce: true
+
+  // Card press
+  cardPress: {
+    duration: 200,
+    scaleDecrease: 0.98,
   },
-  
-  // Error feedback
-  error: {
-    shake: true,
-    color: '#FF4444'
+
+  // Modal slide in
+  modalSlide: {
+    duration: 300,
+    easing: Easing.out(Easing.cubic),
   },
-  
-  // Loading state
-  loading: {
-    rotation: true,
-    opacity: { from: 1, to: 0.6, duration: 500 }
+
+  // Fade transitions
+  fade: {
+    duration: 250,
+    easing: Easing.inOut(Easing.ease),
   },
-  
-  // List item entrance
-  listItem: {
-    scale: { from: 0.9, to: 1, duration: 300 },
-    opacity: { from: 0, to: 1, duration: 300 },
-    stagger: 50
-  }
+
+  // Bounce effect
+  bounce: {
+    friction: 3,
+    tension: 40,
+  },
+
+  // Elastic effect
+  elastic: {
+    friction: 5,
+    tension: 20,
+  },
 };
+
+export default MicroInteractions;
