@@ -1078,6 +1078,202 @@ ${user.workPlace || ''}`,
                 showPreview={!isCurrentUser} // Only show preview for received messages
               />
             );
+            ```
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: options.length - 1,
+        },
+        (buttonIndex) => {
+          handleAttachmentSelect(buttonIndex);
+        }
+      );
+    } else {
+      Alert.alert(
+        'إرسال',
+        'اختر نوع الملف',
+        options.slice(0, -1).map((option, index) => ({
+          text: option,
+          onPress: () => handleAttachmentSelect(index)
+        })).concat([{ text: t.cancel, style: 'cancel' }])
+      );
+    }
+  };
+
+  const handleAttachmentSelect = (index: number) => {
+    const types = ['camera', 'gallery', 'document', 'location', 'contact'];
+    const type = types[index];
+
+    if (type) {
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        chatId: id as string,
+        senderId: userId || '0',
+        content: `تم إرسال ${ type } `,
+        timestamp: Date.now(),
+        status: 'sent',
+        type: type as any,
+      };
+
+      setMessages([...messages, newMessage]);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  };
+
+  const handleVoiceRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        chatId: id as string,
+        senderId: userId || '0',
+        content: 'رسالة صوتية',
+        timestamp: Date.now(),
+        status: 'sent',
+        type: 'voice',
+        duration: 5,
+      };
+
+      setMessages([...messages, newMessage]);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } else {
+      setIsRecording(true);
+      Alert.alert('تسجيل صوتي', 'بدء التسجيل...');
+    }
+  };
+
+  const sendMoney = () => {
+    Alert.alert(
+      'إرسال أموال',
+      'اختر المبلغ والعملة',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: '100 ريال',
+          onPress: () => handleMoneySend(100, 'SAR')
+        },
+        {
+          text: '50 درهم',
+          onPress: () => handleMoneySend(50, 'AED')
+        },
+      ]
+    );
+  };
+
+  const handleMoneySend = (amount: number, currency: string) => {
+    const balance = balances.find(b => b.currency === currency);
+    if (!balance || balance.amount < amount) {
+      Alert.alert('خطأ', 'رصيد غير كافٍ');
+      return;
+    }
+
+    const moneyMessage: Message = {
+      id: Date.now().toString(),
+      chatId: id as string,
+      senderId: userId || '0',
+      content: `تم إرسال ${ amount } ${ currency } `,
+      timestamp: Date.now(),
+      status: 'sent',
+      type: 'money',
+    };
+
+    setMessages([...messages, moneyMessage]);
+    updateBalance(currency, -amount);
+
+    Alert.alert('نجاح', 'تم إرسال الأموال بنجاح');
+  };
+
+  // Get encryption status icon
+  const getEncryptionIcon = () => {
+    switch (e2eeStatus) {
+      case 'verified':
+        return <CheckCircle size={14} color={Colors.success} />;
+      case 'established':
+        return <Lock size={14} color={Colors.primary} />;
+      case 'pending':
+        return <Key size={14} color={Colors.warning} />;
+      case 'warning':
+        return <AlertTriangle size={14} color={Colors.error} />;
+      default:
+        return null;
+    }
+  };
+
+  // Get DLP status icon
+  const getDLPIcon = () => {
+    if (!dlpEnabled) return null;
+
+    if (dlpWarning) {
+      return <AlertTriangle size={14} color={Colors.error} />;
+    }
+
+    return <Shield size={14} color={Colors.success} />;
+  };
+
+  // Get verification status color
+  const getVerificationColor = (status?: 'verified' | 'unverified' | 'warning') => {
+    switch (status) {
+      case 'verified':
+        return Colors.success;
+      case 'warning':
+        return Colors.error;
+      default:
+        return Colors.medium;
+    }
+  };
+
+  // Render message content with social engineering protection
+  const renderMessageContent = (item: Message, isCurrentUser: boolean) => {
+    const hasLinks = item.content && (item.content.includes('http') || item.content.includes('www.'));
+    const senderId = isCurrentUser ? userId || '0' : (chat?.participants[0]?.id || 'unknown');
+    const senderName = isCurrentUser ? 'You' : (chat?.participants[0]?.displayName || 'Unknown');
+
+    if (item.type === 'file') {
+      return (
+        <FileAttachment
+          fileName={item.fileName || 'unknown.file'}
+          fileSize={item.fileSize || 0}
+          fileType={item.fileType || 'unknown'}
+          senderId={senderId}
+          senderName={senderName}
+          onDownload={() => {
+            Alert.alert('Download', 'File download started');
+          }}
+        />
+      );
+    }
+
+    if (hasLinks) {
+      const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+      const links = item.content.match(urlRegex) || [];
+
+      return (
+        <View>
+          <Text
+            style={[
+              styles.messageText,
+              !isCurrentUser && styles.otherUserText,
+              item.type === 'money' && styles.moneyText,
+            ]}
+          >
+            {item.content}
+          </Text>
+          {links.map((link, index) => {
+            const fullUrl = link.startsWith('http') ? link : `https://${link}`;
+            return (
+              <LinkPreview
+                key={index}
+                url={fullUrl}
+                senderId={senderId}
+                senderName={senderName}
+                showPreview={!isCurrentUser} // Only show preview for received messages
+              />
+            );
           })}
         </View>
       );
@@ -1093,6 +1289,53 @@ ${user.workPlace || ''}`,
       >
         {item.content}
       </Text>
+    );
+  };
+
+  const getDisplayName = () => {
+    if (chat?.isGroup) return chat.name;
+    if (chat?.isChannel) return chat.name;
+    return chat?.participants[0]?.displayName || 'Unknown';
+  };
+
+  const handleMoneySend = (amount: number, currency: string) => {
+    const balance = balances.find(b => b.currency === currency);
+    if (!balance || balance.amount < amount) {
+      Alert.alert('خطأ', 'رصيد غير كافٍ');
+      return;
+    }
+
+    const moneyMessage: Message = {
+      id: Date.now().toString(),
+      chatId: id as string,
+      senderId: userId || '0',
+      content: `تم إرسال ${amount} ${currency}`,
+      timestamp: Date.now(),
+      status: 'sent',
+      type: 'money',
+    };
+
+    setMessages([...messages, moneyMessage]);
+    updateBalance(currency, -amount);
+
+    Alert.alert('نجاح', 'تم إرسال الأموال بنجاح');
+  };
+
+  const sendMoney = () => {
+    Alert.alert(
+      'إرسال أموال',
+      'اختر المبلغ والعملة',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: '100 ريال',
+          onPress: () => handleMoneySend(100, 'SAR')
+        },
+        {
+          text: '50 درهم',
+          onPress: () => handleMoneySend(50, 'AED')
+        },
+      ]
     );
   };
 
@@ -1137,19 +1380,302 @@ ${user.workPlace || ''}`,
             </View>
           )}
           {item.type === 'image' && (
-            alignItems: 'center',
-          justifyContent: 'center',
-          marginLeft: 8,
+            <View style={styles.messageIcon}>
+              <ImageIcon size={16} color={isCurrentUser ? Colors.dark : 'white'} />
+            </View>
+          )}
+
+          {renderMessageContent(item, isCurrentUser)}
+
+          <View style={styles.messageFooter}>
+            <Text style={[styles.messageTime, isCurrentUser ? styles.currentUserTime : styles.otherUserTime]}>
+              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+            {isCurrentUser && (
+              <View style={styles.statusContainer}>
+                {item.status === 'sent' && <Check size={12} color={Colors.medium} />}
+                {item.status === 'delivered' && <CheckCheck size={12} color={Colors.medium} />}
+                {item.status === 'read' && <CheckCheck size={12} color={Colors.primary} />}
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color={Colors.dark} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.headerContent} onPress={handleProfileView}>
+          <Image
+            source={{ uri: chat?.participants[0]?.profilePicture || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face' }}
+            style={styles.headerAvatar}
+          />
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerName}>{getDisplayName()}</Text>
+            <Text style={styles.headerStatus}>
+              {chat?.isGroup ? 'مجموعة' : chat?.isChannel ? 'قناة' : 'متصل الآن'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={handleVideoCall} style={styles.headerAction}>
+            <Video size={24} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleVoiceCall} style={styles.headerAction}>
+            <Phone size={24} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleMoreOptions} style={styles.headerAction}>
+            <MoreVertical size={24} color={Colors.dark} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.messagesList}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+      />
+
+      {/* Input Area */}
+      <View style={styles.inputContainer}>
+        <TouchableOpacity onPress={handleAttachment} style={styles.attachButton}>
+          <Paperclip size={24} color={Colors.medium} />
+        </TouchableOpacity>
+
+        <View style={styles.inputWrapper}>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            value={inputText}
+            onChangeText={(text) => {
+              setInputText(text);
+              setIsTyping(true);
+              setTimeout(() => setIsTyping(false), 2000);
+            }}
+            placeholder="اكتب رسالة..."
+            placeholderTextColor={Colors.medium}
+            multiline
+          />
+          <TouchableOpacity onPress={sendMoney} style={styles.inputAction}>
+            <Wallet size={20} color={Colors.medium} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.inputAction}>
+            <Camera size={20} color={Colors.medium} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          onPress={inputText.trim() ? sendMessage : handleVoiceRecording}
+          style={styles.sendButton}
+        >
+          {inputText.trim() ? (
+            <Send size={20} color="white" />
+          ) : (
+            <Mic size={24} color="white" />
+          )}
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.whatsappGray,
   },
-          actionButtons: {
-            flexDirection: 'row',
-          marginLeft: 8,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 50 : 16,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-          actionButton: {
-            padding: 8,
+  backButton: {
+    marginRight: 12,
   },
-          recordingButton: {
-            backgroundColor: Colors.error,
-          borderRadius: 20,
+  headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  headerName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.dark,
+  },
+  headerStatus: {
+    fontSize: 12,
+    color: Colors.medium,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerAction: {
+    marginLeft: 20,
+  },
+  messagesList: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  messageContainer: {
+    marginBottom: 12,
+    maxWidth: '80%',
+  },
+  currentUserMessage: {
+    alignSelf: 'flex-end',
+  },
+  otherUserMessage: {
+    alignSelf: 'flex-start',
+  },
+  messageBubble: {
+    padding: 12,
+    borderRadius: 16,
+    maxWidth: '100%',
+  },
+  currentUserBubble: {
+    backgroundColor: Colors.whatsappLight,
+    borderBottomRightRadius: 4,
+  },
+  otherUserBubble: {
+    backgroundColor: Colors.white,
+    borderBottomLeftRadius: 4,
+  },
+  moneyBubble: {
+    backgroundColor: Colors.primary,
+  },
+  voiceBubble: {
+    backgroundColor: Colors.secondary,
+  },
+  messageText: {
+    fontSize: 16,
+    color: Colors.dark,
+    lineHeight: 22,
+  },
+  otherUserText: {
+    color: Colors.dark,
+  },
+  moneyText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  messageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 4,
+  },
+  encryptionIndicator: {
+    marginRight: 4,
+  },
+  verificationIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  messageIcon: {
+    marginTop: 4,
+    alignItems: 'flex-end',
+  },
+  messageFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  messageTime: {
+    fontSize: 10,
+    color: Colors.medium,
+    marginRight: 4,
+  },
+  currentUserTime: {
+    color: Colors.medium,
+  },
+  otherUserTime: {
+    color: Colors.medium,
+  },
+  statusContainer: {
+    marginLeft: 2,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: 12,
+    backgroundColor: Colors.background,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  attachButton: {
+    padding: 10,
+    marginRight: 4,
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light,
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    marginRight: 8,
+    minHeight: 44,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.dark,
+    maxHeight: 100,
+    paddingVertical: 8,
+    textAlign: 'right',
+  },
+  inputAction: {
+    padding: 8,
+    marginLeft: 4,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    marginLeft: 8,
+  },
+  actionButton: {
+    padding: 8,
+  },
+  recordingButton: {
+    backgroundColor: Colors.error,
+    borderRadius: 20,
   },
 });
+```

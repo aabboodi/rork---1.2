@@ -17,137 +17,24 @@ export interface User {
   location?: {
     latitude: number;
     longitude: number;
-    lastUpdated: number;
-  };
-  privacySettings?: UserPrivacySettings;
-  relationships?: UserRelationship[];
-  // Enhanced for feed ranking
-  socialGraph?: SocialGraph;
-  interactionHistory?: UserInteractionSummary;
-  // Enhanced for friend suggestions
-  familyRelationships?: FamilyRelationship[];
-  contactInfo?: ContactInfo;
-  locationData?: LocationProximityData;
-  interestVector?: InterestVector;
-  // Loan rating system
-  loanRating?: LoanRating;
-}
-
-// ===== SIGNAL PROTOCOL E2EE TYPES =====
-
-// Signal Protocol Key Bundle for secure key exchange
-export interface SignalKeyBundle {
-  userId: string;
-  deviceId: string;
-  identityKey: string; // Long-term identity key
-  signedPreKey: string; // Signed pre-key
-  preKeySignature: string; // Signature of signed pre-key
-  oneTimePreKeys: string[]; // Array of one-time pre-keys
-  keyFingerprint: string; // SHA-256 fingerprint of identity key
-  timestamp: number;
-  serverSignature: string;
-  algorithm: 'X25519' | 'Ed25519'; // Signal Protocol uses Curve25519
-  keyVersion: string;
-  registrationId: number; // Signal Protocol registration ID
-}
-
-// Legacy support for existing code
-export interface PublicKeyBundle extends SignalKeyBundle { }
-
-// Signal Protocol Session for E2EE
-export interface SignalSession {
-  sessionId: string;
-  chatId: string;
-  participantId: string;
-  deviceId: string;
-  status: 'initiated' | 'key_exchange' | 'verification_pending' | 'verified' | 'established' | 'failed' | 'expired';
-
-  // Signal Protocol specific fields
-  sessionState: {
-    rootKey: string; // Root key for Double Ratchet
-    chainKey: string; // Chain key for message keys
-    sendingChainKey?: string; // Sending chain key
-    receivingChainKey?: string; // Receiving chain key
-    messageKeys: { [messageNumber: number]: string }; // Stored message keys
-    skippedMessageKeys: { [headerKey: string]: { [messageNumber: number]: string } }; // Skipped message keys
-    previousCounter: number; // Previous chain counter
-    sessionVersion: number; // Session version
-  };
-
-  // Double Ratchet state
-  ratchetState: {
-    dhRatchetKey: string; // Current DH ratchet key pair
-    dhRatchetKeyRemote: string; // Remote DH ratchet public key
-    rootKey: string; // Current root key
-    sendingChainKey: string; // Current sending chain key
-export interface DLPPolicy {
-  id: string;
-  name: string;
-  description: string;
-  enabled: boolean;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  action: 'allow' | 'warn' | 'block' | 'quarantine' | 'encrypt';
-  rules: DLPRule[];
-  scope: 'messages' | 'attachments' | 'all';
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface DLPRule {
-  id: string;
-  type: 'regex' | 'keyword' | 'pattern' | 'ml_classification';
-  pattern: string;
-  description: string;
-  confidence: number; // 0-1
-  enabled: boolean;
-  category: DLPCategory;
-}
-
-export type DLPCategory =
-  | 'pii' // Personal Identifiable Information
-  | 'financial' // Financial data
-  | 'medical' // Medical records
-  | 'credentials' // Passwords, tokens
-  | 'confidential' // Confidential business data
-  | 'government_id' // Government IDs
-  | 'contact_info' // Contact information
-  | 'custom'; // Custom patterns
-
-export interface DLPViolation {
-  id: string;
-  policyId: string;
-  ruleId: string;
-  content: string;
-  redactedContent: string;
-  category: DLPCategory;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  action: 'allowed' | 'warned' | 'blocked' | 'quarantined' | 'encrypted';
-  timestamp: number;
-  userId: string;
-  chatId?: string;
-  messageId?: string;
-  attachmentId?: string;
-  context: {
-    messageType: 'text' | 'image' | 'video' | 'file' | 'voice';
-    fileType?: string;
-    fileName?: string;
-    fileSize?: number;
-  };
-  matches: DLPMatch[];
-  resolved: boolean;
-  resolvedAt?: number;
-  resolvedBy?: string;
-}
-
-export interface DLPMatch {
-  ruleId: string;
-  pattern: string;
-  matchedText: string;
-  startIndex: number;
-  endIndex: number;
-  confidence: number;
-  category: DLPCategory;
-}
+    content: string;
+    redactedContent: string;
+    category: DLPCategory;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    action: 'allowed' | 'warned' | 'blocked' | 'quarantined' | 'encrypted';
+    timestamp: number;
+    userId: string;
+    chatId?: string;
+    messageId?: string;
+    attachmentId?: string;
+    context: {
+      messageType: 'text' | 'image' | 'video' | 'file' | 'voice';
+      fileType?: string;
+      startIndex: number;
+      endIndex: number;
+      confidence: number;
+      category: DLPCategory;
+    }
 
 export interface DLPScanResult {
   allowed: boolean;

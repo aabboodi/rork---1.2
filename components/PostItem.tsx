@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, Dimensions, Modal, TextInput, ScrollView, Animated, Platform } from 'react-native';
-import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal, Sparkles, TrendingUp, User, Users, Zap, Wallet, Send, X } from 'lucide-react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, Dimensions, Modal, TextInput, ScrollView, Animated, Platform, AlertButton } from 'react-native';
+import { ThumbsUp, MessageCircle, Share, Bookmark, MoreHorizontal, Sparkles, TrendingUp, User, Users, Zap, Wallet, Send, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Post } from '@/types';
 import Colors from '@/constants/colors';
@@ -32,7 +32,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
   const [showShareOptions, setShowShareOptions] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
-  
+
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
@@ -43,20 +43,20 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
   const donateScaleAnim = useRef(new Animated.Value(1)).current;
   const heartPulseAnim = useRef(new Animated.Value(1)).current;
   const slideUpAnim = useRef(new Animated.Value(0)).current;
-  
-  const { 
-    collectSignal, 
-    collectDwellTimeSignal, 
+
+  const {
+    collectSignal,
+    collectDwellTimeSignal,
     collectProfileClickSignal,
     privacySettings,
     getRecommendationForContent,
     getFeedRankingMetrics,
     getLastRankingFactors
   } = useRecommendationStore();
-  
+
   const { balances, updateBalance, addTransaction } = useWalletStore();
   const { userId } = useAuthStore();
-  
+
   const viewRef = useRef<View>(null);
 
   // Track view time when component unmounts or becomes invisible
@@ -76,14 +76,14 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
   // Track when post becomes visible
   useEffect(() => {
     setIsVisible(true);
-    
+
     // Entrance animation with stagger
     const delay = position * 50; // Stagger based on position
     MicroInteractions.createEntranceAnimation(scaleAnim, opacityAnim, delay).start();
-    
+
     // Slide up animation for content
     MicroInteractions.createSlideAnimation(slideUpAnim, 20, 0, 400).start();
-    
+
     // Collect view signal
     if (privacySettings.allowBehaviorTracking) {
       collectSignal(post.id, 'text', 'view', {
@@ -106,10 +106,10 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
 
   const handleLike = async () => {
     const wasLiked = isLiked;
-    
+
     // Immediate haptic feedback
     MicroInteractions.triggerHapticFeedback('medium');
-    
+
     // Heart animation
     if (!isLiked) {
       // Like animation - bounce and pulse
@@ -117,7 +117,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         MicroInteractions.createBounceAnimation(likeScaleAnim),
         MicroInteractions.createPulseAnimation(heartPulseAnim, 1, 1.3)
       ]).start();
-      
+
       // Stop pulse after 1 second
       setTimeout(() => {
         heartPulseAnim.stopAnimation();
@@ -129,16 +129,16 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         MicroInteractions.createScaleAnimation(likeScaleAnim, 1, 100).start();
       });
     }
-    
+
     setIsLiked(!isLiked);
     setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
-    
+
     // Collect explicit engagement signal
     if (privacySettings.allowBehaviorTracking) {
       await collectSignal(
-        post.id, 
-        'text', 
-        'like', 
+        post.id,
+        'text',
+        'like',
         {
           screenName: 'feed',
           position,
@@ -166,7 +166,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         }
       );
     }
-    
+
     onInteraction?.('like');
   };
 
@@ -174,15 +174,15 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
     // Comment button animation
     MicroInteractions.triggerHapticFeedback('light');
     MicroInteractions.createBounceAnimation(commentScaleAnim).start();
-    
+
     setShowComments(true);
-    
+
     // Collect engagement signal
     if (privacySettings.allowBehaviorTracking) {
       await collectSignal(
-        post.id, 
-        'text', 
-        'comment', 
+        post.id,
+        'text',
+        'comment',
         {
           screenName: 'feed',
           position,
@@ -210,13 +210,13 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         }
       );
     }
-    
+
     onInteraction?.('comment');
   };
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
-    
+
     const newComment = {
       id: Date.now().toString(),
       userId: userId || '0',
@@ -229,7 +229,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
       timestamp: Date.now(),
       likes: 0
     };
-    
+
     setComments([...comments, newComment]);
     setCommentsCount(prev => prev + 1);
     setCommentText('');
@@ -240,15 +240,15 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
     // Share button animation
     MicroInteractions.triggerHapticFeedback('light');
     MicroInteractions.createBounceAnimation(shareScaleAnim).start();
-    
+
     setShowShareOptions(true);
-    
+
     // Collect high-value engagement signal
     if (privacySettings.allowBehaviorTracking) {
       await collectSignal(
-        post.id, 
-        'text', 
-        'share', 
+        post.id,
+        'text',
+        'share',
         {
           screenName: 'feed',
           position,
@@ -276,14 +276,14 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         }
       );
     }
-    
+
     onInteraction?.('share');
   };
 
   const handleShareOption = (option: string) => {
     setShowShareOptions(false);
     setSharesCount(prev => prev + 1);
-    
+
     switch (option) {
       case 'copy':
         Alert.alert('تم النسخ', 'تم نسخ رابط المنشور');
@@ -311,7 +311,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
   const handleSave = async () => {
     // Save button animation
     MicroInteractions.triggerHapticFeedback('light');
-    
+
     if (!isSaved) {
       // Save animation - elastic bounce
       MicroInteractions.createElasticAnimation(saveScaleAnim, 1.2).start(() => {
@@ -323,15 +323,15 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         MicroInteractions.createScaleAnimation(saveScaleAnim, 1, 100).start();
       });
     }
-    
+
     setIsSaved(!isSaved);
-    
+
     // Collect save signal
     if (privacySettings.allowBehaviorTracking) {
       await collectSignal(
-        post.id, 
-        'text', 
-        'save', 
+        post.id,
+        'text',
+        'save',
         {
           screenName: 'feed',
           position,
@@ -359,7 +359,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         }
       );
     }
-    
+
     Alert.alert(isSaved ? 'إلغاء الحفظ' : 'حفظ', isSaved ? 'تم إلغاء حفظ المنشور' : 'تم حفظ المنشور');
   };
 
@@ -367,7 +367,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
     // Donate button animation
     MicroInteractions.triggerHapticFeedback('medium');
     MicroInteractions.createBounceAnimation(donateScaleAnim).start();
-    
+
     Alert.alert(
       'تبرع للمنشور',
       `تبرع لـ ${post.user?.displayName || 'مستخدم'}
@@ -383,21 +383,23 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
       ]
     );
   };
-  
+
   const handleCustomDonation = () => {
     Alert.prompt(
       'مبلغ مخصص',
       'أدخل المبلغ الذي تريد التبرع به (بالريال)',
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'تبرع', onPress: (amount) => {
-          const numAmount = parseFloat(amount || '0');
-          if (numAmount > 0 && numAmount <= 1000) {
-            processDonation(numAmount, 'SAR');
-          } else {
-            Alert.alert('خطأ', 'يرجى إدخال مبلغ صحيح (من 1 إلى 1000 ريال)');
+        {
+          text: 'تبرع', onPress: (amount?: string) => {
+            const numAmount = parseFloat(amount || '0');
+            if (numAmount > 0 && numAmount <= 1000) {
+              processDonation(numAmount, 'SAR');
+            } else {
+              Alert.alert('خطأ', 'يرجى إدخال مبلغ صحيح (من 1 إلى 1000 ريال)');
+            }
           }
-        }}
+        }
       ],
       'plain-text',
       '',
@@ -432,9 +434,9 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
       // Collect donation signal
       if (privacySettings.allowBehaviorTracking) {
         await collectSignal(
-          post.id, 
-          'text', 
-          'donate', 
+          post.id,
+          'text',
+          'donate',
           {
             screenName: 'feed',
             position,
@@ -466,7 +468,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
 
       // Send notification to the recipient
       Alert.alert(
-        'شكراً لك!', 
+        'شكراً لك!',
         `تم التبرع بمبلغ ${amount} ${currency} بنجاح
 
 سيتم إرسال إشعار للمستخدم ${post.user?.displayName || 'المستخدم'} بأنه تلقى تبرعاً منك.`
@@ -485,11 +487,11 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
 
   const handleMore = () => {
     const isMyPost = post.userId === userId;
-    
-    const options = [
+
+    const options: AlertButton[] = [
       { text: 'إلغاء', style: 'cancel' as const },
     ];
-    
+
     if (isMyPost) {
       options.push(
         { text: 'تعديل المنشور', onPress: () => handleEditPost() },
@@ -505,27 +507,29 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         { text: 'حظر ' + (post.user?.displayName || 'المستخدم'), style: 'destructive' as const, onPress: () => handleBlockUser() }
       );
     }
-    
+
     Alert.alert('خيارات المنشور', 'اختر إجراء', options);
   };
-  
+
   const handleEditPost = () => {
     Alert.alert('تعديل المنشور', 'سيتم فتح محرر المنشور قريباً');
   };
-  
+
   const handleDeletePost = () => {
     Alert.alert(
       'حذف المنشور',
       'هل أنت متأكد من حذف هذا المنشور؟ لن يمكن استرجاعه.',
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'حذف', style: 'destructive', onPress: () => {
-          Alert.alert('تم الحذف', 'تم حذف المنشور بنجاح');
-        }}
+        {
+          text: 'حذف', style: 'destructive', onPress: () => {
+            Alert.alert('تم الحذف', 'تم حذف المنشور بنجاح');
+          }
+        }
       ]
     );
   };
-  
+
   const handlePostPrivacy = () => {
     Alert.alert('إعدادات الخصوصية', 'اختر من يمكنه رؤية هذا المنشور', [
       { text: 'إلغاء', style: 'cancel' },
@@ -534,31 +538,33 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
       { text: 'أنا فقط', onPress: () => Alert.alert('تم', 'المنشور مرئي لك فقط') }
     ]);
   };
-  
+
   const handleCopyLink = () => {
     Alert.alert('تم النسخ', 'تم نسخ رابط المنشور إلى الحافظة');
   };
-  
+
   const handleHidePost = () => {
     Alert.alert('إخفاء المنشور', 'لن ترى هذا المنشور في الخلاصة بعد الآن', [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'إخفاء', onPress: () => Alert.alert('تم', 'تم إخفاء المنشور') }
     ]);
   };
-  
+
   const handleUnfollow = () => {
     Alert.alert(
       'إلغاء المتابعة',
       `هل تريد إلغاء متابعة ${post.user?.displayName || 'هذا المستخدم'}؟`,
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'إلغاء المتابعة', onPress: () => {
-          Alert.alert('تم', `تم إلغاء متابعة ${post.user?.displayName || 'المستخدم'}`);
-        }}
+        {
+          text: 'إلغاء المتابعة', onPress: () => {
+            Alert.alert('تم', `تم إلغاء متابعة ${post.user?.displayName || 'المستخدم'}`);
+          }
+        }
       ]
     );
   };
-  
+
   const handleReportPost = () => {
     Alert.alert('الإبلاغ عن المنشور', 'لماذا تريد الإبلاغ عن هذا المنشور؟', [
       { text: 'إلغاء', style: 'cancel' },
@@ -569,12 +575,12 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
       { text: 'أخرى', onPress: () => handleReportSubmit('أخرى') }
     ]);
   };
-  
+
   const handleReportSubmit = (reason: string) => {
     Alert.alert('تم الإبلاغ', `تم إرسال بلاغك بنجاح. السبب: ${reason}
 سيتم مراجعة المنشور في أقرب وقت.`);
   };
-  
+
   const handleBlockUser = () => {
     Alert.alert(
       'حظر المستخدم',
@@ -583,9 +589,11 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
 لن ترى منشوراته أو رسائله بعد الآن.`,
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'حظر', style: 'destructive', onPress: () => {
-          Alert.alert('تم الحظر', `تم حظر ${post.user?.displayName || 'المستخدم'} بنجاح`);
-        }}
+        {
+          text: 'حظر', style: 'destructive', onPress: () => {
+            Alert.alert('تم الحظر', `تم حظر ${post.user?.displayName || 'المستخدم'} بنجاح`);
+          }
+        }
       ]
     );
   };
@@ -613,7 +621,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         }
       );
     }
-    
+
     router.push(`/profile/${post.userId}`);
   };
 
@@ -636,7 +644,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
             </View>
           )}
         </View>
-        
+
         {/* Enhanced ranking factors display */}
         {recommendation?.rankingFactors && recommendation.rankingFactors.length > 0 && (
           <View style={styles.rankingFactors}>
@@ -652,7 +660,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
             ))}
           </View>
         )}
-        
+
         {/* Social context display */}
         {recommendation?.socialContext && recommendation.socialContext.friendsWhoEngaged.length > 0 && (
           <View style={styles.socialContext}>
@@ -662,7 +670,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
             </Text>
           </View>
         )}
-        
+
         {post.recommendationReasons && post.recommendationReasons.length > 0 && (
           <Text style={styles.recommendationReasons}>
             {post.recommendationReasons.slice(0, 2).join(' • ')}
@@ -677,8 +685,8 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
 
     if (post.mediaUrls.length === 1) {
       return (
-        <Image 
-          source={{ uri: post.mediaUrls[0] }} 
+        <Image
+          source={{ uri: post.mediaUrls[0] }}
           style={styles.singleImage}
           resizeMode="cover"
         />
@@ -689,9 +697,9 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
       return (
         <View style={styles.doubleImageContainer}>
           {post.mediaUrls.map((url, index) => (
-            <Image 
+            <Image
               key={index}
-              source={{ uri: url }} 
+              source={{ uri: url }}
               style={styles.doubleImage}
               resizeMode="cover"
             />
@@ -703,21 +711,21 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
     // Multiple images (3+)
     return (
       <View style={styles.multipleImageContainer}>
-        <Image 
-          source={{ uri: post.mediaUrls[0] }} 
+        <Image
+          source={{ uri: post.mediaUrls[0] }}
           style={styles.mainImage}
           resizeMode="cover"
         />
         <View style={styles.sideImagesContainer}>
-          <Image 
-            source={{ uri: post.mediaUrls[1] }} 
+          <Image
+            source={{ uri: post.mediaUrls[1] }}
             style={styles.sideImage}
             resizeMode="cover"
           />
           {post.mediaUrls.length > 2 && (
             <View style={styles.moreImagesOverlay}>
-              <Image 
-                source={{ uri: post.mediaUrls[2] }} 
+              <Image
+                source={{ uri: post.mediaUrls[2] }}
                 style={styles.sideImage}
                 resizeMode="cover"
               />
@@ -734,8 +742,8 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
   };
 
   return (
-    <Animated.View 
-      ref={viewRef} 
+    <Animated.View
+      ref={viewRef}
       style={[
         styles.container,
         {
@@ -784,12 +792,12 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
         <View style={styles.leftActions}>
           <Animated.View style={{ transform: [{ scale: Animated.multiply(likeScaleAnim, heartPulseAnim) }] }}>
             <TouchableOpacity onPress={handleLike} style={styles.actionButton}>
-              <Heart 
-                size={20} 
-                color={isLiked ? Colors.error : Colors.medium}
-                fill={isLiked ? Colors.error : 'transparent'}
+              <ThumbsUp
+                size={20}
+                color={isLiked ? Colors.facebookBlue : Colors.medium}
+                fill={isLiked ? Colors.facebookBlue : 'transparent'}
               />
-              <Text style={[styles.actionText, isLiked && styles.likedText]}>
+              <Text style={[styles.actionText, isLiked && { color: Colors.facebookBlue }]}>
                 {likesCount}
               </Text>
             </TouchableOpacity>
@@ -820,8 +828,8 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
 
         <Animated.View style={{ transform: [{ scale: saveScaleAnim }] }}>
           <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-            <Bookmark 
-              size={20} 
+            <Bookmark
+              size={20}
               color={isSaved ? Colors.primary : Colors.medium}
               fill={isSaved ? Colors.primary : 'transparent'}
             />
@@ -833,9 +841,9 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
       {showRecommendationInfo && post.engagementMetrics && (
         <View style={styles.engagementMetrics}>
           <Text style={styles.engagementMetricsText}>
-            معدل التفاعل: {(post.engagementMetrics.engagementRate * 100).toFixed(1)}%
+            معدل التفاعل: {(post.engagementMetrics?.engagementRate * 100).toFixed(1)}%
           </Text>
-          {post.engagementMetrics.qualityEngagementScore > 0.7 && (
+          {post.engagementMetrics?.qualityEngagementScore > 0.7 && (
             <View style={styles.qualityBadge}>
               <Text style={styles.qualityBadgeText}>جودة عالية</Text>
             </View>
@@ -858,7 +866,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
             <Text style={styles.commentsTitle}>التعليقات ({commentsCount})</Text>
             <View style={{ width: 24 }} />
           </View>
-          
+
           <ScrollView style={styles.commentsList}>
             {comments.map((comment) => (
               <View key={comment.id} style={styles.commentItem}>
@@ -871,7 +879,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
               </View>
             ))}
           </ScrollView>
-          
+
           <View style={styles.commentInput}>
             <TextInput
               style={styles.commentTextInput}
@@ -903,7 +911,7 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
                 <X size={24} color={Colors.dark} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.shareOptions}>
               <TouchableOpacity style={styles.shareOption} onPress={() => handleShareOption('copy')}>
                 <View style={styles.shareOptionIcon}>
@@ -911,35 +919,35 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
                 </View>
                 <Text style={styles.shareOptionText}>نسخ الرابط</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.shareOption} onPress={() => handleShareOption('whatsapp')}>
                 <View style={styles.shareOptionIcon}>
                   <Text style={styles.shareOptionEmoji}>📱</Text>
                 </View>
                 <Text style={styles.shareOptionText}>واتساب</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.shareOption} onPress={() => handleShareOption('telegram')}>
                 <View style={styles.shareOptionIcon}>
                   <Text style={styles.shareOptionEmoji}>✈️</Text>
                 </View>
                 <Text style={styles.shareOptionText}>تيليجرام</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.shareOption} onPress={() => handleShareOption('twitter')}>
                 <View style={styles.shareOptionIcon}>
                   <Text style={styles.shareOptionEmoji}>🐦</Text>
                 </View>
                 <Text style={styles.shareOptionText}>تويتر</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.shareOption} onPress={() => handleShareOption('facebook')}>
                 <View style={styles.shareOptionIcon}>
                   <Text style={styles.shareOptionEmoji}>📘</Text>
                 </View>
                 <Text style={styles.shareOptionText}>فيسبوك</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.shareOption} onPress={() => handleShareOption('instagram')}>
                 <View style={styles.shareOptionIcon}>
                   <Text style={styles.shareOptionEmoji}>📷</Text>
@@ -1156,10 +1164,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.medium,
     marginLeft: 6,
-    fontWeight: '500',
-  },
-  likedText: {
-    color: Colors.error,
   },
   donateButton: {
     flexDirection: 'row',
@@ -1168,13 +1172,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    marginRight: 12,
+    marginLeft: 8,
   },
   donateText: {
-    fontSize: 12,
     color: Colors.primary,
-    marginLeft: 4,
     fontWeight: '600',
+    fontSize: 12,
+    marginLeft: 4,
   },
   saveButton: {
     padding: 4,
@@ -1182,26 +1186,26 @@ const styles = StyleSheet.create({
   engagementMetrics: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 12,
+    marginTop: -4,
   },
   engagementMetricsText: {
     fontSize: 11,
     color: Colors.medium,
+    marginRight: 8,
   },
   qualityBadge: {
-    backgroundColor: Colors.success,
+    backgroundColor: Colors.secondary,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 4,
   },
   qualityBadgeText: {
-    fontSize: 9,
-    color: Colors.background,
+    fontSize: 10,
+    color: Colors.primary,
     fontWeight: '600',
   },
-  // Comments Modal Styles
   commentsModal: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -1210,8 +1214,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -1222,16 +1225,17 @@ const styles = StyleSheet.create({
   },
   commentsList: {
     flex: 1,
-    padding: 16,
   },
   commentItem: {
     flexDirection: 'row',
-    marginBottom: 16,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   commentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: 12,
   },
   commentContent: {
@@ -1239,26 +1243,27 @@ const styles = StyleSheet.create({
   },
   commentUserName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: Colors.dark,
     marginBottom: 4,
   },
   commentText: {
     fontSize: 14,
     color: Colors.dark,
-    marginBottom: 4,
+    lineHeight: 20,
   },
   commentTime: {
     fontSize: 12,
     color: Colors.medium,
+    marginTop: 4,
   },
   commentInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    backgroundColor: Colors.background,
   },
   commentTextInput: {
     flex: 1,
@@ -1268,13 +1273,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginRight: 12,
     maxHeight: 100,
-    fontSize: 14,
-    color: Colors.dark,
+    textAlign: 'right',
   },
   commentSendButton: {
     padding: 8,
   },
-  // Share Modal Styles
   shareModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1290,8 +1293,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },

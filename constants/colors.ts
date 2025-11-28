@@ -26,4 +26,6 @@ export default {
   white: '#FFFFFF',
   whatsappGray: '#ECE5DD',
   whatsappLight: '#DCF8C6',
+  facebookBlue: '#1877F2',
+  storyBorder: '#2D88FF',
 };

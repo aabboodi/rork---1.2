@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, FlatList, Text, TouchableOpacity, TextInput, Image, ScrollView, Alert, Dimensions, RefreshControl, Modal } from 'react-native';
-import { Camera, Image as ImageIcon, Smile, Video, Bell, Users, UserPlus, User, Play, MapPin, Briefcase, Phone, Zap, Settings, TrendingUp, Sparkles, BarChart3, Target, MessageCircle as MessengerIcon } from 'lucide-react-native';
+import { Camera, Image as ImageIcon, Smile, Video, Bell, Users, UserPlus, User, Play, MapPin, Briefcase, Phone, Zap, Settings, TrendingUp, Sparkles, BarChart3, Target, MessageCircle as MessengerIcon, Plus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { mockPosts } from '@/mocks/posts';
 import { mockClips } from '@/mocks/clips';
@@ -48,9 +48,9 @@ export default function SocialScreen() {
     getFeedbackLoopState,
     getBatchConsumptionStatus
   } = useRecommendationStore();
-  
+
   const t = translations[language];
-  
+
   const [activeTab, setActiveTab] = useState<SocialTab>('feed');
   const [refreshing, setRefreshing] = useState(false);
   const [personalizedPosts, setPersonalizedPosts] = useState<Post[]>([]);
@@ -62,14 +62,14 @@ export default function SocialScreen() {
   const [selectedStory, setSelectedStory] = useState<any>(null);
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  
+
   // Enhanced scroll tracking
   const [scrollPosition, setScrollPosition] = useState(0);
   const [lastScrollTime, setLastScrollTime] = useState(Date.now());
   const [scrollVelocity, setScrollVelocity] = useState(0);
   const scrollRef = useRef<FlatList>(null);
   const postInputRef = useRef<TextInput>(null);
-  
+
   // Stable callback for onViewableItemsChanged to prevent FlatList error
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     // Track viewed items - handled by individual components
@@ -85,38 +85,38 @@ export default function SocialScreen() {
     itemVisiblePercentThreshold: 80,
     minimumViewTime: 2000
   }).current;
-  
+
   // Initialize recommendation system
   useEffect(() => {
     if (userId && !isInitialized) {
       initializeRecommendations(userId);
     }
   }, [userId, isInitialized]);
-  
+
   // Update personalized content when recommendations change
   useEffect(() => {
     updatePersonalizedContent();
   }, [feedRecommendations, clipsRecommendations]);
-  
+
   // Monitor batch completion for clips tab
   useEffect(() => {
     if (activeTab === 'clips' && batchConsumptionTracker) {
       const { batchProgress, isCompleted } = batchConsumptionTracker;
-      
+
       // Auto-complete batch when 80% progress is reached
       if (batchProgress >= 0.8 && !isCompleted) {
         handleBatchCompletion();
       }
     }
   }, [batchConsumptionTracker, activeTab]);
-  
+
   const updatePersonalizedContent = useCallback(() => {
     // Merge posts with recommendation data
     const postsWithRecommendations = mockPosts.map(post => {
-      const recommendation = feedRecommendations.find(rec => 
+      const recommendation = feedRecommendations.find(rec =>
         rec.contentId.includes(post.id) || rec.contentId.includes('text')
       );
-      
+
       return {
         ...post,
         recommendationScore: recommendation?.score || Math.random(),
@@ -124,17 +124,17 @@ export default function SocialScreen() {
         personalizedRanking: recommendation ? feedRecommendations.indexOf(recommendation) : 999
       };
     });
-    
+
     // Sort by recommendation score if personalization is enabled
     if (privacySettings.allowPersonalization && feedRecommendations.length > 0) {
       postsWithRecommendations.sort((a, b) => (b.recommendationScore || 0) - (a.recommendationScore || 0));
     }
-    
+
     setPersonalizedPosts(postsWithRecommendations);
-    
+
     // For clips, use micro-batch if available, otherwise use recommendations
     let clipsToShow = mockClips;
-    
+
     if (currentBatch && currentBatch.clipIds.length > 0) {
       // Use clips from current batch
       clipsToShow = currentBatch.clipIds.map(clipId => {
@@ -153,10 +153,10 @@ export default function SocialScreen() {
     } else {
       // Fallback to regular recommendations
       clipsToShow = mockClips.map(clip => {
-        const recommendation = clipsRecommendations.find(rec => 
+        const recommendation = clipsRecommendations.find(rec =>
           rec.contentId.includes(clip.id) || rec.contentId.includes('video')
         );
-        
+
         return {
           ...clip,
           recommendationScore: recommendation?.score || Math.random(),
@@ -164,16 +164,16 @@ export default function SocialScreen() {
           personalizedRanking: recommendation ? clipsRecommendations.indexOf(recommendation) : 999
         };
       });
-      
+
       // Sort by recommendation score if personalization is enabled
       if (privacySettings.allowPersonalization && clipsRecommendations.length > 0) {
         clipsToShow.sort((a, b) => (b.recommendationScore || 0) - (a.recommendationScore || 0));
       }
     }
-    
+
     setPersonalizedClips(clipsToShow);
   }, [feedRecommendations, clipsRecommendations, privacySettings.allowPersonalization, currentBatch]);
-  
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -184,7 +184,7 @@ export default function SocialScreen() {
       setRefreshing(false);
     }
   }, [refreshAllRecommendations]);
-  
+
   const handleTabChange = useCallback(async (tab: SocialTab) => {
     // Collect navigation signal
     await collectSignal(
@@ -199,28 +199,28 @@ export default function SocialScreen() {
         newTab: tab
       }
     );
-    
+
     setActiveTab(tab);
   }, [activeTab, collectSignal]);
-  
+
   const handlePostInteraction = useCallback(async (
-    post: Post, 
+    post: Post,
     action: 'like' | 'comment' | 'share' | 'view',
     position: number
   ) => {
     // The PostItem component handles signal collection internally
     // This is just for backward compatibility
   }, []);
-  
+
   const handleClipInteraction = useCallback(async (
-    clip: Clip, 
+    clip: Clip,
     action: 'like' | 'comment' | 'share' | 'view' | 'pause' | 'replay',
     position: number
   ) => {
     // The ClipItem component handles signal collection internally
     // This is just for backward compatibility
   }, []);
-  
+
   // Handle batch completion
   const handleBatchCompletion = useCallback(async () => {
     try {
@@ -234,7 +234,7 @@ export default function SocialScreen() {
       console.error('Failed to complete batch:', error);
     }
   }, [completeBatch]);
-  
+
   // Handle batch abandonment
   const handleBatchAbandonment = useCallback(async (reason: string) => {
     try {
@@ -244,21 +244,21 @@ export default function SocialScreen() {
       console.error('Failed to abandon batch:', error);
     }
   }, [abandonBatch]);
-  
+
   // Enhanced scroll handling with velocity tracking
   const handleScroll = useCallback((event: any) => {
     const currentPosition = event.nativeEvent.contentOffset.y;
     const currentTime = Date.now();
-    
+
     // Calculate scroll velocity
     const timeDiff = currentTime - lastScrollTime;
     const positionDiff = Math.abs(currentPosition - scrollPosition);
     const velocity = timeDiff > 0 ? positionDiff / timeDiff : 0;
-    
+
     setScrollPosition(currentPosition);
     setLastScrollTime(currentTime);
     setScrollVelocity(velocity);
-    
+
     // Collect scroll velocity signal for fast scrolling (indicating low engagement)
     if (velocity > 2 && privacySettings.allowBehaviorTracking) {
       collectScrollVelocitySignal(
@@ -273,20 +273,20 @@ export default function SocialScreen() {
       );
     }
   }, [scrollPosition, lastScrollTime, activeTab, privacySettings.allowBehaviorTracking]);
-  
+
   const handleCreatePost = () => {
     setShowCreatePost(true);
     setTimeout(() => {
       postInputRef.current?.focus();
     }, 100);
   };
-  
+
   const handlePublishPost = () => {
     if (!postText.trim()) {
       Alert.alert('خطأ', 'يرجى كتابة محتوى المنشور');
       return;
     }
-    
+
     const newPost: Post = {
       id: Date.now().toString(),
       userId: userId || '0',
@@ -303,60 +303,68 @@ export default function SocialScreen() {
       timestamp: Date.now(),
       type: 'text'
     };
-    
+
     setPersonalizedPosts([newPost, ...personalizedPosts]);
     setPostText('');
     setShowCreatePost(false);
     Alert.alert('نجح', 'تم نشر المنشور بنجاح');
   };
-  
+
   const handleNotifications = () => {
     Alert.alert('الإشعارات', 'عرض جميع الإشعارات', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'عرض الكل', onPress: () => {
-        // TODO: Navigate to notifications screen
-        Alert.alert('الإشعارات', 'لديك 5 إشعارات جديدة:\n\n• أحمد أعجب بمنشورك\n• سارة علقت على صورتك\n• محمد شارك منشورك\n• نور أرسلت لك رسالة\n• تم قبول طلب صداقتك مع علي');
-      }}
+      {
+        text: 'عرض الكل', onPress: () => {
+          // TODO: Navigate to notifications screen
+          Alert.alert('الإشعارات', 'لديك 5 إشعارات جديدة:\n\n• أحمد أعجب بمنشورك\n• سارة علقت على صورتك\n• محمد شارك منشورك\n• نور أرسلت لك رسالة\n• تم قبول طلب صداقتك مع علي');
+        }
+      }
     ]);
   };
-  
+
   const handleSettings = () => {
     setShowSettings(true);
   };
-  
+
   const handleSocialMessages = () => {
     // Navigate to social messages page (separate from main chats)
     router.push('/social/messages');
   };
-  
+
   const handleLiveVideo = () => {
     Alert.alert('بث مباشر', 'سيتم بدء البث المباشر قريباً', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'موافق', onPress: () => {
-        // TODO: Implement live streaming
-        Alert.alert('قريباً', 'ميزة البث المباشر ستكون متاحة قريباً');
-      }}
+      {
+        text: 'موافق', onPress: () => {
+          // TODO: Implement live streaming
+          Alert.alert('قريباً', 'ميزة البث المباشر ستكون متاحة قريباً');
+        }
+      }
     ]);
   };
-  
+
   const handlePhotoVideo = () => {
     Alert.alert('صورة/فيديو', 'اختر مصدر الوسائط', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'الكاميرا', onPress: () => {
-        // TODO: Open camera
-        Alert.alert('الكاميرا', 'سيتم فتح الكاميرا');
-      }},
-      { text: 'المعرض', onPress: () => {
-        // TODO: Open gallery
-        Alert.alert('المعرض', 'سيتم فتح معرض الصور');
-      }}
+      {
+        text: 'الكاميرا', onPress: () => {
+          // TODO: Open camera
+          Alert.alert('الكاميرا', 'سيتم فتح الكاميرا');
+        }
+      },
+      {
+        text: 'المعرض', onPress: () => {
+          // TODO: Open gallery
+          Alert.alert('المعرض', 'سيتم فتح معرض الصور');
+        }
+      }
     ]);
   };
-  
+
   const handleFeeling = () => {
     const feelings = ['سعيد 😊', 'حزين 😢', 'متحمس 🤩', 'غاضب 😠', 'مرتاح 😌', 'متعب 😴'];
     const activities = ['يأكل 🍽️', 'يسافر ✈️', 'يعمل 💼', 'يدرس 📚', 'يلعب 🎮', 'يتسوق 🛍️'];
-    
+
     Alert.alert('شعور/نشاط', 'اختر شعورك أو نشاطك الحالي', [
       { text: 'إلغاء', style: 'cancel' },
       ...feelings.map(feeling => ({
@@ -379,11 +387,11 @@ export default function SocialScreen() {
       }))
     ]);
   };
-  
+
   const handleStoryPress = (story: any) => {
     setSelectedStory(story);
     setShowStoryModal(true);
-    
+
     // Collect story view signal
     if (privacySettings.allowBehaviorTracking) {
       collectSignal(
@@ -408,34 +416,40 @@ export default function SocialScreen() {
       );
     }
   };
-  
+
   const handleCreateStory = () => {
     Alert.alert('إنشاء قصة', 'اختر نوع القصة', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'صورة', onPress: () => {
-        Alert.alert('صورة', 'سيتم فتح الكاميرا لالتقاط صورة للقصة');
-      }},
-      { text: 'فيديو', onPress: () => {
-        Alert.alert('فيديو', 'سيتم فتح الكاميرا لتسجيل فيديو للقصة');
-      }},
-      { text: 'نص', onPress: () => {
-        Alert.alert('نص', 'سيتم فتح محرر النصوص لإنشاء قصة نصية');
-      }}
+      {
+        text: 'صورة', onPress: () => {
+          Alert.alert('صورة', 'سيتم فتح الكاميرا لالتقاط صورة للقصة');
+        }
+      },
+      {
+        text: 'فيديو', onPress: () => {
+          Alert.alert('فيديو', 'سيتم فتح الكاميرا لتسجيل فيديو للقصة');
+        }
+      },
+      {
+        text: 'نص', onPress: () => {
+          Alert.alert('نص', 'سيتم فتح محرر النصوص لإنشاء قصة نصية');
+        }
+      }
     ]);
   };
-  
+
   const handleAddFriend = (userId: string, suggestionType?: string) => {
     Alert.alert('إضافة صديق', `تم إرسال طلب صداقة${suggestionType ? ` (${suggestionType})` : ''}`);
   };
-  
+
   const handleEditProfile = () => {
     router.push('/profile/edit');
   };
-  
+
   const handleRecommendationSettings = () => {
     const analytics = getAnalytics();
     const signalAnalytics = getSignalAnalytics();
-    
+
     Alert.alert(
       'إعدادات التوصيات المتقدمة',
       `التوصيات: ${analytics.totalRecommendations}
@@ -452,16 +466,16 @@ export default function SocialScreen() {
 معدل الاستكشاف: ${((analytics.feedbackLoopAnalytics?.explorationRate || 0) * 100).toFixed(1)}%`
     );
   };
-  
+
   const handleMicroBatchInfo = () => {
     const feedbackState = getFeedbackLoopState();
     const batchStatus = getBatchConsumptionStatus();
-    
+
     if (!feedbackState || !batchStatus) {
       Alert.alert('معلومات التعلم التكيفي', 'لا توجد بيانات متاحة حالياً');
       return;
     }
-    
+
     Alert.alert(
       'معلومات التعلم التكيفي',
       `الدفعة الحالية: ${currentBatch?.batchId.split('_').pop() || 'غير متاح'}
@@ -474,15 +488,15 @@ export default function SocialScreen() {
 التكيفات: ${feedbackState.adaptationHistory.length}`
     );
   };
-  
+
   const renderFeedContent = () => (
     <FlatList
       ref={scrollRef}
       data={personalizedPosts}
       keyExtractor={(item) => item.id}
       renderItem={({ item, index }) => (
-        <PostItem 
-          post={item} 
+        <PostItem
+          post={item}
           onInteraction={(action) => handlePostInteraction(item, action, index)}
           showRecommendationInfo={showRecommendationInfo}
           position={index}
@@ -504,14 +518,14 @@ export default function SocialScreen() {
       viewabilityConfig={viewabilityConfig}
     />
   );
-  
+
   const renderClipsContent = () => (
     <FlatList
       data={personalizedClips}
       keyExtractor={(item) => item.id}
       renderItem={({ item, index }) => (
-        <ClipItem 
-          clip={item} 
+        <ClipItem
+          clip={item}
           onInteraction={(action) => handleClipInteraction(item, action, index)}
           showRecommendationInfo={showRecommendationInfo}
           position={index}
@@ -527,7 +541,7 @@ export default function SocialScreen() {
             <Text style={styles.clipsTitle}>{t.shortClips}</Text>
             <View style={styles.clipsHeaderActions}>
               {privacySettings.allowPersonalization && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.recommendationIndicator}
                   onPress={() => setShowRecommendationInfo(!showRecommendationInfo)}
                 >
@@ -536,7 +550,7 @@ export default function SocialScreen() {
                 </TouchableOpacity>
               )}
               {currentBatch && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.microBatchIndicator}
                   onPress={() => setShowMicroBatchInfo(!showMicroBatchInfo)}
                 >
@@ -546,7 +560,7 @@ export default function SocialScreen() {
               )}
             </View>
           </View>
-          
+
           {/* Micro-Batch Info */}
           {showMicroBatchInfo && currentBatch && batchConsumptionTracker && (
             <View style={styles.microBatchInfo}>
@@ -572,7 +586,7 @@ export default function SocialScreen() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.microBatchInfoButton}
                 onPress={handleMicroBatchInfo}
               >
@@ -580,7 +594,7 @@ export default function SocialScreen() {
               </TouchableOpacity>
             </View>
           )}
-          
+
           <View style={styles.clipsFilters}>
             <TouchableOpacity style={[styles.clipFilter, styles.activeClipFilter]}>
               <Text style={[styles.clipFilterText, styles.activeClipFilterText]}>
@@ -610,9 +624,9 @@ export default function SocialScreen() {
       viewabilityConfig={clipsViewabilityConfig}
     />
   );
-  
+
   const renderAddFriendsContent = () => (
-    <ScrollView 
+    <ScrollView
       style={styles.friendsContainer}
       refreshControl={
         <RefreshControl
@@ -648,7 +662,7 @@ export default function SocialScreen() {
               <Text style={styles.confidenceScore}>
                 {Math.round(suggestion.confidence * 100)}% تطابق
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => handleAddFriend(suggestion.user.id, 'proximity')}
               >
@@ -658,7 +672,7 @@ export default function SocialScreen() {
           ))}
         </ScrollView>
       </View>
-      
+
       {/* Colleague Suggestions */}
       <View style={styles.friendsSection}>
         <View style={styles.sectionHeader}>
@@ -677,7 +691,7 @@ export default function SocialScreen() {
               <Text style={styles.confidenceScore}>
                 {Math.round(suggestion.confidence * 100)}% تطابق
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => handleAddFriend(suggestion.user.id, 'colleagues')}
               >
@@ -687,7 +701,7 @@ export default function SocialScreen() {
           ))}
         </ScrollView>
       </View>
-      
+
       {/* Contact Suggestions */}
       <View style={styles.friendsSection}>
         <View style={styles.sectionHeader}>
@@ -706,7 +720,7 @@ export default function SocialScreen() {
               <Text style={styles.mutualFriends}>
                 {suggestion.metadata.mutualFriends} أصدقاء مشتركون
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => handleAddFriend(suggestion.user.id, 'contacts')}
               >
@@ -716,7 +730,7 @@ export default function SocialScreen() {
           ))}
         </ScrollView>
       </View>
-      
+
       {/* Algorithmic Suggestions */}
       <View style={styles.friendsSection}>
         <View style={styles.sectionHeader}>
@@ -738,7 +752,7 @@ export default function SocialScreen() {
               <Text style={styles.mutualFriends}>
                 {suggestion.metadata.mutualFriends} أصدقاء مشتركون
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => handleAddFriend(suggestion.user.id, 'algorithmic')}
               >
@@ -750,9 +764,9 @@ export default function SocialScreen() {
       </View>
     </ScrollView>
   );
-  
+
   const renderMyProfileContent = () => (
-    <ScrollView 
+    <ScrollView
       style={styles.profileContainer}
       refreshControl={
         <RefreshControl
@@ -777,7 +791,7 @@ export default function SocialScreen() {
           <Text style={styles.editButtonText}>تعديل</Text>
         </TouchableOpacity>
       </View>
-      
+
       {/* Profile Stats */}
       <View style={styles.profileStats}>
         <View style={styles.statItem}>
@@ -797,7 +811,7 @@ export default function SocialScreen() {
           <Text style={styles.statLabel}>مشاهدة</Text>
         </View>
       </View>
-      
+
       {/* Enhanced Recommendation Analytics */}
       {privacySettings.allowPersonalization && (
         <View style={styles.recommendationStats}>
@@ -823,7 +837,7 @@ export default function SocialScreen() {
               <Text style={styles.statLabel}>إشارة</Text>
             </View>
           </View>
-          
+
           {/* Micro-Batch Feedback Loop Analytics */}
           {getAnalytics().feedbackLoopAnalytics && (
             <View style={styles.feedbackLoopStats}>
@@ -854,7 +868,7 @@ export default function SocialScreen() {
               </View>
             </View>
           )}
-          
+
           {/* Signal Quality Metrics */}
           {getSignalAnalytics() && (
             <View style={styles.signalMetrics}>
@@ -881,7 +895,7 @@ export default function SocialScreen() {
           )}
         </View>
       )}
-      
+
       {/* Profile Content Tabs */}
       <View style={styles.profileContentTabs}>
         <TouchableOpacity style={[styles.profileTab, styles.activeProfileTab]}>
@@ -893,13 +907,13 @@ export default function SocialScreen() {
           <Text style={styles.profileTabText}>المقاطع</Text>
         </TouchableOpacity>
       </View>
-      
+
       {/* My Posts */}
       <View style={styles.myPostsSection}>
         {personalizedPosts.slice(0, 3).map((post, index) => (
-          <PostItem 
-            key={post.id} 
-            post={post} 
+          <PostItem
+            key={post.id}
+            post={post}
             onInteraction={(action) => handlePostInteraction(post, action, index)}
             showRecommendationInfo={showRecommendationInfo}
             position={index}
@@ -908,7 +922,7 @@ export default function SocialScreen() {
       </View>
     </ScrollView>
   );
-  
+
   const FeedHeader = () => (
     <View>
       {/* Social Header */}
@@ -934,7 +948,7 @@ export default function SocialScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       {/* Stories Section */}
       <View style={styles.storiesContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -946,11 +960,11 @@ export default function SocialScreen() {
             </View>
             <Text style={styles.storyText}>قصتك</Text>
           </TouchableOpacity>
-          
+
           {/* Friends Stories */}
           {mockUsers.slice(0, 8).map(user => (
-            <TouchableOpacity 
-              key={user.id} 
+            <TouchableOpacity
+              key={user.id}
               style={styles.storyContainer}
               onPress={() => handleStoryPress(user)}
             >
@@ -964,7 +978,7 @@ export default function SocialScreen() {
           ))}
         </ScrollView>
       </View>
-      
+
       {/* Create Post */}
       <View style={styles.createPostContainer}>
         <Image source={{ uri: currentUser.profilePicture }} style={styles.userAvatar} />
@@ -972,19 +986,19 @@ export default function SocialScreen() {
           <Text style={styles.postInputPlaceholder}>{t.whatsOnYourMind}</Text>
         </TouchableOpacity>
       </View>
-      
+
       {/* Post Actions */}
       <View style={styles.postActionsContainer}>
         <TouchableOpacity style={styles.postAction} onPress={handleLiveVideo}>
           <Video size={20} color={Colors.error} />
           <Text style={styles.postActionText}>مباشر</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.postAction} onPress={handlePhotoVideo}>
           <ImageIcon size={20} color={Colors.success} />
           <Text style={styles.postActionText}>صورة/فيديو</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.postAction} onPress={handleFeeling}>
           <Smile size={20} color={Colors.warning} />
           <Text style={styles.postActionText}>شعور/نشاط</Text>
@@ -992,7 +1006,7 @@ export default function SocialScreen() {
       </View>
     </View>
   );
-  
+
   return (
     <View style={styles.container}>
       {/* Main Tabs */}
@@ -1009,7 +1023,7 @@ export default function SocialScreen() {
             <View style={styles.tabRecommendationDot} />
           )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.mainTab, activeTab === 'clips' && styles.activeMainTab]}
           onPress={() => handleTabChange('clips')}
@@ -1025,7 +1039,7 @@ export default function SocialScreen() {
             <View style={styles.tabMicroBatchDot} />
           )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.mainTab, activeTab === 'addFriends' && styles.activeMainTab]}
           onPress={() => handleTabChange('addFriends')}
@@ -1035,7 +1049,7 @@ export default function SocialScreen() {
             {t.addFriends}
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.mainTab, activeTab === 'myProfile' && styles.activeMainTab]}
           onPress={() => handleTabChange('myProfile')}
@@ -1046,20 +1060,20 @@ export default function SocialScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-      
+
       {/* Loading Indicator */}
       {isLoading && (
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>جاري تحديث التوصيات المتقدمة مع التعلم التكيفي...</Text>
         </View>
       )}
-      
+
       {/* Content */}
       {activeTab === 'feed' && renderFeedContent()}
       {activeTab === 'clips' && renderClipsContent()}
       {activeTab === 'addFriends' && renderAddFriendsContent()}
       {activeTab === 'myProfile' && renderMyProfileContent()}
-      
+
       {/* Create Post Modal */}
       <Modal
         visible={showCreatePost}
@@ -1077,13 +1091,13 @@ export default function SocialScreen() {
               <Text style={styles.publishButton}>نشر</Text>
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.createPostContent}>
             <View style={styles.createPostUserInfo}>
               <Image source={{ uri: currentUser.profilePicture }} style={styles.createPostAvatar} />
               <Text style={styles.createPostUserName}>{currentUser.displayName}</Text>
             </View>
-            
+
             <TextInput
               ref={postInputRef}
               style={styles.createPostInput}
@@ -1094,13 +1108,13 @@ export default function SocialScreen() {
               multiline
               autoFocus
             />
-            
+
             <View style={styles.createPostActions}>
               <TouchableOpacity style={styles.createPostAction} onPress={handlePhotoVideo}>
                 <ImageIcon size={24} color={Colors.success} />
                 <Text style={styles.createPostActionText}>صورة/فيديو</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.createPostAction} onPress={handleFeeling}>
                 <Smile size={24} color={Colors.warning} />
                 <Text style={styles.createPostActionText}>شعور/نشاط</Text>
@@ -1109,7 +1123,7 @@ export default function SocialScreen() {
           </View>
         </View>
       </Modal>
-      
+
       {/* Story Modal */}
       <Modal
         visible={showStoryModal}
@@ -1118,28 +1132,28 @@ export default function SocialScreen() {
         onRequestClose={() => setShowStoryModal(false)}
       >
         <View style={styles.storyModal}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.storyCloseButton}
             onPress={() => setShowStoryModal(false)}
           >
             <Text style={styles.storyCloseText}>×</Text>
           </TouchableOpacity>
-          
+
           {selectedStory && (
             <View style={styles.storyContent}>
-              <Image 
-                source={{ uri: selectedStory.profilePicture }} 
+              <Image
+                source={{ uri: selectedStory.profilePicture }}
                 style={styles.storyImage}
                 resizeMode="cover"
               />
-              
+
               <View style={styles.storyOverlay}>
                 <View style={styles.storyHeader}>
                   <Image source={{ uri: selectedStory.profilePicture }} style={styles.storyUserAvatar} />
                   <Text style={styles.storyUserName}>{selectedStory.displayName}</Text>
                   <Text style={styles.storyTime}>منذ 2 ساعة</Text>
                 </View>
-                
+
                 <View style={styles.storyFooter}>
                   <TextInput
                     style={styles.storyCommentInput}
@@ -1152,7 +1166,7 @@ export default function SocialScreen() {
                       }
                     }}
                   />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.storySendButton}
                     onPress={() => {
                       Alert.alert('تم الإرسال', 'تم إرسال تعليقك على القصة بنجاح');
@@ -1167,7 +1181,7 @@ export default function SocialScreen() {
           )}
         </View>
       </Modal>
-      
+
       {/* Settings Modal */}
       <Modal
         visible={showSettings}
