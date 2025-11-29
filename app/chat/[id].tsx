@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Image, Alert, ActionSheetIOS } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Send, Paperclip, Mic, Image as ImageIcon, Wallet, Phone, Video, MoreVertical, ArrowLeft, Camera, Users, Radio, Share2, Copy, Info, Shield, Lock, Key, AlertTriangle, CheckCircle, Eye, EyeOff, Check, CheckCheck } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import { MessageSecurityService } from '@/services/security/MessageSecurityService';
 import { E2EEService } from '@/services/security/E2EEService';
 import E2EEChatInterface from '@/components/E2EEChatInterface';
@@ -34,6 +36,8 @@ export default function ChatScreen() {
   const [chat, setChat] = useState(mockChats.find(c => c.id === id));
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [permissionResponse, requestPermission] = Audio.usePermissions();
 
   // Enhanced E2EE state
   const [encryptionEnabled, setEncryptionEnabled] = useState(true);
@@ -1096,36 +1100,6 @@ ${user.workPlace || ''}`,
         options.slice(0, -1).map((option, index) => ({
           text: option,
           onPress: () => handleAttachmentSelect(index)
-        })).concat([{ text: t.cancel, style: 'cancel' }])
-      );
-    }
-  };
-
-  const handleAttachmentSelect = (index: number) => {
-    const types = ['camera', 'gallery', 'document', 'location', 'contact'];
-    const type = types[index];
-
-    if (type) {
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        chatId: id as string,
-        senderId: userId || '0',
-        content: `تم إرسال ${ type } `,
-        timestamp: Date.now(),
-        status: 'sent',
-        type: type as any,
-      };
-
-      setMessages([...messages, newMessage]);
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  };
-
-  const handleVoiceRecording = () => {
-    if (isRecording) {
-      setIsRecording(false);
       const newMessage: Message = {
         id: Date.now().toString(),
         chatId: id as string,
