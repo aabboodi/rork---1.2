@@ -251,11 +251,957 @@ export default function SocialScreen() {
     }, 100);
   };
 
-  // PLACEHOLDER_FOR_HANDLERS
+  const handlePublishPost = () => {
+    if (!postText.trim()) {
+      Alert.alert('خطأ', 'يرجى كتابة محتوى المنشور');
+      return;
+    }
 
-  // PLACEHOLDER_FOR_RENDERERS
+    const newPost: Post = {
+      id: Date.now().toString(),
+      userId: userId || '0',
+      user: {
+        id: userId || '0',
+        displayName: currentUser.displayName,
+        username: currentUser.username,
+        profilePicture: currentUser.profilePicture
+      },
+      content: postText,
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      timestamp: Date.now(),
+      type: 'text'
+    };
 
-  // PLACEHOLDER_FOR_RETURN
+    setPersonalizedPosts([newPost, ...personalizedPosts]);
+    setPostText('');
+    setShowCreatePost(false);
+    Alert.alert('نجح', 'تم نشر المنشور بنجاح');
+  };
+
+  const handleNotifications = () => {
+    router.push('/notifications');
+  };
+
+  const handleSettings = () => {
+    setShowSettings(true);
+  };
+
+  const handleSocialMessages = () => {
+    router.push('/social/messages');
+  };
+
+  const handleLiveVideo = () => {
+    Alert.alert(
+      'بث مباشر',
+      'ميزة البث المباشر ستكون متاحة قريباً. تتطلب هذه الميزة:\n\n• خادم وسائط متخصص\n• WebRTC للبث المباشر\n• إدارة المشاهدين\n\nهل تريد الاستعداد بفحص إعدادات الكاميرا؟',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'فحص الكاميرا',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status === 'granted') {
+              Alert.alert('جاهز', 'الكاميرا جاهزة للاستخدام!');
+            } else {
+              Alert.alert('خطأ', 'يجب منح إذن الكاميرا للبث المباشر');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handlePhotoVideo = async () => {
+    Alert.alert('صورة/فيديو', 'اختر مصدر الوسائط', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'الكاميرا', onPress: async () => {
+          try {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('خطأ', 'يجب منح إذن الكاميرا لاستخدام هذه الميزة');
+              return;
+            }
+
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.All,
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+              Alert.alert('تم التقاط الصورة', 'سيتم إرفاق الصورة بالمنشور');
+              setShowCreatePost(true);
+            }
+          } catch (error) {
+            console.error('Camera error:', error);
+            Alert.alert('خطأ', 'حدث خطأ أثناء فتح الكاميرا');
+          }
+        }
+      },
+      {
+        text: 'المعرض', onPress: async () => {
+          try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('خطأ', 'يجب منح إذن الوصول للصور لاستخدام هذه الميزة');
+              return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.All,
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+              Alert.alert('تم اختيار الصورة', 'سيتم إرفاق الصورة بالمنشور');
+              setShowCreatePost(true);
+            }
+          } catch (error) {
+            console.error('Gallery error:', error);
+            Alert.alert('خطأ', 'حدث خطأ أثناء فتح المعرض');
+          }
+        }
+      }
+    ]);
+  };
+
+  const handleFeeling = () => {
+    const feelings = ['سعيد 😊', 'حزين 😢', 'متحمس 🤩', 'غاضب 😠', 'مرتاح 😌', 'متعب 😴'];
+    const activities = ['يأكل 🍽️', 'يسافر ✈️', 'يعمل 💼', 'يدرس 📚', 'يلعب 🎮', 'يتسوق 🛍️'];
+
+    Alert.alert('شعور/نشاط', 'اختر شعورك أو نشاطك الحالي', [
+      { text: 'إلغاء', style: 'cancel' },
+      ...feelings.map(feeling => ({
+        text: feeling,
+        onPress: () => {
+          setPostText(prev => prev + ` ${feeling}`);
+          if (showCreatePost) {
+            postInputRef.current?.focus();
+          }
+        }
+      })),
+      ...activities.map(activity => ({
+        text: activity,
+        onPress: () => {
+          setPostText(prev => prev + ` ${activity}`);
+          if (showCreatePost) {
+            postInputRef.current?.focus();
+          }
+        }
+      }))
+    ]);
+  };
+
+  const handleStoryPress = (story: any) => {
+    setSelectedStory(story);
+    setShowStoryModal(true);
+
+    if (privacySettings.allowBehaviorTracking) {
+      collectSignal(
+        `story_${story.id}`,
+        'image',
+        'view',
+        {
+          screenName: 'social_stories',
+          position: 0,
+          timeSpent: 0,
+          scrollDepth: 1.0,
+          contentContext: {
+            authorId: story.id,
+            contentAge: Date.now() - (Date.now() - 3600000),
+            contentPopularity: 0.8,
+            contentCategory: 'story',
+            contentTags: ['story'],
+            isSponsored: false,
+            isRecommended: false
+          }
+        }
+      );
+    }
+  };
+
+  const handleCreateStory = () => {
+    Alert.alert('إنشاء قصة', 'اختر نوع القصة', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'صورة', onPress: () => {
+          Alert.alert('صورة', 'سيتم فتح الكاميرا لالتقاط صورة للقصة');
+        }
+      },
+      {
+        text: 'فيديو', onPress: () => {
+          Alert.alert('فيديو', 'سيتم فتح الكاميرا لتسجيل فيديو للقصة');
+        }
+      },
+      {
+        text: 'نص', onPress: () => {
+          Alert.alert('نص', 'سيتم فتح محرر النصوص لإنشاء قصة نصية');
+        }
+      }
+    ]);
+  };
+
+  const handleAddFriend = (userId: string, suggestionType?: string) => {
+    Alert.alert('إضافة صديق', `تم إرسال طلب صداقة${suggestionType ? ` (${suggestionType})` : ''}`);
+  };
+
+  const handleEditProfile = () => {
+    router.push('/profile/edit');
+  };
+
+  const handleRecommendationSettings = () => {
+    const analytics = getAnalytics();
+    const signalAnalytics = getSignalAnalytics();
+
+    Alert.alert(
+      'إعدادات التوصيات المتقدمة',
+      `التوصيات: ${analytics.totalRecommendations}
+معدل التفاعل: ${(analytics.engagementRate * 100).toFixed(1)}%
+متوسط النقاط: ${analytics.averageRecommendationScore.toFixed(2)}
+الإشارات: ${analytics.totalSignals}
+جودة الإشارات: ${((signalAnalytics?.signalQuality || 0) * 100).toFixed(1)}%
+متوسط وقت المشاهدة: ${((signalAnalytics?.averageDwellTime || 0) / 1000).toFixed(1)}s
+
+التعلم التكيفي:
+الدفعات: ${analytics.feedbackLoopAnalytics?.totalBatches || 0}
+التكرار الحالي: ${analytics.feedbackLoopAnalytics?.currentIteration || 0}
+نقاط التقارب: ${((analytics.feedbackLoopAnalytics?.convergenceScore || 0) * 100).toFixed(1)}%
+معدل الاستكشاف: ${((analytics.feedbackLoopAnalytics?.explorationRate || 0) * 100).toFixed(1)}%`
+    );
+  };
+
+  const handleMicroBatchInfo = () => {
+    const feedbackState = getFeedbackLoopState();
+    const batchStatus = getBatchConsumptionStatus();
+
+    if (!feedbackState || !batchStatus) {
+      Alert.alert('معلومات التعلم التكيفي', 'لا توجد بيانات متاحة حالياً');
+      return;
+    }
+
+    Alert.alert(
+      'معلومات التعلم التكيفي',
+      `الدفعة الحالية: ${currentBatch?.batchId.split('_').pop() || 'غير متاح'}
+التكرار: ${feedbackState.currentIteration}/${feedbackState.totalIterations}
+التقدم: ${(batchStatus.batchProgress * 100).toFixed(1)}%
+المقاطع المشاهدة: ${batchStatus.currentClipIndex}/${batchStatus.totalClipsInBatch}
+سرعة الاستهلاك: ${batchStatus.consumptionVelocity.toFixed(1)} مقطع/دقيقة
+نقاط التقارب: ${(feedbackState.convergenceScore * 100).toFixed(1)}%
+معدل الاستكشاف: ${(feedbackState.explorationRate * 100).toFixed(1)}%
+التكيفات: ${feedbackState.adaptationHistory.length}`
+    );
+  };
+
+  const renderFeedContent = () => (
+    <FlatList
+      ref={scrollRef}
+      data={personalizedPosts}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item, index }) => (
+        <PostItem
+          post={item}
+          onInteraction={(action) => handlePostInteraction(item, action, index)}
+          showRecommendationInfo={showRecommendationInfo}
+          position={index}
+        />
+      )}
+      showsVerticalScrollIndicator={false}
+      ListHeaderComponent={FeedHeader}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[Colors.primary]}
+          tintColor={Colors.primary}
+        />
+      }
+      onScroll={handleScroll}
+      scrollEventThrottle={100}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={viewabilityConfig}
+    />
+  );
+
+  const renderClipsContent = () => (
+    <FlatList
+      data={personalizedClips}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item, index }) => (
+        <ClipItem
+          clip={item}
+          onInteraction={(action) => handleClipInteraction(item, action, index)}
+          showRecommendationInfo={showRecommendationInfo}
+          position={index}
+        />
+      )}
+      showsVerticalScrollIndicator={false}
+      pagingEnabled
+      snapToInterval={width}
+      decelerationRate="fast"
+      ListHeaderComponent={() => (
+        <View style={styles.clipsHeader}>
+          <View style={styles.clipsHeaderTop}>
+            <Text style={styles.clipsTitle}>{t.shortClips}</Text>
+            <View style={styles.clipsHeaderActions}>
+              {privacySettings.allowPersonalization && (
+                <TouchableOpacity
+                  style={styles.recommendationIndicator}
+                  onPress={() => setShowRecommendationInfo(!showRecommendationInfo)}
+                >
+                  <Sparkles size={16} color={Colors.primary} />
+                  <Text style={styles.recommendationText}>مخصص</Text>
+                </TouchableOpacity>
+              )}
+              {currentBatch && (
+                <TouchableOpacity
+                  style={styles.microBatchIndicator}
+                  onPress={() => setShowMicroBatchInfo(!showMicroBatchInfo)}
+                >
+                  <Target size={16} color={Colors.success} />
+                  <Text style={styles.microBatchText}>تكيفي</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Micro-Batch Info */}
+          {showMicroBatchInfo && currentBatch && batchConsumptionTracker && (
+            <View style={styles.microBatchInfo}>
+              <View style={styles.microBatchInfoHeader}>
+                <BarChart3 size={14} color={Colors.success} />
+                <Text style={styles.microBatchInfoTitle}>التعلم التكيفي النشط</Text>
+              </View>
+              <View style={styles.microBatchStats}>
+                <View style={styles.microBatchStat}>
+                  <Text style={styles.microBatchStatLabel}>التكرار:</Text>
+                  <Text style={styles.microBatchStatValue}>{currentBatch.feedbackLoopIteration}</Text>
+                </View>
+                <View style={styles.microBatchStat}>
+                  <Text style={styles.microBatchStatLabel}>التقدم:</Text>
+                  <Text style={styles.microBatchStatValue}>
+                    {(batchConsumptionTracker.batchProgress * 100).toFixed(0)}%
+                  </Text>
+                </View>
+                <View style={styles.microBatchStat}>
+                  <Text style={styles.microBatchStatLabel}>المقاطع:</Text>
+                  <Text style={styles.microBatchStatValue}>
+                    {batchConsumptionTracker.currentClipIndex}/{batchConsumptionTracker.totalClipsInBatch}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.microBatchInfoButton}
+                onPress={handleMicroBatchInfo}
+              >
+                <Text style={styles.microBatchInfoButtonText}>تفاصيل أكثر</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.clipsFilters}>
+            <TouchableOpacity style={[styles.clipFilter, styles.activeClipFilter]}>
+              <Text style={[styles.clipFilterText, styles.activeClipFilterText]}>
+                {currentBatch ? 'مخصص تكيفياً' : t.forYou}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.clipFilter}>
+              <Text style={styles.clipFilterText}>{t.trending}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.clipFilter}>
+              <Text style={styles.clipFilterText}>{t.recent}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[Colors.primary]}
+          tintColor={Colors.primary}
+        />
+      }
+      onScroll={handleScroll}
+      scrollEventThrottle={100}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={clipsViewabilityConfig}
+    />
+  );
+
+  const renderAddFriendsContent = () => (
+    <ScrollView
+      style={styles.friendsContainer}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[Colors.primary]}
+          tintColor={Colors.primary}
+        />
+      }
+      onScroll={handleScroll}
+      scrollEventThrottle={100}
+    >
+      {/* Proximity Suggestions */}
+      <View style={styles.friendsSection}>
+        <View style={styles.sectionHeader}>
+          <MapPin size={20} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>{t.proximityFriends}</Text>
+          {socialRecommendations.length > 0 && (
+            <View style={styles.recommendationBadge}>
+              <Sparkles size={12} color={Colors.background} />
+            </View>
+          )}
+        </View>
+        <Text style={styles.sectionSubtitle}>الأشخاص القريبون منك جغرافياً</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {mockProximitySuggestions.map(suggestion => (
+            <View key={suggestion.user.id} style={styles.friendCard}>
+              <Image source={{ uri: suggestion.user.profilePicture }} style={styles.friendAvatar} />
+              <Text style={styles.friendName} numberOfLines={1}>{suggestion.user.displayName}</Text>
+              <Text style={styles.friendInfo} numberOfLines={1}>
+                على بعد {suggestion.metadata.distance}م
+              </Text>
+              <Text style={styles.confidenceScore}>
+                {Math.round(suggestion.confidence * 100)}% تطابق
+              </Text>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => handleAddFriend(suggestion.user.id, 'proximity')}
+              >
+                <Text style={styles.addButtonText}>إضافة</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Colleague Suggestions */}
+      <View style={styles.friendsSection}>
+        <View style={styles.sectionHeader}>
+          <Briefcase size={20} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>{t.workColleagues}</Text>
+        </View>
+        <Text style={styles.sectionSubtitle}>زملاء العمل والدراسة</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {mockColleagueSuggestions.map(suggestion => (
+            <View key={suggestion.user.id} style={styles.friendCard}>
+              <Image source={{ uri: suggestion.user.profilePicture }} style={styles.friendAvatar} />
+              <Text style={styles.friendName} numberOfLines={1}>{suggestion.user.displayName}</Text>
+              <Text style={styles.friendInfo} numberOfLines={2}>
+                {suggestion.metadata.sharedWorkplace || suggestion.metadata.sharedEducation || 'زميل عمل'}
+              </Text>
+              <Text style={styles.confidenceScore}>
+                {Math.round(suggestion.confidence * 100)}% تطابق
+              </Text>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => handleAddFriend(suggestion.user.id, 'colleagues')}
+              >
+                <Text style={styles.addButtonText}>إضافة</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Contact Suggestions */}
+      <View style={styles.friendsSection}>
+        <View style={styles.sectionHeader}>
+          <Phone size={20} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>{t.contactFriends}</Text>
+        </View>
+        <Text style={styles.sectionSubtitle}>من جهات الاتصال والعائلة</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {mockContactSuggestions.map(suggestion => (
+            <View key={suggestion.user.id} style={styles.friendCard}>
+              <Image source={{ uri: suggestion.user.profilePicture }} style={styles.friendAvatar} />
+              <Text style={styles.friendName} numberOfLines={1}>{suggestion.user.displayName}</Text>
+              <Text style={styles.friendInfo} numberOfLines={1}>
+                {suggestion.metadata.familyConnection ? 'صلة عائلية' : 'جهة اتصال'}
+              </Text>
+              <Text style={styles.mutualFriends}>
+                {suggestion.metadata.mutualFriends} أصدقاء مشتركون
+              </Text>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => handleAddFriend(suggestion.user.id, 'contacts')}
+              >
+                <Text style={styles.addButtonText}>إضافة</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Algorithmic Suggestions */}
+      <View style={styles.friendsSection}>
+        <View style={styles.sectionHeader}>
+          <Zap size={20} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>{t.algorithmicSuggestions}</Text>
+          <View style={styles.recommendationBadge}>
+            <Sparkles size={12} color={Colors.background} />
+          </View>
+        </View>
+        <Text style={styles.sectionSubtitle}>مقترحات ذكية بناءً على اهتماماتك</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {mockAlgorithmicSuggestions.map(suggestion => (
+            <View key={suggestion.user.id} style={styles.friendCard}>
+              <Image source={{ uri: suggestion.user.profilePicture }} style={styles.friendAvatar} />
+              <Text style={styles.friendName} numberOfLines={1}>{suggestion.user.displayName}</Text>
+              <Text style={styles.friendInfo} numberOfLines={2}>
+                {suggestion.metadata.diversityScore > 0.7 ? 'اهتمامات متنوعة' : 'اهتمامات مشتركة'}
+              </Text>
+              <Text style={styles.mutualFriends}>
+                {suggestion.metadata.mutualFriends} أصدقاء مشتركون
+              </Text>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => handleAddFriend(suggestion.user.id, 'algorithmic')}
+              >
+                <Text style={styles.addButtonText}>إضافة</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    </ScrollView>
+  );
+
+  const renderMyProfileContent = () => (
+    <ScrollView
+      style={styles.profileContainer}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[Colors.primary]}
+          tintColor={Colors.primary}
+        />
+      }
+      onScroll={handleScroll}
+      scrollEventThrottle={100}
+    >
+      {/* Profile Header */}
+      <View style={styles.profileHeader}>
+        <Image source={{ uri: currentUser.profilePicture }} style={styles.profileAvatar} />
+        <View style={styles.profileInfo}>
+          <Text style={styles.profileName}>{currentUser.displayName}</Text>
+          <Text style={styles.profileUsername}>@{currentUser.username}</Text>
+          <Text style={styles.profileBio}>{currentUser.bio}</Text>
+        </View>
+        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+          <Text style={styles.editButtonText}>تعديل</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Profile Stats */}
+      <View style={styles.profileStats}>
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>125</Text>
+          <Text style={styles.statLabel}>منشور</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>1.2K</Text>
+          <Text style={styles.statLabel}>متابع</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>890</Text>
+          <Text style={styles.statLabel}>متابَع</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>45K</Text>
+          <Text style={styles.statLabel}>مشاهدة</Text>
+        </View>
+      </View>
+
+      {/* Enhanced Recommendation Analytics */}
+      {privacySettings.allowPersonalization && (
+        <View style={styles.recommendationStats}>
+          <View style={styles.recommendationStatsHeader}>
+            <TrendingUp size={18} color={Colors.primary} />
+            <Text style={styles.recommendationStatsTitle}>إحصائيات التخصيص المتقدمة</Text>
+          </View>
+          <View style={styles.recommendationStatsContent}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{getAnalytics().totalRecommendations}</Text>
+              <Text style={styles.statLabel}>توصية</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{(getAnalytics().engagementRate * 100).toFixed(0)}%</Text>
+              <Text style={styles.statLabel}>تفاعل</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{getAnalytics().averageRecommendationScore.toFixed(1)}</Text>
+              <Text style={styles.statLabel}>دقة</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{getAnalytics().totalSignals}</Text>
+              <Text style={styles.statLabel}>إشارة</Text>
+            </View>
+          </View>
+
+          {/* Micro-Batch Feedback Loop Analytics */}
+          {getAnalytics().feedbackLoopAnalytics && (
+            <View style={styles.feedbackLoopStats}>
+              <Text style={styles.feedbackLoopStatsTitle}>التعلم التكيفي</Text>
+              <View style={styles.feedbackLoopStatsRow}>
+                <Text style={styles.feedbackLoopStatLabel}>الدفعات المكتملة:</Text>
+                <Text style={styles.feedbackLoopStatValue}>
+                  {getAnalytics().feedbackLoopAnalytics.totalBatches}
+                </Text>
+              </View>
+              <View style={styles.feedbackLoopStatsRow}>
+                <Text style={styles.feedbackLoopStatLabel}>التكرار الحالي:</Text>
+                <Text style={styles.feedbackLoopStatValue}>
+                  {getAnalytics().feedbackLoopAnalytics.currentIteration}
+                </Text>
+              </View>
+              <View style={styles.feedbackLoopStatsRow}>
+                <Text style={styles.feedbackLoopStatLabel}>نقاط التقارب:</Text>
+                <Text style={styles.feedbackLoopStatValue}>
+                  {(getAnalytics().feedbackLoopAnalytics.convergenceScore * 100).toFixed(1)}%
+                </Text>
+              </View>
+              <View style={styles.feedbackLoopStatsRow}>
+                <Text style={styles.feedbackLoopStatLabel}>متوسط الرضا:</Text>
+                <Text style={styles.feedbackLoopStatValue}>
+                  {(getAnalytics().feedbackLoopAnalytics.averageBatchSatisfaction * 100).toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Signal Quality Metrics */}
+          {getSignalAnalytics() && (
+            <View style={styles.signalMetrics}>
+              <Text style={styles.signalMetricsTitle}>جودة الإشارات</Text>
+              <View style={styles.signalMetricsRow}>
+                <Text style={styles.signalMetricLabel}>جودة الإشارات:</Text>
+                <Text style={styles.signalMetricValue}>
+                  {((getSignalAnalytics()?.signalQuality || 0) * 100).toFixed(1)}%
+                </Text>
+              </View>
+              <View style={styles.signalMetricsRow}>
+                <Text style={styles.signalMetricLabel}>متوسط وقت المشاهدة:</Text>
+                <Text style={styles.signalMetricValue}>
+                  {((getSignalAnalytics()?.averageDwellTime || 0) / 1000).toFixed(1)}s
+                </Text>
+              </View>
+              <View style={styles.signalMetricsRow}>
+                <Text style={styles.signalMetricLabel}>سرعة التمرير:</Text>
+                <Text style={styles.signalMetricValue}>
+                  {(getSignalAnalytics()?.averageScrollVelocity || 0).toFixed(1)} px/ms
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Profile Content Tabs */}
+      <View style={styles.profileContentTabs}>
+        <TouchableOpacity style={[styles.profileTab, styles.activeProfileTab]}>
+          <ImageIcon size={18} color={Colors.primary} />
+          <Text style={[styles.profileTabText, styles.activeProfileTabText]}>المنشورات</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.profileTab}>
+          <Play size={18} color={Colors.medium} />
+          <Text style={styles.profileTabText}>المقاطع</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* My Posts */}
+      <View style={styles.myPostsSection}>
+        {personalizedPosts.slice(0, 3).map((post, index) => (
+          <PostItem
+            key={post.id}
+            post={post}
+            onInteraction={(action) => handlePostInteraction(post, action, index)}
+            showRecommendationInfo={showRecommendationInfo}
+            position={index}
+          />
+        ))}
+      </View>
+    </ScrollView>
+  );
+
+  const FeedHeader = () => (
+    <View>
+      {/* Social Header */}
+      <View style={styles.feedHeader}>
+        <View style={styles.feedHeaderLeft}>
+          <Text style={styles.feedTitle}>ConnectApp</Text>
+          {privacySettings.allowPersonalization && (
+            <View style={styles.personalizationIndicator}>
+              <Sparkles size={14} color={Colors.primary} />
+              <Text style={styles.personalizationText}>مخصص لك</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerButton} onPress={handleSettings}>
+            <Settings size={22} color={Colors.dark} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton} onPress={handleSocialMessages}>
+            <MessengerIcon size={22} color={Colors.dark} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton} onPress={handleNotifications}>
+            <Bell size={22} color={Colors.dark} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Stories Section */}
+      <View style={styles.storiesContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {/* Add Story */}
+          <TouchableOpacity style={styles.addStoryContainer} onPress={handleCreateStory}>
+            <Image source={{ uri: currentUser.profilePicture }} style={styles.storyAvatar} />
+            <View style={styles.addStoryButton}>
+              <Camera size={16} color="white" />
+            </View>
+            <Text style={styles.storyText}>قصتك</Text>
+          </TouchableOpacity>
+
+          {/* Friends Stories */}
+          {mockUsers.slice(0, 8).map(user => (
+            <TouchableOpacity
+              key={user.id}
+              style={styles.storyContainer}
+              onPress={() => handleStoryPress(user)}
+            >
+              <View style={styles.storyRing}>
+                <Image source={{ uri: user.profilePicture }} style={styles.storyAvatar} />
+              </View>
+              <Text style={styles.storyText} numberOfLines={1}>
+                {user.displayName.split(' ')[0]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Create Post */}
+      <View style={styles.createPostContainer}>
+        <Image source={{ uri: currentUser.profilePicture }} style={styles.userAvatar} />
+        <TouchableOpacity style={styles.postInputContainer} onPress={handleCreatePost}>
+          <Text style={styles.postInputPlaceholder}>{t.whatsOnYourMind}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Post Actions */}
+      <View style={styles.postActionsContainer}>
+        <TouchableOpacity style={styles.postAction} onPress={handleLiveVideo}>
+          <Video size={20} color={Colors.error} />
+          <Text style={styles.postActionText}>مباشر</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.postAction} onPress={handlePhotoVideo}>
+          <ImageIcon size={20} color={Colors.success} />
+          <Text style={styles.postActionText}>صورة/فيديو</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.postAction} onPress={handleFeeling}>
+          <Smile size={20} color={Colors.warning} />
+          <Text style={styles.postActionText}>شعور/نشاط</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* Main Tabs */}
+      <View style={styles.mainTabsContainer}>
+        <TouchableOpacity
+          style={[styles.mainTab, activeTab === 'feed' && styles.activeMainTab]}
+          onPress={() => handleTabChange('feed')}
+        >
+          <ImageIcon size={18} color={activeTab === 'feed' ? Colors.primary : Colors.medium} />
+          <Text style={[styles.mainTabText, activeTab === 'feed' && styles.activeMainTabText]}>
+            {t.feed}
+          </Text>
+          {privacySettings.allowPersonalization && activeTab === 'feed' && (
+            <View style={styles.tabRecommendationDot} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainTab, activeTab === 'clips' && styles.activeMainTab]}
+          onPress={() => handleTabChange('clips')}
+        >
+          <Play size={18} color={activeTab === 'clips' ? Colors.primary : Colors.medium} />
+          <Text style={[styles.mainTabText, activeTab === 'clips' && styles.activeMainTabText]}>
+            {t.clips}
+          </Text>
+          {privacySettings.allowPersonalization && activeTab === 'clips' && (
+            <View style={styles.tabRecommendationDot} />
+          )}
+          {currentBatch && activeTab === 'clips' && (
+            <View style={styles.tabMicroBatchDot} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainTab, activeTab === 'addFriends' && styles.activeMainTab]}
+          onPress={() => handleTabChange('addFriends')}
+        >
+          <UserPlus size={18} color={activeTab === 'addFriends' ? Colors.primary : Colors.medium} />
+          <Text style={[styles.mainTabText, activeTab === 'addFriends' && styles.activeMainTabText]}>
+            {t.addFriends}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainTab, activeTab === 'myProfile' && styles.activeMainTab]}
+          onPress={() => handleTabChange('myProfile')}
+        >
+          <User size={18} color={activeTab === 'myProfile' ? Colors.primary : Colors.medium} />
+          <Text style={[styles.mainTabText, activeTab === 'myProfile' && styles.activeMainTabText]}>
+            {t.myProfile}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Loading Indicator */}
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>جاري تحديث التوصيات المتقدمة مع التعلم التكيفي...</Text>
+        </View>
+      )}
+
+      {/* Content */}
+      {activeTab === 'feed' && renderFeedContent()}
+      {activeTab === 'clips' && renderClipsContent()}
+      {activeTab === 'addFriends' && renderAddFriendsContent()}
+      {activeTab === 'myProfile' && renderMyProfileContent()}
+
+      {/* Create Post Modal */}
+      <Modal
+        visible={showCreatePost}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCreatePost(false)}
+      >
+        <View style={styles.createPostModal}>
+          <View style={styles.createPostHeader}>
+            <TouchableOpacity onPress={() => setShowCreatePost(false)}>
+              <Text style={styles.cancelButton}>إلغاء</Text>
+            </TouchableOpacity>
+            <Text style={styles.createPostTitle}>إنشاء منشور</Text>
+            <TouchableOpacity onPress={handlePublishPost}>
+              <Text style={styles.publishButton}>نشر</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.createPostContent}>
+            <View style={styles.createPostUserInfo}>
+              <Image source={{ uri: currentUser.profilePicture }} style={styles.createPostAvatar} />
+              <Text style={styles.createPostUserName}>{currentUser.displayName}</Text>
+            </View>
+
+            <TextInput
+              ref={postInputRef}
+              style={styles.createPostInput}
+              value={postText}
+              onChangeText={setPostText}
+              placeholder="بماذا تفكر؟"
+              placeholderTextColor={Colors.medium}
+              multiline
+              autoFocus
+            />
+
+            <View style={styles.createPostActions}>
+              <TouchableOpacity style={styles.createPostAction} onPress={handlePhotoVideo}>
+                <ImageIcon size={24} color={Colors.success} />
+                <Text style={styles.createPostActionText}>صورة/فيديو</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.createPostAction} onPress={handleFeeling}>
+                <Smile size={24} color={Colors.warning} />
+                <Text style={styles.createPostActionText}>شعور/نشاط</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Story Modal */}
+      <Modal
+        visible={showStoryModal}
+        animationType="fade"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowStoryModal(false)}
+      >
+        <View style={styles.storyModal}>
+          <TouchableOpacity
+            style={styles.storyCloseButton}
+            onPress={() => setShowStoryModal(false)}
+          >
+            <Text style={styles.storyCloseText}>×</Text>
+          </TouchableOpacity>
+
+          {selectedStory && (
+            <View style={styles.storyContent}>
+              <Image
+                source={{ uri: selectedStory.profilePicture }}
+                style={styles.storyImage}
+                resizeMode="cover"
+              />
+
+              <View style={styles.storyOverlay}>
+                <View style={styles.storyHeader}>
+                  <Image source={{ uri: selectedStory.profilePicture }} style={styles.storyUserAvatar} />
+                  <Text style={styles.storyUserName}>{selectedStory.displayName}</Text>
+                  <Text style={styles.storyTime}>منذ 2 ساعة</Text>
+                </View>
+
+                <View style={styles.storyFooter}>
+                  <TextInput
+                    style={styles.storyCommentInput}
+                    placeholder="اكتب تعليقاً..."
+                    placeholderTextColor="rgba(255,255,255,0.7)"
+                    onSubmitEditing={(event) => {
+                      const comment = event.nativeEvent.text;
+                      if (comment.trim()) {
+                        Alert.alert('تم إرسال التعليق', `تعليقك: "${comment}" تم إرساله بنجاح`);
+                      }
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={styles.storySendButton}
+                    onPress={() => {
+                      Alert.alert('تم الإرسال', 'تم إرسال تعليقك على القصة بنجاح');
+                      setShowStoryModal(false);
+                    }}
+                  >
+                    <Text style={styles.storySendText}>إرسال</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* Settings Modal */}
+      <Modal
+        visible={showSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSettings(false)}
+      >
+        <SocialSettings onClose={() => setShowSettings(false)} />
+      </Modal>
+    </View>
+  );
 }
 
 // PLACEHOLDER_FOR_STYLES
