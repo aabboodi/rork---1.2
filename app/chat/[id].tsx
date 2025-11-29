@@ -8,7 +8,8 @@ import { MessageSecurityService } from '@/services/security/MessageSecurityServi
 import { E2EEService } from '@/services/security/E2EEService';
 import E2EEChatInterface from '@/components/E2EEChatInterface';
 import { mockChats, mockMessages } from '@/mocks/chats';
-import { Message, KeyExchangeSession, KeyVerificationResult } from '@/types';
+import { Message as OriginalMessage } from '@/types';
+import { KeyExchangeSession, KeyVerificationResult, DLPCategory, DLPViolation, E2EEMessage } from '@/types/security';
 import Colors from '@/constants/colors';
 import { useAuthStore } from '@/store/authStore';
 import { useWalletStore } from '@/store/walletStore';
@@ -23,6 +24,11 @@ import SocialEngineeringProtectionService from '@/services/security/SocialEngine
 import LinkPreview from '@/components/LinkPreview';
 import FileAttachment from '@/components/FileAttachment';
 import SocialEngineeringWarning from '@/components/SocialEngineeringWarning';
+
+// Override Message type to use correct E2EEMessage
+interface Message extends Omit<OriginalMessage, 'e2eeMessage'> {
+  e2eeMessage?: E2EEMessage;
+}
 
 export default function ChatScreen() {
   const router = useRouter();
