@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { offlineQueue, optimisticUpdate, rollbackOptimisticUpdate } from '@/utils/queryClient';
-import { Post } from '@/types';
+import { offlineQueue } from '@/utils/queryClient';
+import { Post, Message } from '@/types';
 
 /**
  * Hook for creating a post with optimistic update
@@ -36,7 +36,7 @@ export const useCreatePost = () => {
                 shares: 0,
             } as Post;
 
-            queryClient.setQueryData<Post[]>(['posts'], (old = []) => [
+            queryClient.setQueryData<Post[]>(['posts'], (old: Post[] = []) => [
                 optimisticPost,
                 ...old,
             ]);
@@ -46,7 +46,7 @@ export const useCreatePost = () => {
             return { previousPosts, optimisticPost };
         },
 
-        onError: (err, newPost, context) => {
+        onError: (err: Error, newPost, context) => {
             // Rollback on error
             if (context?.previousPosts) {
                 queryClient.setQueryData(['posts'], context.previousPosts);
@@ -60,7 +60,7 @@ export const useCreatePost = () => {
 
         onSuccess: (data, variables, context) => {
             // Replace temporary post with real one
-            queryClient.setQueryData<Post[]>(['posts'], (old = []) =>
+            queryClient.setQueryData<Post[]>(['posts'], (old: Post[] = []) =>
                 old.map((post) =>
                     post.id === context?.optimisticPost.id ? data : post
                 )
@@ -95,7 +95,7 @@ export const useLikePost = () => {
             const previousPosts = queryClient.getQueryData<Post[]>(['posts']);
 
             // Optimistic update
-            queryClient.setQueryData<Post[]>(['posts'], (old = []) =>
+            queryClient.setQueryData<Post[]>(['posts'], (old: Post[] = []) =>
                 old.map((post) =>
                     post.id === postId
                         ? {
@@ -112,7 +112,7 @@ export const useLikePost = () => {
             return { previousPosts };
         },
 
-        onError: (err, variables, context) => {
+        onError: (err: Error, variables, context) => {
             if (context?.previousPosts) {
                 queryClient.setQueryData(['posts'], context.previousPosts);
             }
@@ -134,7 +134,7 @@ export const useSendMessage = (chatId: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (message: any) => {
+        mutationFn: async (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => {
             // Simulate API call
             // In production: return await sendMessageAPI(chatId, message);
             return {
@@ -142,22 +142,22 @@ export const useSendMessage = (chatId: string) => {
                 id: `msg_${Date.now()}`,
                 timestamp: Date.now(),
                 status: 'sent',
-            };
+            } as Message;
         },
 
         onMutate: async (message) => {
             await queryClient.cancelQueries({ queryKey: ['messages', chatId] });
 
-            const previousMessages = queryClient.getQueryData(['messages', chatId]);
+            const previousMessages = queryClient.getQueryData<Message[]>(['messages', chatId]);
 
-            const optimisticMessage = {
+            const optimisticMessage: Message = {
                 ...message,
                 id: `temp_${Date.now()}`,
                 timestamp: Date.now(),
                 status: 'sending',
-            };
+            } as Message;
 
-            queryClient.setQueryData(['messages', chatId], (old: any = []) => [
+            queryClient.setQueryData<Message[]>(['messages', chatId], (old: Message[] = []) => [
                 ...old,
                 optimisticMessage,
             ]);
@@ -167,7 +167,7 @@ export const useSendMessage = (chatId: string) => {
             return { previousMessages, optimisticMessage };
         },
 
-        onError: (err, message, context) => {
+        onError: (err: Error, message, context) => {
             if (context?.previousMessages) {
                 queryClient.setQueryData(['messages', chatId], context.previousMessages);
             }
@@ -178,8 +178,8 @@ export const useSendMessage = (chatId: string) => {
 
         onSuccess: (data, variables, context) => {
             // Replace temporary message with real one
-            queryClient.setQueryData(['messages', chatId], (old: any = []) =>
-                old.map((msg: any) =>
+            queryClient.setQueryData<Message[]>(['messages', chatId], (old: Message[] = []) =>
+                old.map((msg) =>
                     msg.id === context?.optimisticMessage.id ? data : msg
                 )
             );
@@ -233,7 +233,7 @@ export const useDonate = () => {
             return { donation };
         },
 
-        onError: (err, donation, context) => {
+        onError: (err: Error, donation, context) => {
             // Rollback balance
             queryClient.setQueryData(['balance'], (old: any) => ({
                 ...old,
@@ -280,7 +280,7 @@ export const useMessages = (chatId: string) => {
         queryFn: async () => {
             // Simulate API call
             // In production: return await fetchMessagesAPI(chatId);
-            return [];
+            return [] as Message[];
         },
         enabled: !!chatId,
         staleTime: 1000 * 60, // 1 minute

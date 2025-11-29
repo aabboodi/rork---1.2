@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals';
+
 /**
  * End-to-End (E2E) Tests
  * Test complete user flows from start to finish

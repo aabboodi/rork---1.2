@@ -2396,17 +2396,14 @@ export interface TransactionLimit {
 export interface AntiFraudRule {
   ruleId: string;
   ruleName: string;
-  ruleType: 'amount_threshold' | 'frequency_check' | 'pattern_analysis' | 'velocity_check';
-  parameters: any;
-  enabled: boolean;
-  weight: number;
+  keyFingerprint?: string;
+  createdAt: number;
+  expiresAt?: number;
 }
 
-export interface RiskAssessment {
-  userId: string;
-  riskScore: number;
-  riskFactors: string[];
-  lastAssessment: number;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-  mitigationActions: string[];
+export interface KeyVerificationResult {
+  verified: boolean;
+  error?: string;
+  timestamp: number;
+  method?: 'manual' | 'biometric' | 'automatic';
 }

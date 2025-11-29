@@ -36,7 +36,10 @@ export const compressImage = async (
 
         // Get original file info
         const originalInfo = await FileSystem.getInfoAsync(imageUri);
-        const originalSize = originalInfo.size || 0;
+        if (!originalInfo.exists) {
+            throw new Error('File does not exist');
+        }
+        const originalSize = originalInfo.size;
 
         // Compress and resize image
         const manipulatedImage = await ImageManipulator.manipulateAsync(
@@ -57,7 +60,10 @@ export const compressImage = async (
 
         // Get compressed file info
         const compressedInfo = await FileSystem.getInfoAsync(manipulatedImage.uri);
-        const compressedSize = compressedInfo.size || 0;
+        if (!compressedInfo.exists) {
+            throw new Error('Compressed file does not exist');
+        }
+        const compressedSize = compressedInfo.size;
 
         const compressionRatio = ((originalSize - compressedSize) / originalSize) * 100;
 
@@ -187,6 +193,9 @@ export const compressVideo = async (
     // Placeholder - in production, integrate with react-native-compressor
     // For now, return original video info
     const videoInfo = await FileSystem.getInfoAsync(videoUri);
+    if (!videoInfo.exists) {
+        throw new Error('Video file does not exist');
+    }
 
     console.warn('[MediaCompression] Video compression not fully implemented - requires native module');
 
@@ -194,8 +203,8 @@ export const compressVideo = async (
         uri: videoUri,
         width: 1920,
         height: 1080,
-        size: videoInfo.size || 0,
-        originalSize: videoInfo.size || 0,
+        size: videoInfo.size,
+        originalSize: videoInfo.size,
         compressionRatio: 0,
     };
 };

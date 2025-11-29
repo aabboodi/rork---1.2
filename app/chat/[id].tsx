@@ -538,7 +538,7 @@ What would you like to do?`,
         keyFingerprint: encrypted ? keyFingerprint : undefined,
         verificationStatus,
         forwardSecrecyLevel: encrypted ? 10 : 0, // Higher level for Signal Protocol
-        protocolVersion: encrypted ? 3 : undefined, // Signal Protocol v3
+        forwardSecrecyLevel: encrypted ? 10 : 0, // Higher level for Signal Protocol
       };
 
       setMessages([...messages, newMessage]);
@@ -1293,211 +1293,157 @@ ${user.workPlace || ''}`,
   };
 
   const getDisplayName = () => {
-    if (chat?.isGroup) return chat.name;
-    if (chat?.isChannel) return chat.name;
-    return chat?.participants[0]?.displayName || 'Unknown';
-  };
-
-  const handleMoneySend = (amount: number, currency: string) => {
-    const balance = balances.find(b => b.currency === currency);
-    if (!balance || balance.amount < amount) {
-      Alert.alert('خطأ', 'رصيد غير كافٍ');
-      return;
-    }
-
-    const moneyMessage: Message = {
-      id: Date.now().toString(),
-      chatId: id as string,
-      senderId: userId || '0',
-      content: `تم إرسال ${amount} ${currency}`,
-      timestamp: Date.now(),
-      status: 'sent',
-      type: 'money',
-    };
-
-    setMessages([...messages, moneyMessage]);
-    updateBalance(currency, -amount);
-
-    Alert.alert('نجاح', 'تم إرسال الأموال بنجاح');
-  };
-
-  const sendMoney = () => {
-    Alert.alert(
-      'إرسال أموال',
-      'اختر المبلغ والعملة',
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: '100 ريال',
-          onPress: () => handleMoneySend(100, 'SAR')
-        },
-        {
-          text: '50 درهم',
-          onPress: () => handleMoneySend(50, 'AED')
-        },
-      ]
-    );
-  };
-
-  const renderMessage = ({ item }: { item: Message }) => {
-    const isCurrentUser = item.senderId === userId || item.senderId === '0';
-
-    return (
+    <View
+      style={[
+        styles.messageContainer,
+        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
+      ]}
+    >
       <View
         style={[
-          styles.messageContainer,
-          isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
+          styles.messageBubble,
+          isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble,
+          item.type === 'money' && styles.moneyBubble,
+          item.type === 'voice' && styles.voiceBubble,
         ]}
       >
-        <View
-          style={[
-            styles.messageBubble,
-            isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble,
-            item.type === 'money' && styles.moneyBubble,
-            item.type === 'voice' && styles.voiceBubble,
-          ]}
-        >
-          {/* Encryption and DLP indicators */}
-          <View style={styles.messageHeader}>
-            {item.encrypted && (
-              <View style={styles.encryptionIndicator}>
-                <Lock size={12} color={getVerificationColor(item.verificationStatus)} />
-              </View>
-            )}
-            {item.verificationStatus && (
-              <View style={[styles.verificationIndicator, { backgroundColor: getVerificationColor(item.verificationStatus) }]} />
-            )}
+        {/* Encryption and DLP indicators */}
+        <View style={styles.messageHeader}>
+          {item.encrypted && (
+            <View style={styles.encryptionIndicator}>
+              <Lock size={12} color={getVerificationColor(item.verificationStatus)} />
+            </View>
+          )}
+          {item.verificationStatus && (
+            <View style={[styles.verificationIndicator, { backgroundColor: getVerificationColor(item.verificationStatus) }]} />
+          )}
+        </View>
+
+        {item.type === 'money' && (
+          <View style={styles.messageIcon}>
+            <Wallet size={16} color="white" />
           </View>
-
-          {item.type === 'money' && (
-            <View style={styles.messageIcon}>
-              <Wallet size={16} color="white" />
-            </View>
-          )}
-          {item.type === 'voice' && (
-            <View style={styles.messageIcon}>
-              <Mic size={16} color={isCurrentUser ? Colors.dark : 'white'} />
-            </View>
-          )}
-          {item.type === 'image' && (
-            <View style={styles.messageIcon}>
-              <ImageIcon size={16} color={isCurrentUser ? Colors.dark : 'white'} />
-            </View>
-          )}
-
-          {renderMessageContent(item, isCurrentUser)}
-
-          <View style={styles.messageFooter}>
-            <Text style={[styles.messageTime, isCurrentUser ? styles.currentUserTime : styles.otherUserTime]}>
-              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-            {isCurrentUser && (
-              <View style={styles.statusContainer}>
-                {item.status === 'sent' && <Check size={12} color={Colors.medium} />}
-                {item.status === 'delivered' && <CheckCheck size={12} color={Colors.medium} />}
-                {item.status === 'read' && <CheckCheck size={12} color={Colors.primary} />}
-              </View>
-            )}
+        )}
+        {item.type === 'voice' && (
+          <View style={styles.messageIcon}>
+            <Mic size={16} color={isCurrentUser ? Colors.dark : 'white'} />
           </View>
+        )}
+        {item.type === 'image' && (
+          <View style={styles.messageIcon}>
+            <ImageIcon size={16} color={isCurrentUser ? Colors.dark : 'white'} />
+          </View>
+        )}
+
+        {renderMessageContent(item, isCurrentUser)}
+
+        <View style={styles.messageFooter}>
+          <Text style={[styles.messageTime, isCurrentUser ? styles.currentUserTime : styles.otherUserTime]}>
+            {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+          {isCurrentUser && (
+            <View style={styles.statusContainer}>
+              {item.status === 'sent' && <Check size={12} color={Colors.medium} />}
+              {item.status === 'delivered' && <CheckCheck size={12} color={Colors.medium} />}
+              {item.status === 'read' && <CheckCheck size={12} color={Colors.primary} />}
+            </View>
+          )}
         </View>
       </View>
+    </View>
     );
-  };
+};
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={Colors.dark} />
-        </TouchableOpacity>
+return (
+  <KeyboardAvoidingView
+    style={styles.container}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+  >
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <ArrowLeft size={24} color={Colors.dark} />
+      </TouchableOpacity>
 
-        <TouchableOpacity style={styles.headerContent} onPress={handleProfileView}>
-          <Image
-            source={{ uri: chat?.participants[0]?.profilePicture || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face' }}
-            style={styles.headerAvatar}
-          />
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerName}>{getDisplayName()}</Text>
-            <Text style={styles.headerStatus}>
-              {chat?.isGroup ? 'مجموعة' : chat?.isChannel ? 'قناة' : 'متصل الآن'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleVideoCall} style={styles.headerAction}>
-            <Video size={24} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleVoiceCall} style={styles.headerAction}>
-            <Phone size={24} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleMoreOptions} style={styles.headerAction}>
-            <MoreVertical size={24} color={Colors.dark} />
-          </TouchableOpacity>
+      <TouchableOpacity style={styles.headerContent} onPress={handleProfileView}>
+        <Image
+          source={{ uri: chat?.participants[0]?.profilePicture || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face' }}
+          style={styles.headerAvatar}
+        />
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerName}>{getDisplayName()}</Text>
+          <Text style={styles.headerStatus}>
+            {chat?.isGroup ? 'مجموعة' : chat?.isChannel ? 'قناة' : 'متصل الآن'}
+          </Text>
         </View>
-      </View>
+      </TouchableOpacity>
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.messagesList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-      />
-
-      {/* Input Area */}
-      <View style={styles.inputContainer}>
-        <TouchableOpacity onPress={handleAttachment} style={styles.attachButton}>
-          <Paperclip size={24} color={Colors.medium} />
+      <View style={styles.headerActions}>
+        <TouchableOpacity onPress={handleVideoCall} style={styles.headerAction}>
+          <Video size={24} color={Colors.primary} />
         </TouchableOpacity>
-
-        <View style={styles.inputWrapper}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            value={inputText}
-            onChangeText={(text) => {
-              setInputText(text);
-              setIsTyping(true);
-              setTimeout(() => setIsTyping(false), 2000);
-            }}
-            placeholder="اكتب رسالة..."
-            placeholderTextColor={Colors.medium}
-            multiline
-          />
-          <TouchableOpacity onPress={sendMoney} style={styles.inputAction}>
-            <Wallet size={20} color={Colors.medium} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.inputAction}>
-            <Camera size={20} color={Colors.medium} />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          onPress={inputText.trim() ? sendMessage : handleVoiceRecording}
-          style={styles.sendButton}
-        >
-          {inputText.trim() ? (
-            <Send size={20} color="white" />
-          ) : (
-            <Mic size={24} color="white" />
-          )}
+        <TouchableOpacity onPress={handleVoiceCall} style={styles.headerAction}>
+          <Phone size={24} color={Colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleMoreOptions} style={styles.headerAction}>
+          <MoreVertical size={24} color={Colors.dark} />
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
-  );
+    </View>
+
+    <FlatList
+      ref={flatListRef}
+      data={messages}
+      renderItem={renderMessage}
+      keyExtractor={item => item.id}
+      contentContainerStyle={styles.messagesList}
+      onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+    />
+
+    {/* Input Area */}
+    <View style={styles.inputContainer}>
+      <TouchableOpacity onPress={handleAttachment} style={styles.attachButton}>
+        <Paperclip size={24} color={Colors.medium} />
+      </TouchableOpacity>
+
+      <View style={styles.inputWrapper}>
+        <TextInput
+          ref={inputRef}
+          style={styles.input}
+          value={inputText}
+          onChangeText={(text) => {
+            setInputText(text);
+            setIsTyping(true);
+            setTimeout(() => setIsTyping(false), 2000);
+          }}
+          placeholder="اكتب رسالة..."
+          placeholderTextColor={Colors.medium}
+          multiline
+        />
+        <TouchableOpacity onPress={sendMoney} style={styles.inputAction}>
+          <Wallet size={20} color={Colors.medium} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.inputAction}>
+          <Camera size={20} color={Colors.medium} />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        onPress={inputText.trim() ? sendMessage : handleVoiceRecording}
+        style={styles.sendButton}
+      >
+        {inputText.trim() ? (
+          <Send size={20} color="white" />
+        ) : (
+          <Mic size={24} color="white" />
+        )}
+      </TouchableOpacity>
+    </View>
+  </KeyboardAvoidingView>
+);
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.whatsappGray,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1675,7 +1621,5 @@ const styles = StyleSheet.create({
   },
   recordingButton: {
     backgroundColor: Colors.error,
-    borderRadius: 20,
   },
 });
-```

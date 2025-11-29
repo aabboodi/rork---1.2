@@ -73,37 +73,6 @@ export default function PostItem({ post, onInteraction, showRecommendationInfo =
     };
   }, [isVisible, viewStartTime, post.id, position, privacySettings.allowBehaviorTracking]);
 
-  // Track when post becomes visible
-  useEffect(() => {
-    setIsVisible(true);
-
-    // Entrance animation with stagger
-    const delay = position * 50; // Stagger based on position
-    MicroInteractions.createEntranceAnimation(scaleAnim, opacityAnim, delay).start();
-
-    // Slide up animation for content
-    MicroInteractions.createSlideAnimation(slideUpAnim, 20, 0, 400).start();
-
-    // Collect view signal
-    if (privacySettings.allowBehaviorTracking) {
-      collectSignal(post.id, 'text', 'view', {
-        screenName: 'feed',
-        position,
-        timeSpent: 0,
-        scrollDepth: 0,
-        contentContext: {
-          authorId: post.userId,
-          contentAge: Date.now() - post.timestamp,
-          contentPopularity: post.likes / 1000, // Normalize popularity
-          contentCategory: 'social_post',
-          contentTags: [],
-          isSponsored: post.type === 'sponsored',
-          isRecommended: !!post.recommendationScore
-        }
-      });
-    }
-  }, []);
-
   const handleLike = async () => {
     const wasLiked = isLiked;
 

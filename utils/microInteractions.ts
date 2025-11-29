@@ -357,6 +357,68 @@ export class MicroInteractions {
       useNativeDriver: false, // Layout animations can't use native driver
     });
   }
+  /**
+   * Create an entrance animation (scale + fade)
+   */
+  static createEntranceAnimation(
+    scaleValue: Animated.Value,
+    opacityValue: Animated.Value,
+    delay: number = 0,
+    duration: number = 400
+  ): Animated.CompositeAnimation {
+    scaleValue.setValue(0.8);
+    opacityValue.setValue(0);
+
+    return Animated.sequence([
+      Animated.delay(delay),
+      Animated.parallel([
+        Animated.spring(scaleValue, {
+          toValue: 1,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityValue, {
+          toValue: 1,
+          duration,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]);
+  }
+
+  /**
+   * Create a simple scale animation
+   */
+  static createScaleAnimation(
+    animatedValue: Animated.Value,
+    toValue: number,
+    duration: number = 200
+  ): Animated.CompositeAnimation {
+    return Animated.timing(animatedValue, {
+      toValue,
+      duration,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: true,
+    });
+  }
+
+  /**
+   * Create an elastic animation
+   */
+  static createElasticAnimation(
+    animatedValue: Animated.Value,
+    toValue: number,
+    friction: number = 4,
+    tension: number = 40
+  ): Animated.CompositeAnimation {
+    return Animated.spring(animatedValue, {
+      toValue,
+      friction,
+      tension,
+      useNativeDriver: true,
+    });
+  }
 }
 
 /**
