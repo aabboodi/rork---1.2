@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Image, Alert, ActionSheetIOS } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Send, Paperclip, Mic, Image as ImageIcon, Wallet, Phone, Video, MoreVertical, ArrowLeft, Camera, Users, Radio, Share2, Copy, Info, Shield, Lock, Key, AlertTriangle, CheckCircle, Eye, EyeOff } from 'lucide-react-native';
+import { Send, Paperclip, Mic, Image as ImageIcon, Wallet, Phone, Video, MoreVertical, ArrowLeft, Camera, Users, Radio, Share2, Copy, Info, Shield, Lock, Key, AlertTriangle, CheckCircle, Eye, EyeOff, Check, CheckCheck } from 'lucide-react-native';
 import { MessageSecurityService } from '@/services/security/MessageSecurityService';
 import { E2EEService } from '@/services/security/E2EEService';
 import E2EEChatInterface from '@/components/E2EEChatInterface';
@@ -1292,7 +1292,8 @@ ${user.workPlace || ''}`,
     );
   };
 
-  const getDisplayName = () => {
+  const renderMessage = ({ item }: { item: Message }) => {
+    const isCurrentUser = item.senderId === userId;
     <View
       style={[
         styles.messageContainer,

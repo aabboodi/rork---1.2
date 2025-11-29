@@ -305,65 +305,6 @@ export default function SocialScreen() {
     };
 
     setPersonalizedPosts([newPost, ...personalizedPosts]);
-    setPostText('');
-    setShowCreatePost(false);
-    Alert.alert('نجح', 'تم نشر المنشور بنجاح');
-  };
-
-  const handleNotifications = () => {
-    Alert.alert('الإشعارات', 'عرض جميع الإشعارات', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'عرض الكل', onPress: () => {
-          // TODO: Navigate to notifications screen
-          Alert.alert('الإشعارات', 'لديك 5 إشعارات جديدة:\n\n• أحمد أعجب بمنشورك\n• سارة علقت على صورتك\n• محمد شارك منشورك\n• نور أرسلت لك رسالة\n• تم قبول طلب صداقتك مع علي');
-        }
-      }
-    ]);
-  };
-
-  const handleSettings = () => {
-    setShowSettings(true);
-  };
-
-  const handleSocialMessages = () => {
-    // Navigate to social messages page (separate from main chats)
-    router.push('/social/messages');
-  };
-
-  const handleLiveVideo = () => {
-    Alert.alert('بث مباشر', 'سيتم بدء البث المباشر قريباً', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'موافق', onPress: () => {
-          // TODO: Implement live streaming
-          Alert.alert('قريباً', 'ميزة البث المباشر ستكون متاحة قريباً');
-        }
-      }
-    ]);
-  };
-
-  const handlePhotoVideo = () => {
-    Alert.alert('صورة/فيديو', 'اختر مصدر الوسائط', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'الكاميرا', onPress: () => {
-          // TODO: Open camera
-          Alert.alert('الكاميرا', 'سيتم فتح الكاميرا');
-        }
-      },
-      {
-        text: 'المعرض', onPress: () => {
-          // TODO: Open gallery
-          Alert.alert('المعرض', 'سيتم فتح معرض الصور');
-        }
-      }
-    ]);
-  };
-
-  const handleFeeling = () => {
-    const feelings = ['سعيد 😊', 'حزين 😢', 'متحمس 🤩', 'غاضب 😠', 'مرتاح 😌', 'متعب 😴'];
-    const activities = ['يأكل 🍽️', 'يسافر ✈️', 'يعمل 💼', 'يدرس 📚', 'يلعب 🎮', 'يتسوق 🛍️'];
 
     Alert.alert('شعور/نشاط', 'اختر شعورك أو نشاطك الحالي', [
       { text: 'إلغاء', style: 'cancel' },
