@@ -2393,6 +2393,201 @@ export interface TransactionLimit {
   lastUpdated: number;
 }
 
+export interface Reaction {
+  id: string;
+  userId: string;
+  postId?: string;
+  clipId?: string;
+  commentId?: string;
+  type: 'like' | 'love' | 'laugh' | 'angry' | 'sad';
+  timestamp: number;
+  // Enhanced context
+  reactionContext?: {
+    timeSpentBeforeReaction: number;
+    scrollPosition: number;
+    sessionContext: string;
+  };
+}
+
+export type Language = 'ar' | 'en';
+export type ChatType = 'conversation' | 'group' | 'channel';
+export type SocialTab = 'feed' | 'clips' | 'addFriends' | 'myProfile';
+export type ContentType = 'text' | 'image' | 'video' | 'shared' | 'sponsored' | 'suggestion' | 'family';
+
+// Admin-specific types
+export interface AdminAction {
+  id: string;
+  adminId: string;
+  action: string;
+  target?: string;
+  details: any;
+  timestamp: number;
+  ipAddress?: string;
+}
+
+export interface SystemSettings {
+  maintenanceMode: boolean;
+  registrationEnabled: boolean;
+  maxUsersPerGroup: number;
+  maxFileSize: number;
+  allowedFileTypes: string[];
+  securityLevel: 'low' | 'medium' | 'high' | 'maximum';
+  rateLimits: {
+    messages: number;
+    transactions: number;
+    apiCalls: number;
+  };
+  // Enhanced E2EE settings
+  e2eeSettings: {
+    enabled: boolean;
+    mandatoryForFinancial: boolean;
+    keyRotationInterval: number;
+    allowedAlgorithms: string[];
+    requireKeyVerification: boolean;
+  };
+  // DLP settings
+  dlpSettings: {
+    enabled: boolean;
+    strictMode: boolean;
+    autoQuarantine: boolean;
+    userOverrideAllowed: boolean;
+    realTimeScanning: boolean;
+    attachmentScanning: boolean;
+  };
+}
+
+// Enhanced Security-related types
+export interface SecurityEvent {
+  id: string;
+  type: 'login' | 'logout' | 'message_sent' | 'message_received' | 'key_rotation' | 'security_violation' | 'fraud_detected' | 'transaction_signed' | 'admin_action' | 'key_exchange' | 'key_verification' | 'dlp_violation' | 'dlp_scan';
+  timestamp: number;
+  userId?: string;
+  details: any;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  ipAddress?: string;
+  deviceFingerprint?: string;
+  resolved?: boolean;
+  // Enhanced E2EE security events
+  keyExchangeData?: {
+    chatId?: string;
+    participantId?: string;
+    verificationMethod?: string;
+    securityLevel?: string;
+  };
+  // DLP security events
+  dlpData?: {
+    policyId?: string;
+    ruleId?: string;
+    violationType?: DLPCategory;
+    action?: string;
+    contentType?: string;
+  };
+}
+
+export interface EncryptionKey {
+  keyId: string;
+  algorithm: string;
+  purpose: 'E2EE' | 'storage' | 'transport' | 'transaction_signing' | 'pci_dss' | 'key_exchange' | 'signal_identity' | 'signal_prekey' | 'signal_onetime' | 'signal_ratchet';
+  createdAt: number;
+  expiresAt?: number;
+  rotationSchedule?: number;
+  // Enhanced E2EE properties
+  keyFingerprint?: string;
+  verified?: boolean;
+  usageCount?: number;
+  lastUsed?: number;
+  // Signal Protocol specific
+  signalKeyType?: 'identity' | 'signed_prekey' | 'onetime_prekey' | 'ephemeral' | 'ratchet' | 'chain' | 'message';
+  registrationId?: number;
+  deviceId?: string;
+}
+
+export interface SecurityConfig {
+  enableE2EE: boolean;
+  enableCertificatePinning: boolean;
+  enableKeyRotation: boolean;
+  sessionTimeout: number;
+  maxLoginAttempts: number;
+  requireBiometric: boolean;
+  enableFraudDetection: boolean;
+  enableTransactionSigning: boolean;
+  pciDSSCompliance: boolean;
+  enableRealTimeMonitoring: boolean;
+  // Enhanced E2EE configuration
+  e2eeConfig: {
+    mandatoryForFinancial: boolean;
+    requireKeyVerification: boolean;
+    allowAutomaticKeyRotation: boolean;
+    keyExchangeTimeout: number;
+    supportedAlgorithms: string[];
+    perfectForwardSecrecy: boolean;
+  };
+  // DLP configuration
+  dlpConfig: {
+    enabled: boolean;
+    strictMode: boolean;
+    autoQuarantine: boolean;
+    userOverrideAllowed: boolean;
+    encryptSensitiveData: boolean;
+    realTimeScanning: boolean;
+    attachmentScanning: boolean;
+    ocrScanning: boolean;
+    mlClassification: boolean;
+  };
+}
+
+// API Security types
+export interface APIRateLimit {
+  endpoint: string;
+  maxRequests: number;
+  windowMs: number;
+  blockDurationMs: number;
+}
+
+export interface InputValidationSchema {
+  endpoint: string;
+  method: string;
+  schema: {
+    [key: string]: {
+      type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+      required?: boolean;
+      minLength?: number;
+      maxLength?: number;
+      pattern?: string;
+      min?: number;
+      max?: number;
+    };
+  };
+}
+
+export interface ThreatDetectionResult {
+  threatDetected: boolean;
+  threatType: 'sql_injection' | 'xss' | 'csrf' | 'brute_force' | 'anomaly' | 'fraud' | 'key_compromise' | 'mitm_attack' | 'dlp_violation';
+  riskScore: number;
+  blockedRequest: boolean;
+  timestamp: number;
+}
+
+export interface ComplianceAudit {
+  auditId: string;
+  auditType: 'pci_dss' | 'gdpr' | 'security_review' | 'fraud_investigation' | 'e2ee_compliance' | 'dlp_compliance';
+  timestamp: number;
+  auditor: string;
+  findings: string[];
+  complianceScore: number;
+  recommendations: string[];
+  status: 'passed' | 'failed' | 'requires_action';
+}
+
+// Financial Security types
+export interface TransactionLimit {
+  currency: string;
+  dailyLimit: number;
+  monthlyLimit: number;
+  singleTransactionLimit: number;
+  lastUpdated: number;
+}
+
 export interface AntiFraudRule {
   ruleId: string;
   ruleName: string;
@@ -2406,4 +2601,36 @@ export interface KeyVerificationResult {
   error?: string;
   timestamp: number;
   method?: 'manual' | 'biometric' | 'automatic';
+}
+
+export interface KeyExchangeSession {
+  sessionId: string;
+  chatId: string;
+  participantId: string;
+  status: 'pending' | 'key_exchange' | 'established' | 'verified' | 'failed';
+  keyFingerprint?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type DLPCategory = 'financial' | 'personal' | 'health' | 'profanity' | 'custom';
+
+export interface DLPViolation {
+  category: DLPCategory;
+  matches: string[];
+  confidence: number;
+  startIndex: number;
+  endIndex: number;
+}
+
+export interface E2EEMessage {
+  id: string;
+  senderId: string;
+  content: string; // Encrypted content
+  timestamp: number;
+  protocolVersion: number;
+  iv: string;
+  senderKeyId?: number;
+  receiverKeyId?: number;
+  signature?: string;
 }
